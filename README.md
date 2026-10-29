@@ -1,5 +1,9 @@
 # CatByte — Pencil & Paper Sketch Edition
 
+<p align="center">
+  <img src="asset/icon/catbytee.png" alt="CatByte App Icon" width="180" height="180">
+</p>
+
 A video editor built with **Jetpack Compose** and **Kotlin**, featuring a hand-drawn sketchbook aesthetic. Designed for short-form creators (Reels, Shorts, TikTok) who want a tactile, pencil-on-paper editing experience.
 
 ---
@@ -17,7 +21,7 @@ A video editor built with **Jetpack Compose** and **Kotlin**, featuring a hand-d
 
 ### P1 UX & Functionality
 - **Home screen**: Saveable tab/filter/dialog state, delete confirmation with timed Undo bar, honest quick-tool Toasts, real profile stats
-- **Settings dialog**: Language selector (System / English / বাংলা), real cache size/clear, version from `BuildConfig`, watermark toggle
+- **Settings page**: Opens as a dedicated full-screen page (no popup dialog) with back navigation, language selector (System / English / বাংলা), real cache size/clear, version from `BuildConfig`, watermark toggle
 - **Export dialog**: Saveable resolution/FPS, default from settings, watermark preview, Cancel during export, honest share messaging
 - **Editor**: Adaptive timeline height, runtime `RECORD_AUDIO` permission flow
 
@@ -55,7 +59,8 @@ app/
 │   │   └── MultiTrackTimeline.kt
 │   └── screens/
 │       ├── HomeScreen.kt       # Drafts, templates, inbox, profile
-│       └── EditorScreen.kt     # Timeline + canvas + tool sheets
+│       ├── EditorScreen.kt     # Timeline + canvas + tool sheets
+│       └── SettingsScreen.kt   # Full-screen settings page (not a popup)
 ├── viewmodel/
 │   ├── EditorViewModel.kt      # Core editing state + settings bridge
 │   └── EditorViewModelFactory.kt

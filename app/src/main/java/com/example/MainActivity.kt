@@ -3,6 +3,7 @@ package com.example
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -27,9 +28,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.LocaleUtils
 import com.example.model.AspectRatioType
-import com.example.ui.components.CapCutSettingsDialog
 import com.example.ui.screens.EditorScreen
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.SettingsScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.paperNotebookBackground
@@ -38,7 +39,8 @@ import com.example.viewmodel.EditorViewModelFactory
 
 enum class AppScreen {
     HOME,
-    EDITOR
+    EDITOR,
+    SETTINGS
 }
 
 class MainActivity : ComponentActivity() {
@@ -56,7 +58,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val appThemeMode by viewModel.appThemeMode.collectAsStateWithLifecycle()
-            val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
             val defaultResolution by viewModel.defaultResolution.collectAsStateWithLifecycle()
             val defaultFps by viewModel.defaultFps.collectAsStateWithLifecycle()
             val showPaperGrid by viewModel.showPaperGrid.collectAsStateWithLifecycle()
@@ -100,26 +101,6 @@ class MainActivity : ComponentActivity() {
                         viewModel = viewModel,
                         onOpenSettings = { viewModel.openSettings() }
                     )
-
-                    if (isSettingsOpen) {
-                        CapCutSettingsDialog(
-                            currentThemeMode = appThemeMode,
-                            defaultResolution = defaultResolution,
-                            defaultFps = defaultFps,
-                            showPaperGrid = showPaperGrid,
-                            watermarkEnabled = watermarkEnabled,
-                            cacheSizeMb = cacheSizeMb,
-                            appLanguage = appLanguage,
-                            onSelectTheme = { viewModel.setAppThemeMode(it) },
-                            onSelectResolution = { viewModel.setDefaultResolution(it) },
-                            onSelectFps = { viewModel.setDefaultFps(it) },
-                            onTogglePaperGrid = { viewModel.togglePaperGrid(it) },
-                            onToggleWatermark = { viewModel.toggleWatermark(it) },
-                            onSelectLanguage = { viewModel.setAppLanguage(it) },
-                            onClearCache = { viewModel.clearCache() },
-                            onDismiss = { viewModel.closeSettings() }
-                        )
-                    }
                 }
             }
         }
@@ -132,7 +113,31 @@ fun CapCutApp(
     onOpenSettings: () -> Unit
 ) {
     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.HOME) }
+    // Remember where to return to when the Settings page is closed.
+    var settingsReturnScreen by rememberSaveable { mutableStateOf(AppScreen.HOME) }
+
     val projects by viewModel.projects.collectAsStateWithLifecycle()
+    val appThemeMode by viewModel.appThemeMode.collectAsStateWithLifecycle()
+    val defaultResolution by viewModel.defaultResolution.collectAsStateWithLifecycle()
+    val defaultFps by viewModel.defaultFps.collectAsStateWithLifecycle()
+    val showPaperGrid by viewModel.showPaperGrid.collectAsStateWithLifecycle()
+    val watermarkEnabled by viewModel.watermarkEnabled.collectAsStateWithLifecycle()
+    val cacheSizeMb by viewModel.cacheSizeMb.collectAsStateWithLifecycle()
+    val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
+
+    // Settings is a dedicated screen, not a popup: remember the origin screen.
+    val navigateToSettings: () -> Unit = {
+        if (currentScreen != AppScreen.SETTINGS) {
+            settingsReturnScreen = currentScreen
+        }
+        currentScreen = AppScreen.SETTINGS
+        onOpenSettings()
+    }
+
+    val closeSettings: () -> Unit = {
+        currentScreen = settingsReturnScreen
+        viewModel.closeSettings()
+    }
 
     AnimatedContent(
         targetState = currentScreen,
@@ -178,7 +183,7 @@ fun CapCutApp(
                     onRestoreProject = { project ->
                         viewModel.restoreProject(project)
                     },
-                    onOpenSettings = onOpenSettings
+                    onOpenSettings = { navigateToSettings() }
                 )
             }
             AppScreen.EDITOR -> {
@@ -187,7 +192,29 @@ fun CapCutApp(
                     onBackToHome = {
                         currentScreen = AppScreen.HOME
                     },
-                    onOpenSettings = onOpenSettings
+                    onOpenSettings = { navigateToSettings() }
+                )
+            }
+            AppScreen.SETTINGS -> {
+                // Hardware / gesture back returns to the screen we came from.
+                BackHandler { closeSettings() }
+
+                SettingsScreen(
+                    currentThemeMode = appThemeMode,
+                    defaultResolution = defaultResolution,
+                    defaultFps = defaultFps,
+                    showPaperGrid = showPaperGrid,
+                    watermarkEnabled = watermarkEnabled,
+                    cacheSizeMb = cacheSizeMb,
+                    appLanguage = appLanguage,
+                    onSelectTheme = { viewModel.setAppThemeMode(it) },
+                    onSelectResolution = { viewModel.setDefaultResolution(it) },
+                    onSelectFps = { viewModel.setDefaultFps(it) },
+                    onTogglePaperGrid = { viewModel.togglePaperGrid(it) },
+                    onToggleWatermark = { viewModel.toggleWatermark(it) },
+                    onSelectLanguage = { viewModel.setAppLanguage(it) },
+                    onClearCache = { viewModel.clearCache() },
+                    onBack = { closeSettings() }
                 )
             }
         }
