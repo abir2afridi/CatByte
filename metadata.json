@@ -1,0 +1,6 @@
+{
+  "name": "CatByte",
+  "description": "Professional video editor with multi-track timeline, visual effects, filters, audio library, velocity curves, templates, and 4K export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
