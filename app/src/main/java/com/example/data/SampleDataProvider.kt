@@ -90,12 +90,12 @@ object SampleDataProvider {
             clipCount = 4,
             musicName = "Midnight Phonk (Speed Up)",
             usesCount = "4.8M",
-            coverResId = R.drawable.img_template_cinematic,
+            coverResId = 0,
             sampleClips = listOf(
                 MediaClip(
                     id = "c1",
                     title = "City Neon Intro",
-                    drawableResId = R.drawable.img_template_cinematic,
+                    gradientColors = listOf(0xFF0F0F23, 0xFF1A1A4A, 0xFF0D0D1A),
                     durationMs = 2500L,
                     speed = 1.0f,
                     transition = TransitionType.FLASH_WHITE,
@@ -104,7 +104,7 @@ object SampleDataProvider {
                 MediaClip(
                     id = "c2",
                     title = "Velocity Beat Drop",
-                    drawableResId = R.drawable.img_template_cinematic,
+                    gradientColors = listOf(0xFF1A0A2E, 0xFF16213E, 0xFF0F3460),
                     durationMs = 2800L,
                     speed = 1.6f,
                     transition = TransitionType.WHIP_PAN,
@@ -113,7 +113,7 @@ object SampleDataProvider {
                 MediaClip(
                     id = "c3",
                     title = "Coastal Sunset Glow",
-                    drawableResId = R.drawable.img_template_vlog,
+                    gradientColors = listOf(0xFF2D1B3E, 0xFF8B3A3A, 0xFFE07B39),
                     durationMs = 3000L,
                     speed = 0.8f,
                     transition = TransitionType.ZOOM_IN,
@@ -122,7 +122,7 @@ object SampleDataProvider {
                 MediaClip(
                     id = "c4",
                     title = "Outro Reel Cut",
-                    drawableResId = R.drawable.img_template_cinematic,
+                    gradientColors = listOf(0xFF0D0D0D, 0xFF1A1A2E, 0xFF16213E),
                     durationMs = 2700L,
                     speed = 1.2f,
                     filter = VideoFilter.CYBERPUNK
@@ -139,12 +139,12 @@ object SampleDataProvider {
             clipCount = 3,
             musicName = "Golden Hour Glow",
             usesCount = "2.1M",
-            coverResId = R.drawable.img_template_vlog,
+            coverResId = 0,
             sampleClips = listOf(
                 MediaClip(
                     id = "v1",
                     title = "Palm Tree Horizon",
-                    drawableResId = R.drawable.img_template_vlog,
+                    gradientColors = listOf(0xFF1B4D3E, 0xFF2D8D4C, 0xFF4CAF50),
                     durationMs = 4000L,
                     transition = TransitionType.DISSOLVE,
                     filter = VideoFilter.GOLDEN_HOUR
@@ -152,7 +152,7 @@ object SampleDataProvider {
                 MediaClip(
                     id = "v2",
                     title = "Neon Downtown Ride",
-                    drawableResId = R.drawable.img_template_cinematic,
+                    gradientColors = listOf(0xFF1A0033, 0xFF2D0066, 0xFF4A0099),
                     durationMs = 5000L,
                     transition = TransitionType.FADE_BLACK,
                     filter = VideoFilter.TEAL_ORANGE
@@ -160,7 +160,7 @@ object SampleDataProvider {
                 MediaClip(
                     id = "v3",
                     title = "Sunset Golden Waves",
-                    drawableResId = R.drawable.img_template_vlog,
+                    gradientColors = listOf(0xFF3E2723, 0xFF5D4037, 0xFF8D6E63),
                     durationMs = 5000L,
                     filter = VideoFilter.VINTAGE
                 )
@@ -176,12 +176,12 @@ object SampleDataProvider {
             clipCount = 3,
             musicName = "Trap Glitch & Drop",
             usesCount = "920K",
-            coverResId = R.drawable.img_template_cinematic,
+            coverResId = 0,
             sampleClips = listOf(
                 MediaClip(
                     id = "t1",
                     title = "Dark City Awakening",
-                    drawableResId = R.drawable.img_template_cinematic,
+                    gradientColors = listOf(0xFF0A0A0A, 0xFF1C1C1C, 0xFF2D2D2D),
                     durationMs = 3200L,
                     transition = TransitionType.GLITCH,
                     filter = VideoFilter.NOIR
@@ -189,7 +189,7 @@ object SampleDataProvider {
                 MediaClip(
                     id = "t2",
                     title = "Cyber Chase Sequence",
-                    drawableResId = R.drawable.img_template_cinematic,
+                    gradientColors = listOf(0xFF001F3F, 0xFF003366, 0xFF0074D9),
                     durationMs = 3800L,
                     transition = TransitionType.FLASH_WHITE,
                     filter = VideoFilter.CYBERPUNK
@@ -197,7 +197,7 @@ object SampleDataProvider {
                 MediaClip(
                     id = "t3",
                     title = "Epic Dawn Climax",
-                    drawableResId = R.drawable.img_template_vlog,
+                    gradientColors = listOf(0xFF3E1A1A, 0xFF6B2D2D, 0xFFB22222),
                     durationMs = 3000L,
                     filter = VideoFilter.TEAL_ORANGE
                 )
@@ -211,12 +211,11 @@ object SampleDataProvider {
             id = "proj_cyberpunk_reel",
             title = "Tokyo Neon Reel ⚡",
             aspectRatio = AspectRatioType.RATIO_9_16,
-            thumbnailResId = R.drawable.img_template_cinematic,
             clips = listOf(
                 MediaClip(
                     id = "clip_01",
                     title = "Neon District Intro",
-                    drawableResId = R.drawable.img_template_cinematic,
+                    gradientColors = listOf(0xFF0F0F23, 0xFF1A1A4A, 0xFF0D0D1A),
                     durationMs = 3500L,
                     speed = 1.0f,
                     filter = VideoFilter.CYBERPUNK,
@@ -225,7 +224,7 @@ object SampleDataProvider {
                 MediaClip(
                     id = "clip_02",
                     title = "Speed Ramp Drop",
-                    drawableResId = R.drawable.img_template_cinematic,
+                    gradientColors = listOf(0xFF1A0A2E, 0xFF16213E, 0xFF0F3460),
                     durationMs = 2800L,
                     speed = 1.4f,
                     filter = VideoFilter.GLITCH_ART,
@@ -234,7 +233,7 @@ object SampleDataProvider {
                 MediaClip(
                     id = "clip_03",
                     title = "Sunset Coast View",
-                    drawableResId = R.drawable.img_template_vlog,
+                    gradientColors = listOf(0xFF2D1B3E, 0xFF8B3A3A, 0xFFE07B39),
                     durationMs = 3200L,
                     speed = 0.9f,
                     filter = VideoFilter.TEAL_ORANGE
@@ -301,12 +300,11 @@ object SampleDataProvider {
             id = "proj_summer_vlog",
             title = "Summer Roadtrip Vlog 🌴",
             aspectRatio = AspectRatioType.RATIO_9_16,
-            thumbnailResId = R.drawable.img_template_vlog,
             clips = listOf(
                 MediaClip(
                     id = "c_vlog_01",
                     title = "Coastal Palms",
-                    drawableResId = R.drawable.img_template_vlog,
+                    gradientColors = listOf(0xFF1B4D3E, 0xFF2D8D4C, 0xFF4CAF50),
                     durationMs = 4500L,
                     filter = VideoFilter.GOLDEN_HOUR,
                     transition = TransitionType.DISSOLVE
@@ -314,7 +312,7 @@ object SampleDataProvider {
                 MediaClip(
                     id = "c_vlog_02",
                     title = "Sunset Waves",
-                    drawableResId = R.drawable.img_template_vlog,
+                    gradientColors = listOf(0xFF3E2723, 0xFF5D4037, 0xFF8D6E63),
                     durationMs = 4000L,
                     filter = VideoFilter.VINTAGE
                 )
@@ -348,14 +346,13 @@ object SampleDataProvider {
             id = "proj_sketch_blueprint",
             title = "Architect's Blueprint 📐",
             aspectRatio = AspectRatioType.RATIO_16_9,
-            thumbnailResId = R.drawable.img_template_cinematic,
             isFavorite = true,
             paperStyle = "Drafting Grid",
             clips = listOf(
                 MediaClip(
                     id = "c_blue_01",
                     title = "Blueprint Structural Draft",
-                    drawableResId = R.drawable.img_template_cinematic,
+                    gradientColors = listOf(0xFF001F3F, 0xFF003366, 0xFF0074D9),
                     durationMs = 4000L,
                     filter = VideoFilter.BLUEPRINT,
                     transition = TransitionType.PAGE_FLIP
@@ -363,7 +360,7 @@ object SampleDataProvider {
                 MediaClip(
                     id = "c_blue_02",
                     title = "Graphite Elevation Sketch",
-                    drawableResId = R.drawable.img_template_vlog,
+                    gradientColors = listOf(0xFF1A1A1A, 0xFF2D2D2D, 0xFF3D3D3D),
                     durationMs = 3800L,
                     filter = VideoFilter.SKETCH_GRAPHITE
                 )

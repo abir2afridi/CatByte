@@ -152,7 +152,7 @@ data class VideoProject(
     val textOverlays: List<TextOverlay> = emptyList(),
     val stickers: List<StickerOverlay> = emptyList(),
     val effects: List<TimelineEffect> = emptyList(),
-    val thumbnailResId: Int? = R.drawable.img_template_cinematic,
+    val thumbnailResId: Int? = null,
     val lastModified: Long = System.currentTimeMillis(),
     val resolution: String = "1080P",
     val fps: Int = 30,
@@ -178,7 +178,7 @@ data class VideoTemplate(
     val clipCount: Int,
     val musicName: String,
     val usesCount: String,
-    val coverResId: Int,
+    val coverResId: Int = 0,
     val sampleClips: List<MediaClip>,
     val audioTrack: AudioClip
 )

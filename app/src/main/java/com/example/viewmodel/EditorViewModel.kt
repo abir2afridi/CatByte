@@ -256,14 +256,14 @@ class EditorViewModel(
             MediaClip(
                 id = UUID.randomUUID().toString(),
                 title = "Scene 1 (Sketch)",
-                drawableResId = R.drawable.img_template_cinematic,
+                gradientColors = listOf(0xFF1A1A1A, 0xFF2D2D2D, 0xFF3D3D3D),
                 durationMs = 3500L,
                 filter = VideoFilter.SKETCH_GRAPHITE
             ),
             MediaClip(
                 id = UUID.randomUUID().toString(),
                 title = "Scene 2 (Blueprint)",
-                drawableResId = R.drawable.img_template_vlog,
+                gradientColors = listOf(0xFF001F3F, 0xFF003366, 0xFF0074D9),
                 durationMs = 4000L,
                 filter = VideoFilter.BLUEPRINT
             )
