@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +52,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -60,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.transform.CircleCropTransformation
+import com.example.R
 import com.example.model.AspectRatioType
 import com.example.model.EffectType
 import com.example.model.MediaClip
@@ -72,6 +75,9 @@ import com.example.ui.theme.DraftingCropCorners
 import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.WashiTapeCorner
 import com.example.ui.theme.sketchPencilBorder
+
+/** Provides the shared ExoPlayer to the video canvas for real playback. */
+val LocalVideoPlayer = compositionLocalOf<androidx.media3.common.Player?> { null }
 
 @Composable
 fun VideoCanvas(
@@ -202,14 +208,14 @@ fun VideoCanvas(
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
-                        text = "No media clips",
+                        text = stringResource(R.string.no_media_clips),
                         color = Color.LightGray,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Tap '+' on timeline to add footage",
+                        text = stringResource(R.string.tap_plus_add_footage),
                         color = Color.Gray,
                         textAlign = TextAlign.Center,
                         fontSize = 11.sp
@@ -496,16 +502,32 @@ private fun RenderClipVisual(
             .scale(if (clip.isMirrored) -1f else 1f, 1f)
     ) {
         if (clip.uriString != null) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(clip.uriString)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = clip.title,
-                contentScale = ContentScale.Crop,
-                colorFilter = colorFilter,
-                modifier = Modifier.fillMaxSize()
-            )
+            // Real video frame via ExoPlayer when available, else thumbnail via Coil
+            var showVideo by remember(clip.uriString) { mutableStateOf(true) }
+            val player = LocalVideoPlayer.current
+            if (showVideo && player != null) {
+                androidx.compose.ui.viewinterop.AndroidView(
+                    factory = { ctx ->
+                        androidx.media3.ui.PlayerView(ctx).apply {
+                            this.player = player
+                            useController = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(clip.uriString)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = clip.title,
+                    contentScale = ContentScale.Crop,
+                    colorFilter = colorFilter,
+                    modifier = Modifier.fillMaxSize(),
+                    onError = { showVideo = false }
+                )
+            }
         } else if (clip.drawableResId != null) {
             Image(
                 painter = painterResource(id = clip.drawableResId),

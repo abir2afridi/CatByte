@@ -6,7 +6,6 @@ import com.example.R
 import com.example.data.AppLanguage
 import com.example.data.CacheManager
 import com.example.data.ProjectRepository
-import com.example.data.SampleDataProvider
 import com.example.data.SettingsRepository
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
@@ -59,10 +58,13 @@ data class ExportUiState(
     val videoPath: String = ""
 )
 
+@androidx.media3.common.util.UnstableApi
 class EditorViewModel(
     private val repository: ProjectRepository = ProjectRepository(),
     private val settingsRepository: SettingsRepository? = null,
-    private val cacheManager: CacheManager? = null
+    private val cacheManager: CacheManager? = null,
+    private val playerManager: com.example.data.PlayerManager? = null,
+    private val exportManager: com.example.data.ExportManager? = null
 ) : ViewModel() {
 
     private val _projects = repository.projects
@@ -226,6 +228,7 @@ class EditorViewModel(
 
     fun openProject(project: VideoProject) {
         pausePlayback()
+        playerManager?.loadProject(project)
         _currentProject.value = project
         _currentPositionMs.value = 0L
         _selectedClipId.value = project.clips.firstOrNull()?.id
@@ -283,16 +286,6 @@ class EditorViewModel(
         createNewProjectWithParams("Notebook Draft #${System.currentTimeMillis() % 1000}")
     }
 
-    fun createFromTemplate(templateId: String) {
-        val tpl = SampleDataProvider.templates.find { it.id == templateId } ?: return
-        val proj = repository.createFromTemplate(
-            tpl,
-            resolution = _defaultResolution.value,
-            fps = _defaultFps.value
-        )
-        openProject(proj)
-    }
-
     fun duplicateProject(id: String) {
         repository.duplicateProject(id)
     }
@@ -348,21 +341,42 @@ class EditorViewModel(
         val totalMs = project.totalDurationMs
         if (_currentPositionMs.value >= totalMs) {
             _currentPositionMs.value = 0L
+            playerManager?.seekTo(0L)
         }
         _isPlaying.value = true
 
-        playbackJob?.cancel()
-        playbackJob = viewModelScope.launch {
-            val stepMs = 50L
-            while (isActive && _isPlaying.value) {
-                delay(stepMs)
-                val newPos = _currentPositionMs.value + stepMs
-                if (newPos >= totalMs) {
-                    _currentPositionMs.value = totalMs
-                    _isPlaying.value = false
-                    break
-                } else {
-                    _currentPositionMs.value = newPos
+        if (playerManager != null) {
+            // Real ExoPlayer playback
+            playerManager.loadProject(project)
+            playerManager.seekTo(_currentPositionMs.value)
+            playerManager.play()
+            playbackJob?.cancel()
+            playbackJob = viewModelScope.launch {
+                while (isActive && _isPlaying.value) {
+                    delay(50L)
+                    playerManager.syncPosition()
+                    _currentPositionMs.value = playerManager.currentPositionMs.value
+                    if (!playerManager.isPlaying.value) {
+                        _isPlaying.value = false
+                        break
+                    }
+                }
+            }
+        } else {
+            // Fallback simulated playback
+            playbackJob?.cancel()
+            playbackJob = viewModelScope.launch {
+                val stepMs = 50L
+                while (isActive && _isPlaying.value) {
+                    delay(stepMs)
+                    val newPos = _currentPositionMs.value + stepMs
+                    if (newPos >= totalMs) {
+                        _currentPositionMs.value = totalMs
+                        _isPlaying.value = false
+                        break
+                    } else {
+                        _currentPositionMs.value = newPos
+                    }
                 }
             }
         }
@@ -372,11 +386,14 @@ class EditorViewModel(
         _isPlaying.value = false
         playbackJob?.cancel()
         playbackJob = null
+        playerManager?.pause()
     }
 
     fun seekTo(positionMs: Long) {
         val project = _currentProject.value ?: return
-        _currentPositionMs.value = positionMs.coerceIn(0L, project.totalDurationMs)
+        val clamped = positionMs.coerceIn(0L, project.totalDurationMs)
+        _currentPositionMs.value = clamped
+        playerManager?.seekTo(clamped)
     }
 
     fun stepForward() {
@@ -793,6 +810,7 @@ class EditorViewModel(
         resolution: String = _defaultResolution.value,
         fps: Int = _defaultFps.value
     ) {
+        val project = _currentProject.value ?: return
         pausePlayback()
         exportJob?.cancel()
         _exportState.value = ExportUiState(
@@ -804,34 +822,54 @@ class EditorViewModel(
         )
 
         exportJob = viewModelScope.launch {
-            val stages = listOf(
-                "Analyzing clips & keyframes..." to 0.20f,
-                "Rendering transitions & color grading..." to 0.50f,
-                "Synthesizing audio tracks & voiceover..." to 0.75f,
-                "Encoding MP4 (${resolution} ${fps}fps)..." to 0.95f,
-                "Finalizing video file..." to 1.0f
-            )
-
-            for ((stageText, targetProgress) in stages) {
-                val startProgress = _exportState.value.progress
-                val steps = 8
-                for (s in 1..steps) {
-                    delay(80L)
-                    val p = startProgress + (targetProgress - startProgress) * (s.toFloat() / steps)
+            if (exportManager != null) {
+                // Real export via Media3 Transformer
+                val path = exportManager.export(project, resolution, fps)
+                if (path != null) {
                     _exportState.value = _exportState.value.copy(
-                        progress = p,
-                        stage = stageText
+                        isExporting = false,
+                        isCompleted = true,
+                        progress = 1.0f,
+                        stage = "Export complete!",
+                        videoPath = path
+                    )
+                } else {
+                    _exportState.value = _exportState.value.copy(
+                        isExporting = false,
+                        stage = exportManager.progress.value.error ?: "Export failed"
                     )
                 }
-            }
+            } else {
+                // Fallback simulated export
+                val stages = listOf(
+                    "Analyzing clips & keyframes..." to 0.20f,
+                    "Rendering transitions & color grading..." to 0.50f,
+                    "Synthesizing audio tracks & voiceover..." to 0.75f,
+                    "Encoding MP4 (${resolution} ${fps}fps)..." to 0.95f,
+                    "Finalizing video file..." to 1.0f
+                )
 
-            _exportState.value = _exportState.value.copy(
-                isExporting = false,
-                isCompleted = true,
-                progress = 1.0f,
-                stage = "Export complete!",
-                videoPath = "/storage/emulated/0/Movies/CapCut/Export_${System.currentTimeMillis()}.mp4"
-            )
+                for ((stageText, targetProgress) in stages) {
+                    val startProgress = _exportState.value.progress
+                    val steps = 8
+                    for (s in 1..steps) {
+                        delay(80L)
+                        val p = startProgress + (targetProgress - startProgress) * (s.toFloat() / steps)
+                        _exportState.value = _exportState.value.copy(
+                            progress = p,
+                            stage = stageText
+                        )
+                    }
+                }
+
+                _exportState.value = _exportState.value.copy(
+                    isExporting = false,
+                    isCompleted = true,
+                    progress = 1.0f,
+                    stage = "Export complete!",
+                    videoPath = "/storage/emulated/0/Movies/CatByte/Export_${System.currentTimeMillis()}.mp4"
+                )
+            }
         }
     }
 
@@ -844,6 +882,7 @@ class EditorViewModel(
 
     /** Stops an in-flight render and closes the export sheet. */
     fun cancelExport() {
+        exportManager?.cancel()
         dismissExport()
     }
 

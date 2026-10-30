@@ -20,10 +20,10 @@ A video editor built with **Jetpack Compose** and **Kotlin**, featuring a hand-d
 - **Speed ramping** (velocity curves) and clip adjustments (brightness, contrast, saturation, vignette)
 
 ### P1 UX & Functionality
-- **Home screen**: Saveable tab/filter/dialog state, delete confirmation with timed Undo bar, honest quick-tool Toasts, real profile stats
-- **Settings page**: Opens as a dedicated full-screen page (no popup dialog) with back navigation, language selector (System / English / বাংলা), real cache size/clear, version from `BuildConfig`, watermark toggle
-- **Export dialog**: Saveable resolution/FPS, default from settings, watermark preview, Cancel during export, honest share messaging
-- **Editor**: Adaptive timeline height, runtime `RECORD_AUDIO` permission flow
+- **Home screen**: Saveable tab/filter/dialog state, delete confirmation with a 5-second Undo bar, honest quick-tool Toasts, real profile stats
+- **Settings popup**: Opens as a modal popup over the current screen (tap outside or press back to dismiss) with theme, language (System / English / বাংলা), cache size/clear, default export quality, watermark toggle, and version info
+- **Export dialog**: Saveable resolution/FPS, defaults from Settings, watermark preview, Cancel during export, honest share messaging
+- **Editor**: Fixed 175 dp timeline, runtime `RECORD_AUDIO` permission flow
 
 ### P2 Code Quality
 - **DataStore Preferences** for persistent settings (theme, resolution, FPS, grid, watermark, language)
@@ -33,10 +33,19 @@ A video editor built with **Jetpack Compose** and **Kotlin**, featuring a hand-d
 - **Test compatibility**: `EditorViewModel(repository)` constructor preserved for existing unit tests
 
 ### P3 Polish
-- **Bengali (bn) localization** for key settings/home strings
+- **Bengali (bn) localization** for key settings and home strings
 - **Platform splash screen** (API 31+) with sketchbook branding
 - **Adaptive icon** with monochrome support
 - **Manifest**: `enableOnBackInvokedCallback`, `localeConfig`, `configChanges="...|locale"`
+
+### System Logs (Debugging)
+- **Real crash and error capture** through an uncaught-exception handler
+- **Persistent log file** (`filesDir/logs/catbyte.log`) so reports survive a crash or restart
+- **Searchable, filterable log list** with level badges, saved-session markers, and expandable stack traces
+- **Copy all / copy single entry** and **download as `.txt`** through the Storage Access Framework (no storage permission required)
+- **Clear logs** with a confirmation dialog
+
+No demo template catalogue is bundled. The app focuses on the user's own projects and imported footage.
 
 ---
 
@@ -47,6 +56,7 @@ app/
 ├── data/
 │   ├── AppLanguage.kt          # SYSTEM | ENGLISH | BENGALI
 │   ├── AppContainer.kt         # Manual DI container
+│   ├── AppLog.kt               # Ring buffer, file persistence, crash handler
 │   ├── CacheManager.kt         # Cache size + clear
 │   ├── LocaleUtils.kt          # Per-app locale via attachBaseContext
 │   ├── ProjectRepository.kt    # In-memory project CRUD + restore
@@ -55,17 +65,17 @@ app/
 │   ├── components/
 │   │   ├── VideoCanvas.kt      # Preview with pulse, watermark, placeholders
 │   │   ├── ExportDialog.kt     # Standalone export sheet
-│   │   ├── SettingsDialog.kt
 │   │   └── MultiTrackTimeline.kt
 │   └── screens/
-│       ├── HomeScreen.kt       # Drafts, templates, inbox, profile
+│       ├── HomeScreen.kt       # Drafts, inbox, profile
 │       ├── EditorScreen.kt     # Timeline + canvas + tool sheets
-│       └── SettingsScreen.kt   # Full-screen settings page (not a popup)
+│       ├── SettingsScreen.kt   # Settings content hosted in a modal popup
+│       └── SystemLogsScreen.kt # Crash/error viewer, copy and download
 ├── viewmodel/
 │   ├── EditorViewModel.kt      # Core editing state + settings bridge
 │   └── EditorViewModelFactory.kt
-├── CatByteApplication.kt       # App entry + DI init
-└── MainActivity.kt             # Screen nav, locale wrap, lifecycle
+├── CatByteApplication.kt       # App entry + logging + DI init
+└── MainActivity.kt             # Screen nav, settings popup, locale wrap
 ```
 
 ---
@@ -88,26 +98,27 @@ app/
 
 | Library | Version |
 |---------|---------|
-| Compose BOM | 2024.09.00 |
+| Compose BOM | 2025.01.01 |
 | Kotlin | 2.2.10 |
-| DataStore Preferences | 1.1.7 |
+| Android Gradle Plugin | 9.5.0 |
+| DataStore Preferences | 1.3.0 |
 | Coil Compose | 2.7.0 |
-| Room | 2.7.0 (configured, unused for P1-P3) |
-| Lifecycle/ViewModel/Compose | 2.8.7 |
-| Navigation Compose | 2.8.9 |
+| Lifecycle / ViewModel / Compose | 2.8.7 |
+| Activity Compose | 1.10.1 |
+| Media3 (ExoPlayer / Transformer) | 1.11.1 |
 
 ---
 
 ## 🎯 Scope Notes
 
 **Implemented (P1–P3):**
-- All UX flows, settings, export dialog, localization, splash, DI, DataStore, cache, tests
+- All UX flows, settings popup, export dialog, localization, splash, DI, DataStore, cache, system logs, tests
 
-**Out of Scope (P0 – not attempted):**
-- Real video playback/rendering (still simulated with honest messaging)
+**Out of Scope or Partial:**
+- Not every creative filter/effect is burned into exported video yet; the UI does not claim otherwise
 - Release signing cleanup (keystore env vars remain)
 - Room persistence for projects (in-memory only)
-- Full string localization (~300 hardcoded strings)
+- Full string localization (~300 hardcoded strings remain in UI code)
 
 ---
 

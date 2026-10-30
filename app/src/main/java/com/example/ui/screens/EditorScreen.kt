@@ -65,9 +65,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.model.VideoProject
 import com.example.ui.components.AdjustmentsSheet
 import com.example.ui.components.AudioSheet
@@ -137,7 +139,7 @@ fun EditorScreen(
             modifier = Modifier.fillMaxSize().background(colors.background),
             contentAlignment = Alignment.Center
         ) {
-            Text("No active project", color = colors.textPrimary)
+            Text(stringResource(R.string.no_active_project), color = colors.textPrimary)
         }
         return
     }
@@ -163,18 +165,27 @@ fun EditorScreen(
         )
 
         // 2. Sketched Video Preview Canvas
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val videoPlayer = androidx.compose.runtime.remember(context) {
+            (context.applicationContext as? com.example.CatByteApplication)
+                ?.container?.playerManager?.exoPlayer
+        }
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            VideoCanvas(
-                project = project!!,
-                currentPositionMs = currentPositionMs,
-                isPlaying = isPlaying,
-                onTogglePlay = { viewModel.togglePlayback() },
-                modifier = Modifier.fillMaxSize()
-            )
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.example.ui.components.LocalVideoPlayer provides videoPlayer
+            ) {
+                VideoCanvas(
+                    project = project!!,
+                    currentPositionMs = currentPositionMs,
+                    isPlaying = isPlaying,
+                    onTogglePlay = { viewModel.togglePlayback() },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
 
         // 3. Playback Controls & Quick Split Strip

@@ -59,7 +59,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
@@ -67,10 +66,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.window.Dialog
@@ -91,6 +86,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -98,10 +94,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.offset
 import com.example.BuildConfig
-import com.example.data.SampleDataProvider
+import com.example.R
 import com.example.model.AspectRatioType
 import com.example.model.VideoProject
-import com.example.model.VideoTemplate
 import com.example.ui.theme.MetalPaperclip
 import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.TornPaperEdge
@@ -119,7 +114,6 @@ fun HomeScreen(
     onCreateCustomProject: (title: String, ratio: AspectRatioType, paperStyle: String) -> Unit = { _, _, _ -> },
     onToggleFavorite: (String) -> Unit = {},
     onAddMediaClips: (List<Uri>) -> Unit,
-    onUseTemplate: (String) -> Unit,
     onDuplicateProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
     onRestoreProject: (VideoProject) -> Unit = {}, // NEW: undo delete
@@ -127,8 +121,6 @@ fun HomeScreen(
 ) {
     val colors = PencilTheme.colors
     var selectedBottomNav by rememberSaveable { mutableIntStateOf(0) }
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf("Drafts (Notebook)", "Templates (Storyboards)")
 
     var showNewProjectDialog by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -148,6 +140,15 @@ fun HomeScreen(
                 else -> true
             }
             matchesSearch && matchesFilter
+        }
+    }
+
+    // Hide the Undo bar automatically after a short grace period.
+    LaunchedEffect(showUndoBar, deletedProject?.id) {
+        if (showUndoBar) {
+            delay(5_000)
+            showUndoBar = false
+            deletedProject = null
         }
     }
 
@@ -198,102 +199,53 @@ fun HomeScreen(
                             QuickToolsRow()
                         }
 
-                        // Tab Row (Drafts vs Storyboard Templates)
+                        // Search & Filter Bar
                         item {
                             Spacer(modifier = Modifier.height(20.dp))
-                            TabRow(
-                                selectedTabIndex = selectedTab,
-                                containerColor = Color.Transparent,
-                                contentColor = colors.accentCyan,
-                                indicator = { tabPositions ->
-                                    TabRowDefaults.SecondaryIndicator(
-                                        Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                                        color = colors.border,
-                                        height = 3.dp
-                                    )
-                                },
-                                divider = {
-                                    HorizontalDivider(color = colors.borderSubtle, thickness = 1.dp)
-                                },
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            ) {
-                                tabs.forEachIndexed { index, title ->
-                                    Tab(
-                                        selected = selectedTab == index,
-                                        onClick = { selectedTab = index },
-                                        text = {
-                                            Text(
-                                                text = title,
-                                                fontSize = 13.sp,
-                                                fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (selectedTab == index) colors.textPrimary else colors.textTertiary
-                                            )
-                                        }
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
+                            ProjectSearchAndFilterBar(
+                                searchQuery = searchQuery,
+                                onSearchQueryChanged = { searchQuery = it },
+                                filterChoice = filterChoice,
+                                onSelectFilter = { filterChoice = it },
+                                totalDraftsCount = projects.size,
+                                pinnedCount = projects.count { it.isFavorite }
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
                         }
 
-                        // Search & Filter Bar (Only shown on Drafts tab)
-                        if (selectedTab == 0) {
+                        // Drafts list
+                        if (filteredProjects.isEmpty()) {
                             item {
-                                ProjectSearchAndFilterBar(
-                                    searchQuery = searchQuery,
-                                    onSearchQueryChanged = { searchQuery = it },
-                                    filterChoice = filterChoice,
-                                    onSelectFilter = { filterChoice = it },
-                                    totalDraftsCount = projects.size,
-                                    pinnedCount = projects.count { it.isFavorite }
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
-                            }
-                        }
-
-                        // Content List
-                        if (selectedTab == 0) {
-                            if (filteredProjects.isEmpty()) {
-                                item {
-                                    if (searchQuery.isNotBlank() || filterChoice != 0) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(24.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "No drafts match your search or filter",
-                                                color = colors.textSecondary,
-                                                fontSize = 13.sp
-                                            )
-                                        }
-                                    } else {
-                                        EmptyProjectsPlaceholder(onStartCreating = { showNewProjectDialog = true })
-                                    }
-                                }
-                            } else {
-                                items(filteredProjects, key = { it.id }) { project ->
-                                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                                        ProjectCardItem(
-                                            project = project,
-                                            onSelect = { onSelectProject(project) },
-                                            onToggleFavorite = { onToggleFavorite(project.id) },
-                                            onDuplicate = { onDuplicateProject(project.id) },
-                                            onDelete = { 
-                                                deletedProject = project
-                                                onDeleteProject(project.id)
-                                                showUndoBar = true
-                                            }
+                                if (searchQuery.isNotBlank() || filterChoice != 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(24.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = stringResource(R.string.no_drafts_match),
+                                            color = colors.textSecondary,
+                                            fontSize = 13.sp
                                         )
                                     }
+                                } else {
+                                    EmptyProjectsPlaceholder(onStartCreating = { showNewProjectDialog = true })
                                 }
                             }
                         } else {
-                            items(SampleDataProvider.templates, key = { it.id }) { tpl ->
-                                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                    TemplateCardItem(
-                                        template = tpl,
-                                        onUse = { onUseTemplate(tpl.id) }
+                            items(filteredProjects, key = { it.id }) { project ->
+                                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                                    ProjectCardItem(
+                                        project = project,
+                                        onSelect = { onSelectProject(project) },
+                                        onToggleFavorite = { onToggleFavorite(project.id) },
+                                        onDuplicate = { onDuplicateProject(project.id) },
+                                        onDelete = {
+                                            deletedProject = project
+                                            onDeleteProject(project.id)
+                                            showUndoBar = true
+                                        }
                                     )
                                 }
                             }
@@ -301,38 +253,9 @@ fun HomeScreen(
                     }
                 }
                 1 -> {
-                    // "Templates" Tab
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        item {
-                            Text(
-                                text = "Storyboard Video Templates",
-                                color = colors.textPrimary,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Pre-timed rhythm cuts on sketch paper",
-                                color = colors.textSecondary,
-                                fontSize = 12.sp
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                        items(SampleDataProvider.templates) { tpl ->
-                            TemplateCardItem(
-                                template = tpl,
-                                onUse = { onUseTemplate(tpl.id) }
-                            )
-                        }
-                    }
-                }
-                2 -> {
                     InboxTabContent(projects)
                 }
-                3 -> {
+                2 -> {
                     ProfileTabContent(projects, onOpenSettings = onOpenSettings)
                 }
             }
@@ -566,7 +489,7 @@ private fun HeroNewProjectSection(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Import clips into sketchpad timeline",
+                        text = stringResource(R.string.import_clips_sketchpad),
                         color = colors.textSecondary,
                         fontSize = 11.sp
                     )
@@ -584,7 +507,7 @@ private fun HeroNewProjectSection(
                 .pencilHatching(color = colors.accentRed.copy(alpha = 0.05f), spacing = 8.dp)
                 .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 16.dp)
                 .clickable { 
-                    Toast.makeText(context, "Camera prompter not implemented in this build", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.camera_prompter_not_implemented), Toast.LENGTH_SHORT).show()
                 }
                 .padding(14.dp),
             contentAlignment = Alignment.Center
@@ -804,7 +727,7 @@ private fun ProjectCardItem(
                 )
                 Spacer(modifier = Modifier.width(5.dp))
                 Text(
-                    text = if (project.isFavorite) "Pinned to Top" else "Pencil Draft Saved",
+                    text = if (project.isFavorite) stringResource(R.string.pinned_to_top) else stringResource(R.string.pencil_draft_saved),
                     color = colors.textSecondary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
@@ -900,108 +823,6 @@ private fun ProjectCardItem(
 }
 
 // ==========================================
-// Template Storyboard Item
-// ==========================================
-
-@Composable
-private fun TemplateCardItem(
-    template: VideoTemplate,
-    onUse: () -> Unit
-) {
-    val colors = PencilTheme.colors
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .border(1.6.dp, colors.border, RoundedCornerShape(16.dp))
-    ) {
-        Image(
-            painter = painterResource(id = template.coverResId),
-            contentDescription = template.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
-
-        // Gradient dark overlay
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    androidx.compose.ui.graphics.Brush.verticalGradient(
-                        listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.4f),
-                            Color.Black.copy(alpha = 0.90f)
-                        )
-                    )
-                )
-        )
-
-        // Template tag
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(12.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color.Black.copy(alpha = 0.7f))
-                .border(1.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            Text(
-                text = "${template.durationSec}s • ${template.clipCount} clips",
-                color = Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
-
-        // Bottom Info & Button
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(14.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(colors.accentYellow)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(template.tag, color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Black)
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = template.title,
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "${template.usesCount} uses • 🎵 ${template.musicName}",
-                color = Color.LightGray,
-                fontSize = 11.sp
-            )
-        }
-
-        Button(
-            onClick = onUse,
-            colors = ButtonDefaults.buttonColors(containerColor = colors.accentCyan),
-            shape = RoundedCornerShape(20.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(14.dp)
-                .height(38.dp)
-                .testTag("use_template_${template.id}")
-        ) {
-            Text("Use Template", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black)
-        }
-    }
-}
-
-// ==========================================
 // Empty State
 // ==========================================
 
@@ -1034,7 +855,7 @@ private fun EmptyProjectsPlaceholder(
         }
         Spacer(modifier = Modifier.height(14.dp))
         Text(
-            text = "Clean Sketchpad Page",
+            text = stringResource(R.string.clean_sketchpad_page),
             color = colors.textPrimary,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold
@@ -1075,8 +896,8 @@ private fun InboxTabContent(projects: List<VideoProject>) {
     ) {
         Icon(Icons.Default.Notifications, contentDescription = null, tint = colors.textPrimary, modifier = Modifier.size(48.dp))
         Spacer(modifier = Modifier.height(12.dp))
-        Text("Sketchpad Notes & Updates", color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text("Weekly editing tips and pencil presets appear here", color = colors.textSecondary, fontSize = 12.sp)
+        Text(stringResource(R.string.inbox_title), color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.weekly_tips_appear_here), color = colors.textSecondary, fontSize = 12.sp)
         Spacer(modifier = Modifier.height(16.dp))
         Box(
             modifier = Modifier
@@ -1142,7 +963,7 @@ private fun ProfileTabContent(
             Icon(Icons.Default.Person, contentDescription = null, tint = colors.textPrimary, modifier = Modifier.size(42.dp))
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Text("CatByte Sketch Artist", color = colors.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.catbyte_sketch_artist), color = colors.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text("ID: 8942019 • Pencil Edition PRO", color = colors.accentCyan, fontSize = 12.sp, fontWeight = FontWeight.Medium)
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -1221,19 +1042,6 @@ private fun CapCutBottomNavigationBar(
         NavigationBarItem(
             selected = selectedIndex == 1,
             onClick = { onSelect(1) },
-            icon = { Icon(Icons.Default.VideoLibrary, contentDescription = "Templates") },
-            label = { Text("Storyboards", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = colors.accentCyan,
-                selectedTextColor = colors.accentCyan,
-                unselectedIconColor = colors.textTertiary,
-                unselectedTextColor = colors.textTertiary,
-                indicatorColor = colors.surfaceElevated
-            )
-        )
-        NavigationBarItem(
-            selected = selectedIndex == 2,
-            onClick = { onSelect(2) },
             icon = { Icon(Icons.Default.Notifications, contentDescription = "Inbox") },
             label = { Text("Notes", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
             colors = NavigationBarItemDefaults.colors(
@@ -1245,8 +1053,8 @@ private fun CapCutBottomNavigationBar(
             )
         )
         NavigationBarItem(
-            selected = selectedIndex == 3,
-            onClick = { onSelect(3) },
+            selected = selectedIndex == 2,
+            onClick = { onSelect(2) },
             icon = { Icon(Icons.Default.Person, contentDescription = "Me") },
             label = { Text("Artist", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
             colors = NavigationBarItemDefaults.colors(
@@ -1387,7 +1195,7 @@ private fun NewProjectBlueprintDialog(
         Triple(AspectRatioType.RATIO_9_16, "9:16", "TikTok / Shorts / Reels"),
         Triple(AspectRatioType.RATIO_16_9, "16:9", "YouTube / Cinema"),
         Triple(AspectRatioType.RATIO_1_1, "1:1", "Instagram Square"),
-        Triple(AspectRatioType.RATIO_4_5, "4:5", "Portrait Feed Post")
+        Triple(AspectRatioType.RATIO_4_5, "4:5", stringResource(R.string.portrait_feed_post))
     )
 
     val paperStyles = listOf(

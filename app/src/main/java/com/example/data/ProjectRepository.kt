@@ -3,7 +3,6 @@ package com.example.data
 import com.example.model.AspectRatioType
 import com.example.model.MediaClip
 import com.example.model.VideoProject
-import com.example.model.VideoTemplate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,26 +50,6 @@ class ProjectRepository {
             aspectRatio = aspectRatio,
             paperStyle = paperStyle,
             clips = initialClips,
-            resolution = resolution,
-            fps = fps,
-            lastModified = System.currentTimeMillis()
-        )
-        saveProject(project)
-        return project
-    }
-
-    fun createFromTemplate(
-        template: VideoTemplate,
-        resolution: String = "1080P",
-        fps: Int = 30
-    ): VideoProject {
-        val project = VideoProject(
-            id = "proj_${UUID.randomUUID().toString().take(8)}",
-            title = "${template.title} Draft",
-            aspectRatio = AspectRatioType.RATIO_9_16,
-            clips = template.sampleClips.map { it.copy(id = UUID.randomUUID().toString()) },
-            audioTracks = listOf(template.audioTrack.copy(id = UUID.randomUUID().toString())),
-            thumbnailResId = template.coverResId,
             resolution = resolution,
             fps = fps,
             lastModified = System.currentTimeMillis()

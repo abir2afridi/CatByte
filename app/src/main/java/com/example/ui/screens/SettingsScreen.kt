@@ -24,13 +24,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -48,10 +53,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.BuildConfig
+import com.example.R
 import com.example.data.AppLanguage
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.PencilTheme
@@ -60,13 +67,14 @@ import com.example.ui.theme.pencilHatching
 import com.example.ui.theme.sketchPencilBorder
 
 /**
- * Full-screen Settings page.
+ * Settings content shown as a modal popup over the current screen.
  *
- * Replaces the old popup dialog: it is a dedicated destination with its own
- * top bar, back navigation and scrollable content.
+ * The same composable can also be hosted full-screen by passing
+ * [isPopup] = false when a dedicated destination is needed.
  */
 @Composable
 fun SettingsScreen(
+    modifier: Modifier = Modifier,
     currentThemeMode: AppThemeMode,
     defaultResolution: String,
     defaultFps: Int,
@@ -81,16 +89,29 @@ fun SettingsScreen(
     onToggleWatermark: (Boolean) -> Unit,
     onSelectLanguage: (AppLanguage) -> Unit = {},
     onClearCache: () -> Unit,
+    onOpenSystemLogs: () -> Unit,
+    isPopup: Boolean = false,
     onBack: () -> Unit
 ) {
     val colors = PencilTheme.colors
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(colors.background)
-            .statusBarsPadding()
-            .navigationBarsPadding()
+            .then(
+                if (isPopup) {
+                    Modifier.sketchPencilBorder(
+                        strokeWidth = 2.dp,
+                        color = colors.border,
+                        cornerRadius = 22.dp
+                    )
+                } else {
+                    Modifier
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                }
+            )
             .testTag("settings_screen")
     ) {
         SettingsTopBar(onBack = onBack)
@@ -105,13 +126,13 @@ fun SettingsScreen(
         ) {
             // ---------------- Appearance & Theme ----------------
             SettingsSection(
-                title = "APPEARANCE & THEME",
+                title = stringResource(R.string.appearance_theme),
                 icon = Icons.Default.Brush,
                 iconTint = colors.accentPink
             ) {
                 ThemeSelectionCard(
-                    title = "Pencil on Paper (Light Theme)",
-                    description = "Warm cream sketchbook paper with 2B graphite strokes",
+                    title = stringResource(R.string.pencil_light),
+                    description = stringResource(R.string.warm_cream_paper),
                     isSelected = currentThemeMode == AppThemeMode.PENCIL_LIGHT,
                     icon = Icons.Default.LightMode,
                     previewColor = Color(0xFFF7F3E8),
@@ -122,8 +143,8 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 ThemeSelectionCard(
-                    title = "Charcoal Slate (Dark Theme)",
-                    description = "Dark chalkboard with crisp chalk sketch lines",
+                    title = stringResource(R.string.charcoal_dark),
+                    description = stringResource(R.string.dark_chalkboard),
                     isSelected = currentThemeMode == AppThemeMode.CHARCOAL_DARK,
                     icon = Icons.Default.DarkMode,
                     previewColor = Color(0xFF141519),
@@ -134,8 +155,8 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 ThemeSelectionCard(
-                    title = "Follow System",
-                    description = "Automatically match your phone's dark/light setting",
+                    title = stringResource(R.string.follow_system),
+                    description = stringResource(R.string.match_phone_setting),
                     isSelected = currentThemeMode == AppThemeMode.SYSTEM,
                     icon = Icons.Default.Brush,
                     previewColor = Color.Gray,
@@ -146,13 +167,13 @@ fun SettingsScreen(
 
             // ---------------- Sketchbook Canvas ----------------
             SettingsSection(
-                title = "SKETCHBOOK CANVAS",
+                title = stringResource(R.string.sketchbook_canvas),
                 icon = Icons.Default.GridOn,
                 iconTint = colors.accentGreen
             ) {
                 SettingsToggleRow(
-                    title = "Notebook Grid Lines",
-                    description = "Display subtle pencil drafting grid on timeline",
+                    title = stringResource(R.string.notebook_grid_lines),
+                    description = stringResource(R.string.subtle_pencil_grid),
                     checked = showPaperGrid,
                     onCheckedChange = onTogglePaperGrid
                 )
@@ -160,11 +181,11 @@ fun SettingsScreen(
 
             // ---------------- Default Export Quality ----------------
             SettingsSection(
-                title = "DEFAULT EXPORT QUALITY",
+                title = stringResource(R.string.default_export_quality_caps),
                 icon = Icons.Default.Videocam,
                 iconTint = colors.accentCyan
             ) {
-                Text("Default Resolution", color = colors.textSecondary, fontSize = 11.sp)
+                Text(stringResource(R.string.default_resolution), color = colors.textSecondary, fontSize = 11.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -193,13 +214,18 @@ fun SettingsScreen(
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("Default Frame Rate", color = colors.textSecondary, fontSize = 11.sp)
+                Text(stringResource(R.string.default_frame_rate), color = colors.textSecondary, fontSize = 11.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf(24 to "24 fps", 30 to "30 fps", 60 to "60 fps").forEach { (fps, label) ->
+                    val fpsLabels = listOf(
+                    24 to stringResource(R.string.fps_label, 24),
+                    30 to stringResource(R.string.fps_label, 30),
+                    60 to stringResource(R.string.fps_label, 60)
+                )
+                fpsLabels.forEach { (fps, label) ->
                         val isSel = defaultFps == fps
                         Box(
                             modifier = Modifier
@@ -224,7 +250,7 @@ fun SettingsScreen(
 
             // ---------------- Language ----------------
             SettingsSection(
-                title = "LANGUAGE",
+                title = stringResource(R.string.language),
                 icon = Icons.Default.Language,
                 iconTint = colors.accentPurple
             ) {
@@ -233,9 +259,9 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     listOf(
-                        AppLanguage.SYSTEM to "System Default",
-                        AppLanguage.ENGLISH to "English",
-                        AppLanguage.BENGALI to "বাংলা"
+                        AppLanguage.SYSTEM to stringResource(R.string.system_default),
+                        AppLanguage.ENGLISH to stringResource(R.string.english),
+                        AppLanguage.BENGALI to stringResource(R.string.bengali)
                     ).forEach { (lang, label) ->
                         val isSel = appLanguage == lang
                         Box(
@@ -261,13 +287,13 @@ fun SettingsScreen(
 
             // ---------------- Watermark ----------------
             SettingsSection(
-                title = "WATERMARK",
+                title = stringResource(R.string.watermark),
                 icon = Icons.Default.Brush,
                 iconTint = colors.accentYellow
             ) {
                 SettingsToggleRow(
-                    title = "Add CatByte Watermark",
-                    description = "Places a subtle sketch logo on exported videos",
+                    title = stringResource(R.string.add_watermark),
+                    description = stringResource(R.string.places_sketch_logo),
                     checked = watermarkEnabled,
                     onCheckedChange = onToggleWatermark
                 )
@@ -275,7 +301,7 @@ fun SettingsScreen(
 
             // ---------------- Storage & Cache ----------------
             SettingsSection(
-                title = "STORAGE & DRAFTS",
+                title = stringResource(R.string.section_storage_drafts),
                 icon = Icons.Default.DeleteSweep,
                 iconTint = colors.accentRed
             ) {
@@ -291,13 +317,13 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Draft Cache: $cacheSizeMb MB",
+                            text = stringResource(R.string.draft_cache_mb, cacheSizeMb),
                             color = colors.textPrimary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = if (cacheSizeMb > 0) "Free up space on your device" else "Cache is completely clear!",
+                            text = if (cacheSizeMb > 0) stringResource(R.string.free_up_space) else stringResource(R.string.cache_completely_clear),
                             color = colors.textSecondary,
                             fontSize = 11.sp
                         )
@@ -314,9 +340,27 @@ fun SettingsScreen(
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                         modifier = Modifier.height(34.dp)
                     ) {
-                        Text(if (cacheSizeMb > 0) "Clear" else "Clean", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (cacheSizeMb > 0) stringResource(R.string.clear_cache_short) else stringResource(R.string.cache_clean_short),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
+            }
+
+            // ---------------- System Logs (Debug) ----------------
+            SettingsSection(
+                title = stringResource(R.string.section_system_logs),
+                icon = Icons.Default.BugReport,
+                iconTint = colors.accentPink
+            ) {
+                SettingsActionRow(
+                    title = stringResource(R.string.view_system_logs),
+                    description = stringResource(R.string.system_logs_description),
+                    icon = Icons.Default.Terminal,
+                    onClick = onOpenSystemLogs
+                )
             }
 
             // ---------------- About ----------------
@@ -477,6 +521,63 @@ private fun SettingsSection(
         }
 
         content()
+    }
+}
+
+// ==========================================
+// Action row (for navigation items)
+// ==========================================
+
+@Composable
+private fun SettingsActionRow(
+    title: String,
+    description: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    val colors = PencilTheme.colors
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(colors.surfaceVariant)
+            .border(1.dp, colors.borderSubtle, RoundedCornerShape(10.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .clickable { onClick() },
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = colors.accentCyan,
+                modifier = Modifier.size(20.dp).padding(end = 12.dp)
+            )
+            Column {
+                Text(
+                    text = title,
+                    color = colors.textPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = description,
+                    color = colors.textSecondary,
+                    fontSize = 11.sp
+                )
+            }
+        }
+        Icon(
+            imageVector = Icons.Default.ArrowForwardIos,
+            contentDescription = "Navigate",
+            tint = colors.textTertiary,
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
 

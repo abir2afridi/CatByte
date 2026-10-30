@@ -169,16 +169,4 @@ data class VideoProject(
         }
 }
 
-data class VideoTemplate(
-    val id: String,
-    val title: String,
-    val category: String,
-    val tag: String,
-    val durationSec: Int,
-    val clipCount: Int,
-    val musicName: String,
-    val usesCount: String,
-    val coverResId: Int = 0,
-    val sampleClips: List<MediaClip>,
-    val audioTrack: AudioClip
-)
+

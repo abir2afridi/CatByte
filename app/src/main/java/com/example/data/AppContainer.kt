@@ -12,4 +12,6 @@ class AppContainer(context: Context) {
     val projectRepository = ProjectRepository()
     val settingsRepository = SettingsRepository(appContext)
     val cacheManager = CacheManager(appContext)
+    val playerManager = PlayerManager(appContext)
+    val exportManager = ExportManager(appContext)
 }
