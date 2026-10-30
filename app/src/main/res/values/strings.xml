@@ -68,7 +68,7 @@
     <string name="pinned">Pinned</string>
     <string name="clips">Clips</string>
 
-    <!-- Video canvas & playback -->
+    <!-- Video canvas &amp; playback -->
     <string name="no_media_clips">No media clips</string>
     <string name="tap_plus_add_footage">Tap + on timeline to add footage</string>
     <string name="no_active_project">No active project</string>
@@ -109,7 +109,7 @@
     <string name="version_label">Version %1$s</string>
     <string name="confirm_delete_draft">Delete draft?</string>
 
-    <!-- Editor & tool sheets -->
+    <!-- Editor &amp; tool sheets -->
     <string name="editor_no_project">No active project</string>
     <string name="tool_audio">Audio</string>
     <string name="tool_text">Text</string>

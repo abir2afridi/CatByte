@@ -1,10 +1,6 @@
 package com.example.ui.components
 
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -33,10 +29,12 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +66,8 @@ import com.example.model.AspectRatioType
 import com.example.model.EffectType
 import com.example.model.MediaClip
 import com.example.model.TextAnimationType
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.example.model.TextFontStyle
 import com.example.model.TransitionType
 import com.example.model.VideoFilter
@@ -123,20 +123,34 @@ fun VideoCanvas(
         currentPositionMs >= it.startTimelineMs && currentPositionMs <= (it.startTimelineMs + it.durationMs)
     }
 
-    // Pulse animation - only runs when playing
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.0f,
-        animationSpec = if (isPlaying) infiniteRepeatable(
-            animation = tween(600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ) else infiniteRepeatable(
-            animation = tween(0),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
+    // Pulse animation - only runs when playing (coroutine-based to avoid divide-by-zero crash)
+    val pulseAlphaState: androidx.compose.runtime.MutableState<Float> = remember { mutableStateOf(0.85f) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
+            scope.launch {
+                var growing = true
+                while (isPlaying) {
+                    val target = if (growing) 1.0f else 0.85f
+                    growing = !growing
+                    // Simple linear interpolation over 600ms
+                    val start = pulseAlphaState.value
+                    val duration = 600L
+                    val startTime = System.currentTimeMillis()
+                    while (System.currentTimeMillis() - startTime < duration) {
+                        if (!isPlaying) break
+                        val progress = (System.currentTimeMillis() - startTime).toFloat() / duration
+                        pulseAlphaState.value = start + (target - start) * progress
+                        delay(16) // ~60fps
+                    }
+                    if (!isPlaying) break
+                    pulseAlphaState.value = target
+                }
+            }
+        } else {
+            pulseAlphaState.value = 0.85f
+        }
+    }
 
     Box(
         modifier = modifier
@@ -191,7 +205,7 @@ fun VideoCanvas(
                 RenderClipVisual(
                     clip = activeClip,
                     activeEffects = activeEffects,
-                    pulseAlpha = pulseAlpha,
+                    pulseAlpha = pulseAlphaState.value,
                     currentClipLocalMs = clipLocalTimeMs
                 )
 
@@ -239,7 +253,7 @@ fun VideoCanvas(
                     val p = ((currentPositionMs - textOverlay.startTimelineMs).toFloat() / 300f).coerceIn(0f, 1f)
                     0.6f + (0.4f * p)
                 } else if (textOverlay.animation == TextAnimationType.NEON_PULSE) {
-                    pulseAlpha
+                    pulseAlphaState.value
                 } else {
                     1.0f
                 }

@@ -1,11 +1,13 @@
 package com.example.data
 
 import android.content.Context
+import android.content.Intent
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
@@ -21,6 +23,13 @@ object MediaMetadata {
 
     /** Returns the duration of the media in milliseconds, or 0 when unknown. */
     suspend fun durationMs(context: Context, uri: Uri): Long = withContext(Dispatchers.IO) {
+        // Persist URI permission for future access
+        try {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } catch (e: Exception) {
+            AppLog.warn("MediaMetadata", "Failed to persist URI permission", e)
+        }
+        
         runCatching {
             val retriever = MediaMetadataRetriever()
             try {
@@ -29,11 +38,20 @@ object MediaMetadata {
             } finally {
                 runCatching { retriever.release() }
             }
+        }.onFailure { e ->
+            AppLog.warn("MediaMetadata", "Failed to get duration for $uri", e)
         }.getOrDefault(0L)
     }
 
     /** Returns a human readable name for the media. */
     suspend fun displayName(context: Context, uri: Uri): String = withContext(Dispatchers.IO) {
+        // Persist URI permission for future access
+        try {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } catch (e: Exception) {
+            AppLog.warn("MediaMetadata", "Failed to persist URI permission", e)
+        }
+        
         runCatching {
             val retriever = MediaMetadataRetriever()
             try {
@@ -42,6 +60,8 @@ object MediaMetadata {
             } finally {
                 runCatching { retriever.release() }
             }
+        }.onFailure { e ->
+            AppLog.warn("MediaMetadata", "Failed to get display name for $uri", e)
         }.getOrNull()?.takeIf { it.isNotBlank() }
             ?: uri.lastPathSegment.orEmpty().substringBeforeLast('.')
     }
@@ -60,6 +80,9 @@ object MediaMetadata {
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         try {
+            // Ensure we have read permission for the URI
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            
             extractor.setDataSource(context, uri, null)
 
             var trackIndex = -1
@@ -86,8 +109,18 @@ object MediaMetadata {
             val bucketHits = IntArray(buckets.coerceAtLeast(1))
 
             extractor.selectTrack(trackIndex)
-            codec = MediaCodec.createDecoderByType(mime)
-            codec.configure(format, null, null, 0)
+            val decoder = MediaCodec.createDecoderByType(mime)
+            if (decoder == null) {
+                AppLog.warn("MediaMetadata", "No decoder found for mime: $mime")
+                return null
+            }
+            codec = decoder
+            try {
+                codec.configure(format, null, null, 0)
+            } catch (e: Exception) {
+                AppLog.warn("MediaMetadata", "Codec configure failed for $mime", e)
+                return null
+            }
             codec.start()
 
             val bufferInfo = MediaCodec.BufferInfo()
@@ -100,7 +133,11 @@ object MediaMetadata {
                     if (inputIndex >= 0) {
                         val inputBuffer = codec.getInputBuffer(inputIndex)
                         val sampleSize = if (inputBuffer != null) {
-                            extractor.readSampleData(inputBuffer, 0)
+                            try {
+                                extractor.readSampleData(inputBuffer, 0)
+                            } catch (e: Exception) {
+                                -1
+                            }
                         } else {
                             -1
                         }
@@ -133,7 +170,6 @@ object MediaMetadata {
                         sawOutputEos = true
                     }
                 } else if (outputIndex == MediaCodec.INFO_TRY_AGAIN_LATER && sawInputEos) {
-                    // Give the decoder a chance to flush.
                     continue
                 }
             }
@@ -142,6 +178,9 @@ object MediaMetadata {
             val maxPeak = peaks.maxOrNull() ?: 0f
             if (maxPeak <= 0f) return null
             return peaks.map { (it / maxPeak).coerceIn(0f, 1f) }
+        } catch (e: Exception) {
+            AppLog.warn("MediaMetadata", "Waveform decode failed for $uri", e)
+            return null
         } finally {
             runCatching { codec?.stop() }
             runCatching { codec?.release() }

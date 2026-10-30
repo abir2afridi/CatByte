@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -60,13 +61,17 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,6 +79,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -589,21 +595,36 @@ fun AudioSheet(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    val infiniteTransition = rememberInfiniteTransition(label = "pulse_mic")
-                    val pulseScale by infiniteTransition.animateFloat(
-                        initialValue = 1.0f,
-                        targetValue = 1.25f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(500, easing = LinearEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "mic_scale"
-                    )
+                    val pulseScale: androidx.compose.runtime.MutableState<Float> = remember { mutableStateOf(1f) }
+                    val scope = rememberCoroutineScope()
+                    LaunchedEffect(isRecordingVoice) {
+                        if (isRecordingVoice) {
+                            scope.launch {
+                                var growing = true
+                                while (isRecordingVoice) {
+                                    val target = if (growing) 1.25f else 1.0f
+                                    growing = !growing
+                                    // Simple linear interpolation over 600ms
+                                    val start = pulseScale.value
+                                    val duration = 600L
+                                    val startTime = System.currentTimeMillis()
+                                    while (System.currentTimeMillis() - startTime < duration) {
+                                        if (!isRecordingVoice) break
+                                        val progress = (System.currentTimeMillis() - startTime).toFloat() / duration
+                                        pulseScale.value = start + (target - start) * progress
+                                        delay(16) // ~60fps
+                                    }
+                                    if (!isRecordingVoice) break
+                                    pulseScale.value = target
+                                }
+                            }
+                        }
+                    }
 
                     Box(
                         modifier = Modifier
                             .size(72.dp)
-                            .scale(if (isRecordingVoice) pulseScale else 1.0f)
+                            .scale(if (isRecordingVoice) pulseScale.value else 1.0f)
                             .clip(CircleShape)
                             .background(if (isRecordingVoice) CapCutRed else CapCutSurfaceElevated)
                             .border(2.dp, if (isRecordingVoice) Color.White else CapCutBorder, CircleShape)
@@ -1420,11 +1441,13 @@ fun TransitionsPickerSheet(
 fun ExportDialog(
     exportState: ExportUiState,
     onStartExport: (resolution: String, fps: Int) -> Unit,
+    onStartBackgroundExport: ((Context, String, Int) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val colors = PencilTheme.colors
     var selectedRes by remember { mutableStateOf("1080P") }
     var selectedFps by remember { mutableIntStateOf(30) }
+    val currentContext = LocalContext.current
 
     Dialog(onDismissRequest = onDismiss) {
         Box(
@@ -1593,7 +1616,29 @@ fun ExportDialog(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    var backgroundExport by remember { mutableStateOf(false) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.Checkbox(
+                            checked = backgroundExport,
+                            onCheckedChange = { backgroundExport = it },
+                            colors = androidx.compose.material3.CheckboxDefaults.colors(
+                                checkedColor = CapCutCyan,
+                                uncheckedColor = CapCutTextSecondary
+                            )
+                        )
+                        Text(
+                            "Background export (continues if app closes)",
+                            color = CapCutTextPrimary,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1607,12 +1652,22 @@ fun ExportDialog(
                             Text("Cancel", color = CapCutTextPrimary)
                         }
                         Button(
-                            onClick = { onStartExport(selectedRes, selectedFps) },
+                            onClick = {
+                                if (backgroundExport) {
+                                    onStartBackgroundExport?.invoke(currentContext, selectedRes, selectedFps)
+                                } else {
+                                    onStartExport(selectedRes, selectedFps)
+                                }
+                            },
                             colors = ButtonDefaults.buttonColors(containerColor = CapCutBorder),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Export 🚀", color = if (colors.isLight) Color.White else Color.Black, fontWeight = FontWeight.Bold)
+                            Text(
+                                if (backgroundExport) "Export in Background 🌙" else "Export 🚀",
+                                color = if (colors.isLight) Color.White else Color.Black,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
