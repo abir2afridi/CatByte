@@ -1,0 +1,222 @@
+# Detekt Configuration for CatByte
+
+build:
+  maxIssues: 100
+  weights:
+    complexity: 2
+    LongParameterList: 1
+    style: 1
+    comments: 1
+
+config:
+  validation: true
+  warningsAsErrors: false
+
+formatting:
+  Indentation:
+    indentSize: 4
+    continuationIndentSize: 4
+  MaximumLineLength:
+    maxLineLength: 120
+    excludePackageStatements: true
+    excludeImportStatements: true
+  NoWildcardImports:
+    excludeImports: []
+  NoMultipleSpaces: true
+  Spacing:
+    spacingAroundAssignmentOperators: true
+    spacingAroundBinaryOperators: true
+    spacingAroundUnaryOperators: true
+  Wrapping:
+    maxLineLength: 120
+
+style:
+  MaxLineLength:
+    maxLineLength: 120
+    excludePackageStatements: true
+    excludeImportStatements: true
+  WildcardImport: true
+  MagicNumber:
+    ignoreNumbers: '-1,0,1,2,3,4,5,6,7,8,9,10,16,24,32,48,64,100,128,256,512,1024,1000,1920,1080,2048,4096'
+    ignorePropertyDeclaration: true
+    ignoreLocalVariableDeclaration: true
+    ignoreFunctionDeclaration: true
+  ReturnCount:
+    max: 5
+    excludedFunctions: 'describeContents,writeToParcel'
+  TooManyFunctions:
+    thresholdInFiles: 15
+    thresholdInClasses: 20
+    thresholdInInterfaces: 15
+    thresholdInObjects: 15
+    thresholdInEnums: 15
+    ignoreDeprecated: false
+    ignorePrivate: false
+    ignoreOverride: false
+  TooManyProperties:
+    thresholdInClasses: 20
+  LongParameterList:
+    threshold: 6
+    ignoreDefaultParameters: true
+    ignoreDataClasses: true
+    ignoreAnnotatedParameter: 'Suppress("LongParameterList")'
+  FunctionOnlyReturningConstant:
+    ignoreOverridable: true
+    excludedFunctions: 'describeContents,writeToParcel'
+  NestedBlockDepth:
+    threshold: 4
+  UtilityClassWithPublicConstructor: true
+  NoBuilders:
+    allowedAnnotations: ['android.annotation.SuppressLint', 'kotlinx.serialization.Serializable']
+  ForbiddenPublicDataClass:
+    allowedAnnotations: ['kotlinx.serialization.Serializable']
+  ForbiddenComment:
+    values: ['TODO:', 'FIXME:', 'STOPSHIP:']
+  FunctionNaming:
+    functionPattern: '^[a-z][a-zA-Z0-9]*$'
+    excludeOverriddenFunctions: true
+  VariableNaming:
+    variablePattern: '^[a-z][a-zA-Z0-9]*$'
+    privateVariablePattern: '^(_)?[a-z][a-zA-Z0-9]*$'
+    parameterPattern: '^[a-z][a-zA-Z0-9]*$'
+    parameterInFunctionPattern: '^[a-z][a-zA-Z0-9]*$'
+    excludeClassPattern: '[A-Z][a-zA-Z0-9]*'
+    ignoreOverridden: true
+    ignoreAnnotated: ['Suppress("VariableNaming")']
+  ClassNaming:
+    classPattern: '^[A-Z][a-zA-Z0-9]*$'
+  MemberNameEqualsClassName: true
+  NoGetSetPrefix:
+    allowedPrefixes: []
+  ConstructorParameterNaming:
+    parameterPattern: '^[a-z][a-zA-Z0-9]*$'
+  ParameterName:
+    parameterPattern: '^[a-z][a-zA-Z0-9]*$'
+  PackageNaming:
+    packagePattern: '^[a-z]+(\.[a-z][a-z0-9]*)*$'
+  ObjectPropertyNaming:
+    propertyPattern: '^[A-Z][a-zA-Z0-9]*$'
+    privatePropertyPattern: '^[A-Z][a-zA-Z0-9]*$'
+    constantPattern: '^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$'
+
+complexity:
+  LongMethod:
+    threshold: 60
+  ComplexMethod:
+    threshold: 15
+    ignoreSingleWhenExpression: true
+    ignoreSimpleWhenEntries: true
+  ComplexInterface:
+    threshold: 10
+    includeStaticDeclarations: false
+  ComplexCondition:
+    threshold: 4
+    strictOperandCount: true
+  LabeledExpression: true
+  Nesting:
+    threshold: 4
+  TooManyFunctions:
+    thresholdInFiles: 15
+    thresholdInClasses: 20
+    thresholdInInterfaces: 15
+    thresholdInObjects: 15
+    thresholdInEnums: 15
+    ignoreDeprecated: false
+    ignorePrivate: false
+    ignoreOverride: false
+  TooManyProperties:
+    thresholdInClasses: 20
+  LongParameterList:
+    threshold: 6
+    ignoreDefaultParameters: true
+    ignoreDataClasses: true
+  NamedArguments:
+    threshold: 3
+  FunctionOnlyReturningConstant:
+    ignoreOverridable: true
+    excludedFunctions: 'describeContents,writeToParcel'
+
+exceptions:
+  TooGenericExceptionCaught: true
+  ThrowingExceptionInMain: true
+  ThrowingExceptionsWithoutMessageOrCause:
+    allowedExceptions: ['Exception', 'Throwable']
+  InstanceOfCheckForException:
+    allowedCatchBlocks: 1
+  SwallowedException:
+    allowedExceptionNameRegex: '.*(Exception|Error)'
+    ignoredExceptionTypes: ['InterruptedException', 'IOException']
+  ThrowingNullPointerException: true
+  ThrowingNewInstanceOfSameException: true
+
+potential-bugs:
+  NullSafeCollectionOperators: true
+  UnsafeCallOnNullableType: true
+  UnsafeCast: true
+  ReturnFromFinally: true
+  IteratorHasNextCallsIteratorNext: true
+  LateinitUsage: true
+
+performance:
+  ArrayPrimitive: true
+  ForEachOnRange: true
+  SpreadOperator: true
+  IteratorParameterPosition: true
+  MemberIgnoringDefaultValue: true
+
+comments:
+  CommentOverPrivateFunction: false
+  CommentOverPrivateProperty: false
+  UndocumentedPublicFunction:
+    allowWhenOverriding: true
+    allowWhenImplementing: true
+  UndocumentedPublicProperty:
+    allowWhenOverriding: true
+    allowWhenImplementing: true
+
+naming:
+  FunctionNaming:
+    functionPattern: '^[a-z][a-zA-Z0-9]*$'
+    excludeOverriddenFunctions: true
+  VariableNaming:
+    variablePattern: '^[a-z][a-zA-Z0-9]*$'
+    privateVariablePattern: '^(_)?[a-z][a-zA-Z0-9]*$'
+    parameterPattern: '^[a-z][a-zA-Z0-9]*$'
+    parameterInFunctionPattern: '^[a-z][a-zA-Z0-9]*$'
+    excludeClassPattern: '[A-Z][a-zA-Z0-9]*'
+    ignoreOverridden: true
+    ignoreAnnotated: ['Suppress("VariableNaming")']
+  ClassNaming:
+    classPattern: '^[A-Z][a-zA-Z0-9]*$'
+  MemberNameEqualsClassName: true
+  ObjectPropertyNaming:
+    propertyPattern: '^[A-Z][a-zA-Z0-9]*$'
+    privatePropertyPattern: '^[A-Z][a-zA-Z0-9]*$'
+    constantPattern: '^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$'
+
+formatting:
+  Indentation:
+    indentSize: 4
+    continuationIndentSize: 4
+  MaximumLineLength:
+    maxLineLength: 120
+    excludePackageStatements: true
+    excludeImportStatements: true
+  NoWildcardImports:
+    excludeImports: []
+  NoMultipleSpaces: true
+  Spacing:
+    spacingAroundAssignmentOperators: true
+    spacingAroundBinaryOperators: true
+    spacingAroundUnaryOperators: true
+  Wrapping:
+    maxLineLength: 120
+
+console-reports:
+  active: true
+  exclude:
+    - 'ProjectStatisticsReport'
+    - 'ComplexityReport'
+    - 'NotificationReport'
+    - 'FindingsReport'
+    - 'BuildFailureReport'

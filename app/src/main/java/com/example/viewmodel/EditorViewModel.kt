@@ -327,6 +327,7 @@ class EditorViewModel(
 
     fun duplicateProject(id: String) {
         repository.duplicateProject(id)
+        playerManager?.loadProject(_currentProject.value!!)
     }
 
     fun deleteProject(id: String) {
@@ -334,11 +335,13 @@ class EditorViewModel(
             _currentProject.value = null
         }
         repository.deleteProject(id)
+        playerManager?.loadProject(_currentProject.value!!)
     }
 
     /** Restores a draft removed from the home screen (undo delete). */
     fun restoreProject(project: VideoProject) {
         repository.saveProject(project)
+        playerManager?.loadProject(_currentProject.value!!)
     }
 
     fun setActiveSheet(sheet: ActiveToolSheet) {
@@ -597,6 +600,8 @@ class EditorViewModel(
                 }
                 _selectedClipId.value = clip.id
                 AppLog.info("EditorViewModel", "Successfully imported clip: $realTitle (${durationMs}ms)")
+                // Reload the player with the updated project
+                playerManager?.loadProject(_currentProject.value!!)
             } catch (e: Exception) {
                 _isImporting.value = false
                 AppLog.error("EditorViewModel", "Failed to import clip from $uriString", e)
@@ -613,6 +618,7 @@ class EditorViewModel(
                     proj.copy(clips = proj.clips + fallbackClip)
                 }
                 _selectedClipId.value = fallbackClip.id
+                playerManager?.loadProject(_currentProject.value!!)
             }
         }
     }
@@ -757,6 +763,7 @@ class EditorViewModel(
             updateProject { proj ->
                 proj.copy(audioTracks = proj.audioTracks + audio)
             }
+            playerManager?.loadProject(_currentProject.value!!)
         }
     }
 
@@ -768,6 +775,7 @@ class EditorViewModel(
             )
             proj.copy(audioTracks = proj.audioTracks + track)
         }
+        playerManager?.loadProject(_currentProject.value!!)
     }
 
     fun deleteAudioTrack(id: String) {
@@ -816,6 +824,7 @@ class EditorViewModel(
             updateProject { proj ->
                 proj.copy(audioTracks = proj.audioTracks + audio)
             }
+            playerManager?.loadProject(_currentProject.value!!)
         }
     }
 
@@ -846,6 +855,7 @@ class EditorViewModel(
                 updateProject { proj ->
                     proj.copy(audioTracks = proj.audioTracks + audio)
                 }
+                playerManager?.loadProject(_currentProject.value!!)
             }
             // The UI can show error if needed
         }
@@ -876,6 +886,7 @@ class EditorViewModel(
             proj.copy(textOverlays = proj.textOverlays + newText)
         }
         _selectedTextId.value = newText.id
+        playerManager?.loadProject(_currentProject.value!!)
     }
 
     fun updateSelectedText(
@@ -920,6 +931,7 @@ class EditorViewModel(
         updateProject { proj ->
             proj.copy(stickers = proj.stickers + sticker)
         }
+        playerManager?.loadProject(_currentProject.value!!)
     }
 
     fun deleteSticker(id: String) {
@@ -939,6 +951,7 @@ class EditorViewModel(
         updateProject { proj ->
             proj.copy(effects = proj.effects + effect)
         }
+        playerManager?.loadProject(_currentProject.value!!)
     }
 
     fun deleteTimelineEffect(id: String) {
@@ -1168,6 +1181,7 @@ class EditorViewModel(
             proj.copy(overlayTracks = currentTracks)
         }
         _selectedClipId.value = newClip.id
+        playerManager?.loadProject(_currentProject.value!!)
     }
 
     fun setClipBlendMode(clipId: String, mode: BlendMode) {

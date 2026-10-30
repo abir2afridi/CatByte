@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<baseline>
+  <!-- This file is used by Detekt to ignore existing issues.
+       Run `./gradlew detektBaseline` to generate/update this file.
+       Or remove this file to see all issues. -->
+</baseline>

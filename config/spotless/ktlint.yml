@@ -1,0 +1,71 @@
+# ktlint configuration for CatByte
+
+# Based on ktlint 1.5.0 standard rules
+# Extends standard rules with custom configuration
+
+# Disable rules that conflict with project style
+disabled_rules:
+  - max-line-length  # Using Detekt for this
+  - wildcard-import  # Using Detekt for this
+  - no-tabs  # Not applicable (spaces only)
+  - indentation  # Using Detekt for this
+
+# Override specific rules
+rules:
+  # Naming conventions
+  function-naming:
+    ignore-overridden: true
+    ignore-annotated: [Suppress("FunctionNaming")]
+
+  variable-naming:
+    ignore-overridden: true
+    ignore-annotated: [Suppress("VariableNaming")]
+
+  # Class naming
+  class-naming:
+    ignore-annotated: [Suppress("ClassNaming")]
+
+  # Package naming
+  package-naming:
+    package-pattern: '^[a-z]+(\.[a-z][a-z0-9]*)*$'
+
+  # Formatting
+  trailing-whitespace: true
+  no-consecutive-blank-lines: true
+  no-trailing-spaces: true
+  no-empty-first-line-in-file: true
+  no-empty-last-line-in-file: false
+  no-multi-spaces: true
+  no-multiple-declarations: true
+  no-semicolons: true
+  no-wildcard-imports: false  # Using Detekt
+
+  # Import ordering
+  import-ordering:
+    layout:
+      - "android.*"
+      - "androidx.*"
+      - "com.*"
+      - "org.*"
+      - "java.*"
+      - "kotlin.*"
+      - ""
+      - ".*"
+    blank-line-between-groups: true
+
+  # Function spacing
+  function-spacing:
+    spacing-around-parameter-delimiter: true
+    spacing-around-parameter-type: true
+
+  # Lambda formatting
+  lambda-format:
+    trailing-lambda: always
+
+  # String templates
+  string-template-formatting:
+    enforce: true
+
+  # Comment formatting
+  comment-spacing:
+    require-space-after-hash: true
