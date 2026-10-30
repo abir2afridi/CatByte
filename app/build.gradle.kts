@@ -2,6 +2,7 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.secrets)
+  alias(libs.plugins.google.devtools.ksp)
 }
 
 android {
@@ -95,9 +96,13 @@ dependencies {
   implementation(libs.androidx.media3.ui)
   implementation(libs.androidx.media3.transformer)
   implementation(libs.androidx.media3.effect)
+  implementation(libs.androidx.navigation.compose)
+  implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.room.ktx)
   implementation(libs.coil.compose)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
+  ksp(libs.androidx.room.compiler)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

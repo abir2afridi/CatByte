@@ -14,10 +14,30 @@ A video editor built with **Jetpack Compose** and **Kotlin**, featuring a hand-d
 - **Multi-track timeline** with video, audio, text, stickers, and effects
 - **Aspect ratios**: 9:16 (Shorts/Reels), 16:9 (YouTube), 1:1 (Square), 4:5 (Portrait)
 - **Paper textures**: Drafting Grid, Ruled Notebook, Blank Parchment, Sepia Kraft
-- **13 artistic filters**: Graphite, Blueprint, Sepia, Charcoal, Manga Dots, Cyberpunk, Vintage, Golden Hour, Noir, Teal/Orange, Moody, Glitch Art
-- **Transitions**: Cut, Fade, Slide, Push, Wipe, Spin, Glitch, Ink Bleed
-- **Text animations**: Typewriter, Pop-up, Neon Pulse, Fade, Slide, Bounce
+- **13 artistic filters** burned into export: Graphite, Blueprint, Sepia, Charcoal, Manga Dots, Cyberpunk, Vintage, Golden Hour, Noir, Teal/Orange, Moody, Glitch Art
+- **Transitions** burned into export: Cut, Fade, Slide, Push, Wipe, Spin, Glitch, Ink Bleed
+- **Text animations**: Typewriter, Pop-up, Neon Pulse, Fade, Slide, Bounce (rendered in exported video)
 - **Speed ramping** (velocity curves) and clip adjustments (brightness, contrast, saturation, vignette)
+- **Clip trim handles** with real source-range selection
+- **Drag-reorder clips** on the timeline
+- **Picture-in-picture overlay tracks** with blend modes and masks
+
+### Audio
+- **Real voice recording** with MediaRecorder (AAC .m4a)
+- **AI voiceover (TTS)** — type text, generate speech on-device
+- **Audio import** with real duration detection and waveform visualization
+- **Per-clip volume, mute, fade in/out**
+- **Background music and SFX library** with real waveforms
+
+### Export Pipeline (Real MP4)
+- **Media3 Transformer** encodes H.264/AAC MP4
+- **Resolution presets**: 360p, 720p, 1080p, 4K
+- **Frame rate presets**: 24, 30, 60 fps
+- **Filters, transitions, adjustments, rotation, mirror, speed, text, stickers, watermark** all burned in
+- **Audio mix** — voice, music, SFX, clip audio combined
+- **Progress callback** with live percentage
+- **Auto-save to Gallery (MediaStore)** — instantly shareable
+- **No storage permission required** (uses app-specific folder + MediaStore)
 
 ### P1 UX & Functionality
 - **Home screen**: Saveable tab/filter/dialog state, delete confirmation with a 5-second Undo bar, honest quick-tool Toasts, real profile stats
@@ -26,6 +46,7 @@ A video editor built with **Jetpack Compose** and **Kotlin**, featuring a hand-d
 - **Editor**: Fixed 175 dp timeline, runtime `RECORD_AUDIO` permission flow
 
 ### P2 Code Quality
+- **Room database** for persistent projects (survives app restart)
 - **DataStore Preferences** for persistent settings (theme, resolution, FPS, grid, watermark, language)
 - **Manual DI**: `CatByteApplication` → `AppContainer` → `EditorViewModelFactory`
 - **Locale handling** via `attachBaseContext` + `LocaleUtils` (works on all API levels)
@@ -36,7 +57,7 @@ A video editor built with **Jetpack Compose** and **Kotlin**, featuring a hand-d
 - **Bengali (bn) localization** for key settings and home strings
 - **Platform splash screen** (API 31+) with sketchbook branding
 - **Adaptive icon** with monochrome support
-- **Manifest**: `enableOnBackInvokedCallback`, `localeConfig`, `configChanges="...|locale"`
+- **Manifest**: `enableOnBackInvokedCallback`, `localeConfig`, `configChanges="...|locale"`, `RECORD_AUDIO`, `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE_MEDIA_PROCESSING`
 
 ### System Logs (Debugging)
 - **Real crash and error capture** through an uncaught-exception handler
@@ -58,21 +79,36 @@ app/
 │   ├── AppContainer.kt         # Manual DI container
 │   ├── AppLog.kt               # Ring buffer, file persistence, crash handler
 │   ├── CacheManager.kt         # Cache size + clear
+│   ├── ExportManager.kt        # Media3 Transformer export pipeline
 │   ├── LocaleUtils.kt          # Per-app locale via attachBaseContext
-│   ├── ProjectRepository.kt    # In-memory project CRUD + restore
-│   └── SettingsRepository.kt   # DataStore persistence
+│   ├── MediaMetadata.kt        # Real duration + waveform extraction
+│   ├── MediaStoreSaver.kt      # Gallery save + share
+│   ├── ProjectRepository.kt    # Room-backed project CRUD + restore
+│   ├── SettingsRepository.kt   # DataStore persistence
+│   ├── SpeechSynthesizer.kt    # On-device TTS voiceover
+│   ├── VoiceRecorder.kt        # MediaRecorder voice capture
+│   └── PlayerManager.kt        # ExoPlayer preview wrapper
+├── db/
+│   ├── ProjectEntity.kt        # Room entity
+│   ├── ProjectDao.kt           # Room DAO
+│   ├── CatByteDatabase.kt      # Room database
+│   └── ProjectJson.kt          # Model ↔ JSON serialization
+├── export/
+│   ├── ExportEffects.kt        # Filters, transitions, overlays for export
+│   └── ExportPresets.kt        # Resolution / aspect helpers
 ├── ui/
 │   ├── components/
 │   │   ├── VideoCanvas.kt      # Preview with pulse, watermark, placeholders
 │   │   ├── ExportDialog.kt     # Standalone export sheet
-│   │   └── MultiTrackTimeline.kt
+│   │   ├── MultiTrackTimeline.kt
+│   │   └── CapCutToolSheets.kt # All 17 tool sheets
 │   └── screens/
 │       ├── HomeScreen.kt       # Drafts, inbox, profile
 │       ├── EditorScreen.kt     # Timeline + canvas + tool sheets
 │       ├── SettingsScreen.kt   # Settings content hosted in a modal popup
 │       └── SystemLogsScreen.kt # Crash/error viewer, copy and download
 ├── viewmodel/
-│   ├── EditorViewModel.kt      # Core editing state + settings bridge
+│   ├── EditorViewModel.kt      # Core editing state + settings bridge + all P1 actions
 │   └── EditorViewModelFactory.kt
 ├── CatByteApplication.kt       # App entry + logging + DI init
 └── MainActivity.kt             # Screen nav, settings popup, locale wrap
@@ -84,10 +120,10 @@ app/
 
 ```bash
 # Requires JDK 17+ and Android SDK 36
-./gradlew :app:assembleDebug --offline
+./gradlew :app:assembleDebug --offline --no-configuration-cache
 
 # Run unit tests
-./gradlew :app:testDebugUnitTest --tests "com.example.ExampleUnitTest" --offline
+./gradlew :app:testDebugUnitTest --tests "com.example.ExampleUnitTest" --offline --no-configuration-cache
 ```
 
 **Output**: `app/build/outputs/apk/debug/app-debug.apk`
@@ -102,10 +138,13 @@ app/
 | Kotlin | 2.2.10 |
 | Android Gradle Plugin | 9.5.0 |
 | DataStore Preferences | 1.3.0 |
+| Room (Runtime/KTX/Compiler) | 2.7.0 |
+| KSP | 2.3.6 |
+| Navigation Compose | 2.8.9 |
 | Coil Compose | 2.7.0 |
 | Lifecycle / ViewModel / Compose | 2.8.7 |
 | Activity Compose | 1.10.1 |
-| Media3 (ExoPlayer / Transformer) | 1.11.1 |
+| Media3 (ExoPlayer / Transformer / Effect) | 1.11.1 |
 
 ---
 
@@ -113,12 +152,17 @@ app/
 
 **Implemented (P1–P3):**
 - All UX flows, settings popup, export dialog, localization, splash, DI, DataStore, cache, system logs, tests
+- **Real export pipeline** with Media3 Transformer (filters, transitions, text, stickers, watermark, audio mix)
+- **Room persistence** for projects
+- **Real voice recording** (MediaRecorder) + **TTS voiceover**
+- **Real media metadata** (duration, waveform)
+- **Drag-reorder**, **trim handles**, **real audio import**
 
 **Out of Scope or Partial:**
-- Not every creative filter/effect is burned into exported video yet; the UI does not claim otherwise
 - Release signing cleanup (keystore env vars remain)
-- Room persistence for projects (in-memory only)
 - Full string localization (~300 hardcoded strings remain in UI code)
+- Background export with WorkManager
+- Cloud sync / collaboration
 
 ---
 

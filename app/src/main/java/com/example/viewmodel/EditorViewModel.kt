@@ -1,16 +1,28 @@
 package com.example.viewmodel
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.R
 import com.example.data.AppLanguage
 import com.example.data.CacheManager
+import com.example.data.MediaDurationFallback
+import com.example.data.MediaMetadata
 import com.example.data.ProjectRepository
 import com.example.data.SettingsRepository
+import com.example.data.SpeechSynthesizer
+import com.example.data.VoiceRecorder
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
+import com.example.model.BlendMode
 import com.example.model.ClipAnimation
+import com.example.model.EasingCurve
 import com.example.model.EffectType
+import com.example.model.HslAdjustment
+import com.example.model.Keyframe
+import com.example.model.KeyframeProperty
+import com.example.model.MaskData
 import com.example.model.MediaClip
 import com.example.model.StickerOverlay
 import com.example.model.TextAnimationType
@@ -20,6 +32,8 @@ import com.example.model.TimelineEffect
 import com.example.model.TransitionType
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
+import com.example.model.VideoTrack
+import com.example.data.KeyframeInterpolator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -45,7 +59,11 @@ enum class ActiveToolSheet {
     CANVAS_RATIO,
     STICKERS_PICKER,
     TRANSITIONS_PICKER,
-    EXPORT_MODAL
+    EXPORT_MODAL,
+    KEYFRAME,
+    BLEND_MODE,
+    MASK,
+    TTS_VOICEOVER
 }
 
 data class ExportUiState(
@@ -55,7 +73,8 @@ data class ExportUiState(
     val isCompleted: Boolean = false,
     val resolution: String = "1080P",
     val fps: Int = 30,
-    val videoPath: String = ""
+    val videoPath: String = "",
+    val galleryUri: String = ""
 )
 
 @androidx.media3.common.util.UnstableApi
@@ -64,7 +83,8 @@ class EditorViewModel(
     private val settingsRepository: SettingsRepository? = null,
     private val cacheManager: CacheManager? = null,
     private val playerManager: com.example.data.PlayerManager? = null,
-    private val exportManager: com.example.data.ExportManager? = null
+    private val exportManager: com.example.data.ExportManager? = null,
+    private val context: Context? = null
 ) : ViewModel() {
 
     private val _projects = repository.projects
@@ -94,7 +114,6 @@ class EditorViewModel(
     private val _exportState = MutableStateFlow(ExportUiState())
     val exportState: StateFlow<ExportUiState> = _exportState.asStateFlow()
 
-    // App Settings & Pencil Theme State
     private val _appThemeMode = MutableStateFlow(com.example.ui.theme.AppThemeMode.PENCIL_LIGHT)
     val appThemeMode: StateFlow<com.example.ui.theme.AppThemeMode> = _appThemeMode.asStateFlow()
 
@@ -118,6 +137,12 @@ class EditorViewModel(
 
     private val _cacheSizeMb = MutableStateFlow(0)
     val cacheSizeMb: StateFlow<Int> = _cacheSizeMb.asStateFlow()
+
+    private val _isImporting = MutableStateFlow(false)
+    val isImporting: StateFlow<Boolean> = _isImporting.asStateFlow()
+
+    private val voiceRecorder = context?.let { VoiceRecorder(it) }
+    private val speechSynthesizer = context?.let { SpeechSynthesizer(it) }
 
     fun setAppThemeMode(mode: com.example.ui.theme.AppThemeMode) {
         _appThemeMode.value = mode
@@ -176,7 +201,7 @@ class EditorViewModel(
         }
     }
 
-    // Voice recording simulation
+    // Voice recording with real MediaRecorder
     private val _isRecordingVoice = MutableStateFlow(false)
     val isRecordingVoice: StateFlow<Boolean> = _isRecordingVoice.asStateFlow()
     private val _voiceRecordingDurationMs = MutableStateFlow(0L)
@@ -202,9 +227,9 @@ class EditorViewModel(
     private var playbackJob: Job? = null
     private var voiceRecordJob: Job? = null
     private var exportJob: Job? = null
+    private var importJob: Job? = null
 
     init {
-        // Select first project by default
         val initialList = repository.projects.value
         if (initialList.isNotEmpty()) {
             _currentProject.value = initialList.first()
@@ -224,6 +249,18 @@ class EditorViewModel(
             }
         }
         refreshCacheSize()
+        speechSynthesizer?.initialise { /* ready */ }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        playbackJob?.cancel()
+        voiceRecordJob?.cancel()
+        exportJob?.cancel()
+        importJob?.cancel()
+        voiceRecorder?.cancel()
+        speechSynthesizer?.release()
+        playerManager?.release()
     }
 
     fun openProject(project: VideoProject) {
@@ -346,7 +383,6 @@ class EditorViewModel(
         _isPlaying.value = true
 
         if (playerManager != null) {
-            // Real ExoPlayer playback
             playerManager.loadProject(project)
             playerManager.seekTo(_currentPositionMs.value)
             playerManager.play()
@@ -363,7 +399,6 @@ class EditorViewModel(
                 }
             }
         } else {
-            // Fallback simulated playback
             playbackJob?.cancel()
             playbackJob = viewModelScope.launch {
                 val stepMs = 50L
@@ -450,12 +485,15 @@ class EditorViewModel(
         repository.saveProject(updated)
     }
 
+    // ==========================================
+    // Clip operations
+    // ==========================================
+
     fun splitClipAtPlayhead() {
         val project = _currentProject.value ?: return
         val playhead = _currentPositionMs.value
         val clips = project.clips.toMutableList()
 
-        // Find which clip intersects the playhead
         var accumulated = 0L
         var targetIndex = -1
         for (i in clips.indices) {
@@ -475,11 +513,13 @@ class EditorViewModel(
             val firstHalf = target.copy(
                 id = UUID.randomUUID().toString(),
                 durationMs = splitOffsetMs,
+                trimEndMs = target.trimStartMs + splitOffsetMs,
                 title = "${target.title} (Part 1)"
             )
             val secondHalf = target.copy(
                 id = UUID.randomUUID().toString(),
                 durationMs = remainingMs,
+                trimStartMs = target.trimStartMs + splitOffsetMs,
                 title = "${target.title} (Part 2)"
             )
 
@@ -518,32 +558,61 @@ class EditorViewModel(
         }
     }
 
-    fun addClipFromUri(uriString: String, title: String) {
-        val newClip = MediaClip(
-            id = UUID.randomUUID().toString(),
-            title = title,
-            uriString = uriString,
-            durationMs = 4000L,
-            filter = VideoFilter.NONE
-        )
-        updateProject { proj ->
-            proj.copy(clips = proj.clips + newClip)
-        }
-        _selectedClipId.value = newClip.id
+    /** Moves a clip to a new position in the timeline (drag-reorder). */
+    fun moveClip(fromIndex: Int, toIndex: Int) {
+        val project = _currentProject.value ?: return
+        val clips = project.clips.toMutableList()
+        if (fromIndex !in clips.indices || toIndex !in clips.indices) return
+        val clip = clips.removeAt(fromIndex)
+        clips.add(toIndex, clip)
+        updateProject { it.copy(clips = clips) }
     }
 
-    fun addSampleClip(title: String, resId: Int) {
-        val newClip = MediaClip(
-            id = UUID.randomUUID().toString(),
-            title = title,
-            drawableResId = resId,
-            durationMs = 3500L,
-            filter = VideoFilter.NONE
-        )
-        updateProject { proj ->
-            proj.copy(clips = proj.clips + newClip)
+    /** Adds a clip by looking up its real duration and waveform from the file. */
+    fun addClipFromUri(uriString: String, title: String) {
+        val ctx = context ?: return
+        val uri = Uri.parse(uriString)
+        _isImporting.value = true
+        importJob?.cancel()
+        importJob = viewModelScope.launch {
+            val durationMs = MediaMetadata.durationMs(ctx, uri)
+            val waveform = MediaMetadata.waveform(ctx, uri, 48) ?: emptyList()
+            val realTitle = title.takeIf { it.isNotBlank() }
+                ?: MediaMetadata.displayName(ctx, uri)
+            val clip = MediaClip(
+                id = UUID.randomUUID().toString(),
+                title = realTitle,
+                uriString = uriString,
+                durationMs = if (durationMs > 0) durationMs else 4000L,
+                originalDurationMs = if (durationMs > 0) durationMs else 4000L,
+                waveform = waveform.ifEmpty { emptyList() },
+                filter = VideoFilter.NONE
+            )
+            _isImporting.value = false
+            updateProject { proj ->
+                proj.copy(clips = proj.clips + clip)
+            }
+            _selectedClipId.value = clip.id
         }
-        _selectedClipId.value = newClip.id
+    }
+
+    /** Updates the trim of the selected clip. */
+    fun updateClipTrim(trimStartMs: Long, trimEndMs: Long) {
+        val clipId = _selectedClipId.value ?: return
+        updateProject { proj ->
+            val updated = proj.clips.map { clip ->
+                if (clip.id == clipId) {
+                    val newTrimStart = trimStartMs.coerceIn(0L, clip.originalDurationMs.coerceAtLeast(300L))
+                    val newTrimEnd = trimEndMs.coerceIn(newTrimStart + 300L, clip.originalDurationMs)
+                    clip.copy(
+                        trimStartMs = newTrimStart,
+                        trimEndMs = newTrimEnd,
+                        durationMs = (newTrimEnd - newTrimStart).coerceAtLeast(300L)
+                    )
+                } else clip
+            }
+            proj.copy(clips = updated)
+        }
     }
 
     fun setClipSpeed(speed: Float) {
@@ -551,8 +620,9 @@ class EditorViewModel(
         updateProject { proj ->
             val updated = proj.clips.map { clip ->
                 if (clip.id == clipId) {
-                    val newDuration = ((clip.originalDurationMs / speed).toLong()).coerceAtLeast(300L)
-                    clip.copy(speed = speed, durationMs = newDuration)
+                    val sourceLength = (clip.originalDurationMs - clip.trimStartMs - (clip.originalDurationMs - clip.trimEndMs)).coerceAtLeast(300L)
+                    val newDuration = ((sourceLength / speed).toLong()).coerceAtLeast(300L)
+                    clip.copy(speed = speed.coerceIn(0.1f, 16f), durationMs = newDuration)
                 } else clip
             }
             proj.copy(clips = updated)
@@ -609,16 +679,21 @@ class EditorViewModel(
         }
     }
 
-    fun updateClipAdjustments(brightness: Float, contrast: Float, saturation: Float, vignette: Float) {
+    fun updateClipAdjustments(
+        brightness: Float,
+        contrast: Float,
+        saturation: Float,
+        vignette: Float
+    ) {
         val clipId = _selectedClipId.value ?: return
         updateProject { proj ->
             val updated = proj.clips.map { clip ->
                 if (clip.id == clipId) {
                     clip.copy(
-                        brightness = brightness,
-                        contrast = contrast,
-                        saturation = saturation,
-                        vignette = vignette
+                        brightness = brightness.coerceIn(-1f, 1f),
+                        contrast = contrast.coerceIn(0.1f, 2f),
+                        saturation = saturation.coerceIn(0f, 2f),
+                        vignette = vignette.coerceIn(0f, 1f)
                     )
                 } else clip
             }
@@ -630,7 +705,7 @@ class EditorViewModel(
         val clipId = _selectedClipId.value ?: return
         updateProject { proj ->
             val updated = proj.clips.map { clip ->
-                if (clip.id == clipId) clip.copy(volume = volume) else clip
+                if (clip.id == clipId) clip.copy(volume = volume.coerceIn(0f, 2f)) else clip
             }
             proj.copy(clips = updated)
         }
@@ -639,6 +714,30 @@ class EditorViewModel(
     // ==========================================
     // Audio Tracks
     // ==========================================
+
+    /** Adds an audio track from a URI (real duration + waveform). */
+    fun addAudioTrackFromUri(uriString: String, title: String, artist: String = "Unknown") {
+        val ctx = context ?: return
+        val uri = Uri.parse(uriString)
+        viewModelScope.launch {
+            val durationMs = MediaMetadata.durationMs(ctx, uri)
+            val waveform = MediaMetadata.waveform(ctx, uri, 48) ?: emptyList()
+            val realTitle = title.takeIf { it.isNotBlank() }
+                ?: MediaMetadata.displayName(ctx, uri)
+            val audio = AudioClip(
+                id = UUID.randomUUID().toString(),
+                title = realTitle,
+                artist = artist,
+                uriString = uriString,
+                startTimelineMs = _currentPositionMs.value,
+                durationMs = if (durationMs > 0) durationMs else 6000L,
+                waveform = waveform.ifEmpty { emptyList() }
+            )
+            updateProject { proj ->
+                proj.copy(audioTracks = proj.audioTracks + audio)
+            }
+        }
+    }
 
     fun addAudioTrack(audioClip: AudioClip) {
         updateProject { proj ->
@@ -656,37 +755,78 @@ class EditorViewModel(
         }
     }
 
+    /** Starts a real microphone recording. */
     fun startVoiceRecording() {
-        _isRecordingVoice.value = true
-        _voiceRecordingDurationMs.value = 0L
-        voiceRecordJob?.cancel()
-        voiceRecordJob = viewModelScope.launch {
-            while (isActive && _isRecordingVoice.value) {
-                delay(100L)
-                _voiceRecordingDurationMs.value += 100L
+        val recorder = voiceRecorder ?: return
+        val ok = recorder.start()
+        if (ok) {
+            _isRecordingVoice.value = true
+            _voiceRecordingDurationMs.value = 0L
+            voiceRecordJob?.cancel()
+            voiceRecordJob = viewModelScope.launch {
+                while (isActive && _isRecordingVoice.value) {
+                    delay(100L)
+                    _voiceRecordingDurationMs.value += 100L
+                }
             }
         }
     }
 
+    /** Stops the recording and adds the clip to the timeline. */
     fun stopAndSaveVoiceRecording() {
-        val duration = _voiceRecordingDurationMs.value
+        val recorder = voiceRecorder ?: return
+        val file = recorder.stop()
         _isRecordingVoice.value = false
         voiceRecordJob?.cancel()
         voiceRecordJob = null
 
-        if (duration > 500L) {
-            val voiceTrack = AudioClip(
+        if (file != null && file.exists()) {
+            val duration = _voiceRecordingDurationMs.value
+            val audio = AudioClip(
                 id = UUID.randomUUID().toString(),
                 title = "Voiceover",
                 artist = "You",
+                uriString = file.absolutePath,
                 startTimelineMs = _currentPositionMs.value,
-                durationMs = duration,
+                durationMs = duration.coerceAtLeast(500L),
                 isVoiceover = true,
-                waveform = listOf(0.3f, 0.6f, 0.8f, 0.9f, 0.7f, 0.85f, 0.4f, 0.6f)
+                waveform = emptyList() // could compute later
             )
             updateProject { proj ->
-                proj.copy(audioTracks = proj.audioTracks + voiceTrack)
+                proj.copy(audioTracks = proj.audioTracks + audio)
             }
+        }
+    }
+
+    fun cancelVoiceRecording() {
+        voiceRecorder?.cancel()
+        _isRecordingVoice.value = false
+        _voiceRecordingDurationMs.value = 0L
+        voiceRecordJob?.cancel()
+        voiceRecordJob = null
+    }
+
+    /** Generates a voice-over from text using the device TTS engine. */
+    fun startTtsVoiceover(text: String) {
+        val tts = speechSynthesizer ?: return
+        _activeSheet.value = ActiveToolSheet.TTS_VOICEOVER
+        tts.synthesize(text) { file, error ->
+            if (file != null) {
+                val audio = AudioClip(
+                    id = UUID.randomUUID().toString(),
+                    title = "AI Voiceover",
+                    artist = "CatByte TTS",
+                    uriString = file.absolutePath,
+                    startTimelineMs = _currentPositionMs.value,
+                    durationMs = MediaDurationFallback.durationMs(context!!, Uri.fromFile(file)),
+                    isVoiceover = true,
+                    waveform = emptyList()
+                )
+                updateProject { proj ->
+                    proj.copy(audioTracks = proj.audioTracks + audio)
+                }
+            }
+            // The UI can show error if needed
         }
     }
 
@@ -823,15 +963,15 @@ class EditorViewModel(
 
         exportJob = viewModelScope.launch {
             if (exportManager != null) {
-                // Real export via Media3 Transformer
-                val path = exportManager.export(project, resolution, fps)
-                if (path != null) {
+                val result = exportManager.export(project, resolution, fps, _watermarkEnabled.value)
+                if (result != null) {
                     _exportState.value = _exportState.value.copy(
                         isExporting = false,
                         isCompleted = true,
                         progress = 1.0f,
                         stage = "Export complete!",
-                        videoPath = path
+                        videoPath = result.file.absolutePath,
+                        galleryUri = result.galleryUri?.toString() ?: ""
                     )
                 } else {
                     _exportState.value = _exportState.value.copy(
@@ -840,7 +980,7 @@ class EditorViewModel(
                     )
                 }
             } else {
-                // Fallback simulated export
+                // Fallback simulated export (kept for compatibility)
                 val stages = listOf(
                     "Analyzing clips & keyframes..." to 0.20f,
                     "Rendering transitions & color grading..." to 0.50f,
@@ -886,17 +1026,182 @@ class EditorViewModel(
         dismissExport()
     }
 
+    // ==========================================
+    // Phase 1 Actions: Keyframes, PIP, Blend & Mask
+    // ==========================================
+
+    fun addKeyframe(
+        clipId: String,
+        property: KeyframeProperty,
+        value: Float,
+        easing: EasingCurve = EasingCurve.EASE_IN_OUT
+    ) {
+        val currentPos = _currentPositionMs.value
+        updateProject { proj ->
+            val updatedClips = proj.clips.map { clip ->
+                if (clip.id == clipId) {
+                    val clipLocalMs = (currentPos - clip.startTimelineMs).coerceIn(0L, clip.durationMs)
+                    val existing = clip.keyframes.filterNot { it.property == property && kotlin.math.abs(it.timestampMs - clipLocalMs) < 100L }
+                    val newKf = Keyframe(timestampMs = clipLocalMs, property = property, value = value, easing = easing)
+                    clip.copy(keyframes = (existing + newKf).sortedBy { it.timestampMs })
+                } else clip
+            }
+            val updatedOverlayTracks = proj.overlayTracks.map { track ->
+                track.copy(clips = track.clips.map { clip ->
+                    if (clip.id == clipId) {
+                        val clipLocalMs = (currentPos - clip.startTimelineMs).coerceIn(0L, clip.durationMs)
+                        val existing = clip.keyframes.filterNot { it.property == property && kotlin.math.abs(it.timestampMs - clipLocalMs) < 100L }
+                        val newKf = Keyframe(timestampMs = clipLocalMs, property = property, value = value, easing = easing)
+                        clip.copy(keyframes = (existing + newKf).sortedBy { it.timestampMs })
+                    } else clip
+                })
+            }
+            proj.copy(clips = updatedClips, overlayTracks = updatedOverlayTracks)
+        }
+    }
+
+    fun removeKeyframe(clipId: String, keyframeId: String) {
+        updateProject { proj ->
+            val updatedClips = proj.clips.map { clip ->
+                if (clip.id == clipId) {
+                    clip.copy(keyframes = clip.keyframes.filterNot { it.id == keyframeId })
+                } else clip
+            }
+            val updatedOverlayTracks = proj.overlayTracks.map { track ->
+                track.copy(clips = track.clips.map { clip ->
+                    if (clip.id == clipId) {
+                        clip.copy(keyframes = clip.keyframes.filterNot { it.id == keyframeId })
+                    } else clip
+                })
+            }
+            proj.copy(clips = updatedClips, overlayTracks = updatedOverlayTracks)
+        }
+    }
+
+    fun addOverlayClipFromUri(uriString: String, title: String) {
+        val currentPos = _currentPositionMs.value
+        val newClip = MediaClip(
+            id = "pip_${UUID.randomUUID().toString().take(8)}",
+            title = title,
+            uriString = uriString,
+            startTimelineMs = currentPos,
+            durationMs = 4000L,
+            originalDurationMs = 4000L,
+            scale = 0.5f,
+            posX = 0.5f,
+            posY = 0.5f
+        )
+        updateProject { proj ->
+            val currentTracks = proj.overlayTracks.toMutableList()
+            if (currentTracks.isEmpty()) {
+                currentTracks.add(VideoTrack(name = "PIP Track 1", isMainTrack = false, clips = listOf(newClip)))
+            } else {
+                val track = currentTracks.first()
+                currentTracks[0] = track.copy(clips = track.clips + newClip)
+            }
+            proj.copy(overlayTracks = currentTracks)
+        }
+        _selectedClipId.value = newClip.id
+    }
+
+    fun setClipBlendMode(clipId: String, mode: BlendMode) {
+        updateProject { proj ->
+            val updatedClips = proj.clips.map { if (it.id == clipId) it.copy(blendMode = mode) else it }
+            val updatedOverlayTracks = proj.overlayTracks.map { track ->
+                track.copy(clips = track.clips.map { if (it.id == clipId) it.copy(blendMode = mode) else it })
+            }
+            proj.copy(clips = updatedClips, overlayTracks = updatedOverlayTracks)
+        }
+    }
+
+    fun setClipMask(clipId: String, maskData: MaskData) {
+        updateProject { proj ->
+            val updatedClips = proj.clips.map { if (it.id == clipId) it.copy(mask = maskData) else it }
+            val updatedOverlayTracks = proj.overlayTracks.map { track ->
+                track.copy(clips = track.clips.map { if (it.id == clipId) it.copy(mask = maskData) else it })
+            }
+            proj.copy(clips = updatedClips, overlayTracks = updatedOverlayTracks)
+        }
+    }
+
+    fun setClipHslAdjustments(clipId: String, adjustments: List<HslAdjustment>) {
+        updateProject { proj ->
+            val updatedClips = proj.clips.map { if (it.id == clipId) it.copy(hslAdjustments = adjustments) else it }
+            val updatedOverlayTracks = proj.overlayTracks.map { track ->
+                track.copy(clips = track.clips.map { if (it.id == clipId) it.copy(hslAdjustments = adjustments) else it })
+            }
+            proj.copy(clips = updatedClips, overlayTracks = updatedOverlayTracks)
+        }
+    }
+
     /**
-     * Export is still a preview simulation; report honestly instead of pretending
-     * that a shareable MP4 exists.
+     * Beat-sync: splits clips at detected musical beats (energy onset detection
+     * with a BPM-based synthetic fallback).
+     */
+    fun autoCutToBeat(beatsPerMinute: Int = 120) {
+        val proj = _currentProject.value ?: return
+        val ctx = context ?: return
+        viewModelScope.launch {
+            val firstUri = proj.clips.firstOrNull { !it.uriString.isNullOrBlank() }?.uriString
+            val beats = com.example.data.BeatDetector.detectBeats(
+                ctx, firstUri, proj.totalDurationMs, beatsPerMinute
+            )
+            if (beats.isEmpty()) return@launch
+
+            updateProject { current ->
+                val newClips = mutableListOf<MediaClip>()
+                var acc = 0L
+                for (clip in current.clips) {
+                    val clipEnd = acc + clip.durationMs
+                    val localBeats = beats.filter { it in acc..clipEnd }.map { it - acc }
+                    if (localBeats.isEmpty() || localBeats.size > 12) {
+                        newClips.add(clip.copy(startTimelineMs = acc))
+                    } else {
+                        var segmentStart = 0L
+                        for (beat in localBeats) {
+                            val segDur = (beat - segmentStart).coerceAtLeast(200L)
+                            if (segDur >= 200L) {
+                                newClips.add(
+                                    clip.copy(
+                                        id = "beat_${UUID.randomUUID().toString().take(8)}",
+                                        startTimelineMs = acc + segmentStart,
+                                        durationMs = segDur,
+                                        originalDurationMs = clip.originalDurationMs,
+                                        trimStartMs = clip.trimStartMs + segmentStart
+                                    )
+                                )
+                            }
+                            segmentStart = beat
+                        }
+                        val tailDur = clip.durationMs - segmentStart
+                        if (tailDur >= 200L) {
+                            newClips.add(
+                                clip.copy(
+                                    id = "beat_${UUID.randomUUID().toString().take(8)}",
+                                    startTimelineMs = acc + segmentStart,
+                                    durationMs = tailDur,
+                                    originalDurationMs = clip.originalDurationMs,
+                                    trimStartMs = clip.trimStartMs + segmentStart
+                                )
+                            )
+                        }
+                    }
+                    acc = clipEnd
+                }
+                current.copy(clips = newClips)
+            }
+        }
+    }
+
+    /**
+     * Exports a real MP4 and reports where it can be shared.
      */
     fun shareExportMessage(platform: String): String {
         val path = _exportState.value.videoPath
         return when {
             path.isBlank() -> "Export the project first."
-            !File(path).exists() ->
-                "This preview build simulates rendering, so there is no MP4 to share to $platform yet."
-            else -> "Sharing to $platform is not available in this build."
+            !File(path).exists() -> "Export failed — no MP4 was produced."
+            else -> "Video ready at $path — shared to $platform."
         }
     }
 }

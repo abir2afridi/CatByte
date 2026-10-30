@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -163,23 +164,52 @@ fun ExportDialog(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // Real share: open installed social apps with the exported MP4
+                    val videoFile = java.io.File(exportState.videoPath)
+                    val installed = com.example.data.ShareHelper.installedTargets(context)
+                    val shareTargets = if (installed.isNotEmpty()) {
+                        installed
+                    } else {
+                        listOf(
+                            com.example.data.ShareHelper.ShareTarget("Share…", "", "📤")
+                        )
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        listOf("TikTok" to colors.accentCyan, "Instagram" to colors.accentPink, "WhatsApp" to colors.accentGreen).forEach { (platform, color) ->
+                        shareTargets.forEach { target ->
+                            val color = when (target.label) {
+                                "TikTok" -> colors.accentCyan
+                                "Instagram" -> colors.accentPink
+                                "WhatsApp" -> colors.accentGreen
+                                else -> colors.accentPurple
+                            }
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(colors.surfaceElevated)
                                     .border(1.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
-                                    .clickable { onShareExport(platform) }
+                                    .clickable {
+                                        if (videoFile.exists()) {
+                                            val intent = if (target.packageName.isNotEmpty()) {
+                                                com.example.data.ShareHelper.buildShareIntent(context, videoFile, target)
+                                            } else {
+                                                Intent.createChooser(
+                                                    com.example.data.ShareHelper.buildShareIntent(context, videoFile),
+                                                    "Share to"
+                                                )
+                                            }
+                                            runCatching { context.startActivity(intent) }
+                                        }
+                                        onShareExport(target.label)
+                                    }
                                     .padding(horizontal = 14.dp, vertical = 8.dp)
                             ) {
-                                Icon(Icons.Default.Share, contentDescription = platform, tint = color, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Share, contentDescription = target.label, tint = color, modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(platform, color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                Text(target.label, color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                             }
                         }
                     }

@@ -52,6 +52,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -69,15 +72,20 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.R
 import com.example.model.VideoProject
 import com.example.ui.components.AdjustmentsSheet
 import com.example.ui.components.AudioSheet
+import com.example.ui.components.BlendModeSheet
 import com.example.ui.components.CanvasRatioSheet
 import com.example.ui.components.EditClipSheet
 import com.example.ui.components.EffectsSheet
 import com.example.ui.components.ExportDialog
 import com.example.ui.components.FiltersSheet
+import com.example.ui.components.KeyframeSheet
+import com.example.ui.components.MaskSheet
 import com.example.ui.components.MultiTrackTimeline
 import com.example.ui.components.SpeedSheet
 import com.example.ui.components.StickersSheet
@@ -89,6 +97,7 @@ import com.example.ui.theme.pencilHatching
 import com.example.ui.theme.sketchPencilBorder
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
+import com.example.data.MediaDurationFallback
 
 @Composable
 fun EditorScreen(
@@ -110,13 +119,18 @@ fun EditorScreen(
     val canUndo by viewModel.canUndo.collectAsState()
     val canRedo by viewModel.canRedo.collectAsState()
     val magneticSnap by viewModel.magneticSnap.collectAsState()
+    val watermarkEnabled by viewModel.watermarkEnabled.collectAsState()
 
     var activeTransitionClipId by remember { mutableStateOf<String?>(null) }
+    var showTtsDialog by remember { mutableStateOf(false) }
+    var ttsInputText by remember { mutableStateOf("") }
 
     // Intercept back button if any sheet is open
     BackHandler {
         if (activeSheet != ActiveToolSheet.NONE) {
             viewModel.setActiveSheet(ActiveToolSheet.NONE)
+        } else if (showTtsDialog) {
+            showTtsDialog = false
         } else {
             onBackToHome()
         }
@@ -128,6 +142,15 @@ fun EditorScreen(
     ) { uris ->
         uris.forEachIndexed { idx, uri ->
             viewModel.addClipFromUri(uri.toString(), "Clip ${project?.clips?.size?.plus(idx + 1)}")
+        }
+    }
+
+    // Media Picker for adding Overlay PIP clips
+    val addOverlayLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.addOverlayClipFromUri(uri.toString(), "PIP Clip")
         }
     }
 
@@ -238,6 +261,10 @@ fun EditorScreen(
         // 5. Active Tool Sheet / Bottom Bar
         if (activeSheet != ActiveToolSheet.NONE) {
             when (activeSheet) {
+                ActiveToolSheet.TTS_VOICEOVER -> {
+                    // Handled by the AudioSheet when TTS is triggered
+                    Box(modifier = Modifier.fillMaxSize())
+                }
                 ActiveToolSheet.EDIT_CLIP -> {
                     EditClipSheet(
                         clip = currentClip,
@@ -248,6 +275,9 @@ fun EditorScreen(
                         onMirror = { viewModel.mirrorSelectedClip() },
                         onOpenSpeed = { viewModel.setActiveSheet(ActiveToolSheet.SPEED) },
                         onOpenAdjust = { viewModel.setActiveSheet(ActiveToolSheet.ADJUSTMENTS) },
+                        onOpenKeyframe = { viewModel.setActiveSheet(ActiveToolSheet.KEYFRAME) },
+                        onOpenBlendMode = { viewModel.setActiveSheet(ActiveToolSheet.BLEND_MODE) },
+                        onOpenMask = { viewModel.setActiveSheet(ActiveToolSheet.MASK) },
                         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
                     )
                 }
@@ -268,6 +298,10 @@ fun EditorScreen(
                         },
                         onStartVoiceRecord = { viewModel.startVoiceRecording() },
                         onStopVoiceRecord = { viewModel.stopAndSaveVoiceRecording() },
+                        onTtsVoiceover = {
+                            showTtsDialog = true
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        },
                         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
                     )
                 }
@@ -345,8 +379,51 @@ fun EditorScreen(
                 ActiveToolSheet.EXPORT_MODAL -> {
                     ExportDialog(
                         exportState = exportState,
-                        onStartExport = { res, fps -> viewModel.startExport(res, fps) },
-                        onDismiss = { viewModel.dismissExport() }
+                        defaultResolution = project?.resolution ?: "1080P",
+                        defaultFps = project?.fps ?: 30,
+                        watermarkEnabled = watermarkEnabled,
+                        onStartExport = { res, fps, wm -> viewModel.startExport(res, fps) },
+                        onCancelExport = { viewModel.cancelExport() },
+                        onDismiss = { viewModel.dismissExport() },
+                        onShareExport = { platform -> viewModel.shareExportMessage(platform) }
+                    )
+                }
+                ActiveToolSheet.KEYFRAME -> {
+                    KeyframeSheet(
+                        clip = currentClip,
+                        onAddKeyframe = { prop, val1, ease ->
+                            if (selectedClipId != null) {
+                                viewModel.addKeyframe(selectedClipId!!, prop, val1, ease)
+                            }
+                        },
+                        onRemoveKeyframe = { kfId ->
+                            if (selectedClipId != null) {
+                                viewModel.removeKeyframe(selectedClipId!!, kfId)
+                            }
+                        },
+                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                    )
+                }
+                ActiveToolSheet.BLEND_MODE -> {
+                    BlendModeSheet(
+                        selectedMode = currentClip?.blendMode ?: com.example.model.BlendMode.NORMAL,
+                        onSelectBlendMode = { mode ->
+                            if (selectedClipId != null) {
+                                viewModel.setClipBlendMode(selectedClipId!!, mode)
+                            }
+                        },
+                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                    )
+                }
+                ActiveToolSheet.MASK -> {
+                    MaskSheet(
+                        maskData = currentClip?.mask ?: com.example.model.MaskData(),
+                        onUpdateMask = { mask ->
+                            if (selectedClipId != null) {
+                                viewModel.setClipMask(selectedClipId!!, mask)
+                            }
+                        },
+                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
                     )
                 }
                 ActiveToolSheet.NONE -> {}
@@ -358,7 +435,7 @@ fun EditorScreen(
                 onAudio = { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY) },
                 onText = { viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR) },
                 onOverlay = {
-                    addMediaLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                    addOverlayLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
                 },
                 onEffects = { viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY) },
                 onFilters = { viewModel.setActiveSheet(ActiveToolSheet.FILTERS_LIBRARY) },
@@ -366,6 +443,75 @@ fun EditorScreen(
                 onAdjust = { viewModel.setActiveSheet(ActiveToolSheet.ADJUSTMENTS) },
                 onStickers = { viewModel.setActiveSheet(ActiveToolSheet.STICKERS_PICKER) }
             )
+        }
+    }
+
+    if (showTtsDialog) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showTtsDialog = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
+            )
+        ) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp, vertical = 32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(colors.surface)
+                        .border(1.5.dp, colors.border, RoundedCornerShape(22.dp))
+                        .padding(20.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text("AI Voiceover", color = colors.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text("Enter the text you want to convert to speech:", color = colors.textSecondary, fontSize = 14.sp)
+
+                        OutlinedTextField(
+                            value = ttsInputText,
+                            onValueChange = { ttsInputText = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = false
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            androidx.compose.material3.TextButton(
+                                onClick = { showTtsDialog = false },
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                            ) {
+                                Text("Cancel", color = colors.textSecondary, fontWeight = FontWeight.Bold)
+                            }
+                            androidx.compose.material3.Button(
+                                onClick = {
+                                    if (ttsInputText.isNotBlank()) {
+                                        viewModel.startTtsVoiceover(ttsInputText)
+                                        ttsInputText = ""
+                                        showTtsDialog = false
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.accentCyan),
+                                shape = RoundedCornerShape(16.dp),
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                            ) {
+                                Text("Generate", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -526,6 +672,7 @@ private fun PlaybackControlsStrip(
     onStepBackward: () -> Unit,
     onStepForward: () -> Unit,
     onQuickSplit: () -> Unit,
+    onBeatSync: (() -> Unit)? = null,
     onToggleMagneticSnap: () -> Unit,
     onZoomChanged: (Float) -> Unit
 ) {
@@ -599,6 +746,30 @@ private fun PlaybackControlsStrip(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Split", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        // Beat Sync Button
+        if (onBeatSync != null) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(colors.surfaceElevated)
+                    .sketchPencilBorder(strokeWidth = 1.3.dp, color = colors.border, cornerRadius = 8.dp)
+                    .clickable { onBeatSync() }
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Audiotrack,
+                        contentDescription = "Beat Sync",
+                        tint = colors.accentPink,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Beat", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
 

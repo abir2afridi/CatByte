@@ -16,7 +16,8 @@ class EditorViewModelFactory(
                 settingsRepository = container.settingsRepository,
                 cacheManager = container.cacheManager,
                 playerManager = container.playerManager,
-                exportManager = container.exportManager
+                exportManager = container.exportManager,
+                context = container.context
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

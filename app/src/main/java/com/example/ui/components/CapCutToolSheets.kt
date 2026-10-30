@@ -14,6 +14,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -82,8 +83,16 @@ import androidx.compose.ui.window.Dialog
 import com.example.data.SampleDataProvider
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
+import com.example.model.BlendMode
 import com.example.model.ClipAnimation
+import com.example.model.EasingCurve
 import com.example.model.EffectType
+import com.example.model.HslAdjustment
+import com.example.model.HslChannel
+import com.example.model.Keyframe
+import com.example.model.KeyframeProperty
+import com.example.model.MaskData
+import com.example.model.MaskType
 import com.example.model.MediaClip
 import com.example.model.TextAnimationType
 import com.example.model.TextFontStyle
@@ -127,6 +136,9 @@ fun EditClipSheet(
     onMirror: () -> Unit,
     onOpenSpeed: () -> Unit,
     onOpenAdjust: () -> Unit,
+    onOpenKeyframe: () -> Unit = {},
+    onOpenBlendMode: () -> Unit = {},
+    onOpenMask: () -> Unit = {},
     onClose: () -> Unit
 ) {
     Column(
@@ -170,6 +182,27 @@ fun EditClipSheet(
                 accentColor = CapCutCyan,
                 testTag = "action_split_button",
                 onClick = onSplit
+            )
+            ToolButton(
+                icon = Icons.Default.AutoAwesome,
+                label = "Keyframe",
+                accentColor = CapCutPink,
+                testTag = "action_keyframe_button",
+                onClick = onOpenKeyframe
+            )
+            ToolButton(
+                icon = Icons.Default.Tune,
+                label = "Blend",
+                accentColor = CapCutPurple,
+                testTag = "action_blend_button",
+                onClick = onOpenBlendMode
+            )
+            ToolButton(
+                icon = Icons.Default.Speed,
+                label = "Mask",
+                accentColor = CapCutGreen,
+                testTag = "action_mask_button",
+                onClick = onOpenMask
             )
             ToolButton(
                 icon = Icons.Default.Speed,
@@ -218,6 +251,7 @@ fun EditClipSheet(
 fun SpeedSheet(
     currentSpeed: Float,
     onSpeedSelected: (Float) -> Unit,
+    onSelectSpeedCurve: ((com.example.model.SpeedCurve) -> Unit)? = null,
     onClose: () -> Unit
 ) {
     val colors = PencilTheme.colors
@@ -324,13 +358,7 @@ fun SpeedSheet(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf(
-                    "📈 Montage Ramp (0.5x -> 2.5x)" to 1.8f,
-                    "📉 Hero Jump (3.0x -> 0.4x)" to 2.2f,
-                    "⚡ Flash Beat (0.2x -> 4.0x)" to 2.6f,
-                    "⏱️ Bullet Time (0.3x)" to 0.3f,
-                    "✂️ Jump Cut (2.0x)" to 2.0f
-                ).forEach { (label, spd) ->
+                com.example.model.SpeedCurvePreset.entries.forEach { preset ->
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
@@ -341,12 +369,12 @@ fun SpeedSheet(
                                 cornerRadius = 8.dp
                             )
                             .clickable {
-                                speedVal = spd
-                                onSpeedSelected(spd)
+                                val curve = com.example.data.SpeedRampEngine.getPresetCurve(preset)
+                                onSelectSpeedCurve?.invoke(curve)
                             }
                             .padding(horizontal = 10.dp, vertical = 8.dp)
                     ) {
-                        Text(label, color = colors.accentCyan, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text(preset.displayName, color = colors.accentCyan, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -364,8 +392,10 @@ fun AudioSheet(
     isRecordingVoice: Boolean,
     voiceDurationMs: Long,
     onAddAudio: (AudioClip) -> Unit,
+    onExtractAudio: (() -> Unit)? = null,
     onStartVoiceRecord: () -> Unit,
     onStopVoiceRecord: () -> Unit,
+    onTtsVoiceover: (() -> Unit)? = null,
     onClose: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -396,8 +426,21 @@ fun AudioSheet(
                     Text("🎵", fontSize = 16.sp)
                     Text("Audio & Foley Studio", color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.textSecondary)
+                Row {
+                    if (onExtractAudio != null) {
+                        Button(
+                            onClick = { onExtractAudio.invoke() },
+                            colors = ButtonDefaults.buttonColors(containerColor = colors.accentPurple),
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Text("Extract Audio 🔊", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.textSecondary)
+                    }
                 }
             }
 
@@ -577,6 +620,29 @@ fun AudioSheet(
                         )
                     }
 
+                    // TTS Voiceover Button
+                    if (onTtsVoiceover != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { onTtsVoiceover() },
+                            colors = ButtonDefaults.buttonColors(containerColor = CapCutPurple),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = "TTS", tint = Color.White, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("AI Voiceover", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = if (isRecordingVoice) "Tap to finish and add to timeline" else "Speak clearly into your phone's microphone",
@@ -599,6 +665,7 @@ fun TextEditorSheet(
     textOverlay: TextOverlay?,
     onAddOrUpdateText: (text: String, fontStyle: TextFontStyle, color: Long, anim: TextAnimationType) -> Unit,
     onDeleteText: () -> Unit,
+    onAutoCaptions: (() -> Unit)? = null,
     onClose: () -> Unit
 ) {
     var textInput by remember { mutableStateOf(textOverlay?.text ?: "Viral TikTok Text 🔥") }
@@ -627,22 +694,34 @@ fun TextEditorSheet(
                 .verticalScroll(rememberScrollState())
         ) {
             Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Add & Style Text", color = CapCutTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Row {
-                if (textOverlay != null) {
-                    IconButton(onClick = onDeleteText) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = CapCutRed)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Add & Style Text", color = CapCutTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onAutoCaptions != null) {
+                        Button(
+                            onClick = { onAutoCaptions.invoke() },
+                            colors = ButtonDefaults.buttonColors(containerColor = colors.accentYellow),
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Text("Auto Captions 🤖", fontSize = 10.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    if (textOverlay != null) {
+                        IconButton(onClick = onDeleteText) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = CapCutRed)
+                        }
+                    }
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = CapCutTextSecondary)
                     }
                 }
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = CapCutTextSecondary)
-                }
             }
-        }
 
         OutlinedTextField(
             value = textInput,
@@ -1574,3 +1653,270 @@ private fun ToolButton(
         Text(text = label, color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
     }
 }
+
+// Phase 1: Blend Mode Picker Sheet
+@Composable
+fun BlendModeSheet(
+    selectedMode: BlendMode,
+    onSelectBlendMode: (BlendMode) -> Unit,
+    onClose: () -> Unit
+) {
+    val colors = PencilTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            .background(colors.surface)
+            .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 18.dp)
+            .testTag("blend_mode_sheet")
+    ) {
+        TornPaperEdge(paperColor = colors.surfaceElevated, borderColor = colors.borderSubtle)
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("🎨", fontSize = 16.sp)
+                    Text("PIP Blending Modes", color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.textSecondary)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(BlendMode.entries.toTypedArray()) { mode ->
+                    val isSel = mode == selectedMode
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSel) colors.accentCyan else colors.surfaceElevated)
+                            .sketchPencilBorder(strokeWidth = 1.2.dp, color = if (isSel) colors.border else colors.borderSubtle, cornerRadius = 10.dp)
+                            .clickable { onSelectBlendMode(mode) }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = mode.displayName,
+                            color = if (isSel) Color.White else colors.textPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Phase 1: Masking Sheet
+@Composable
+fun MaskSheet(
+    maskData: MaskData,
+    onUpdateMask: (MaskData) -> Unit,
+    onClose: () -> Unit
+) {
+    val colors = PencilTheme.colors
+    var currentMask by remember(maskData) { mutableStateOf(maskData) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            .background(colors.surface)
+            .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 18.dp)
+            .testTag("mask_sheet")
+    ) {
+        TornPaperEdge(paperColor = colors.surfaceElevated, borderColor = colors.borderSubtle)
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("🎭", fontSize = 16.sp)
+                    Text("Video Masking", color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.textSecondary)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(MaskType.entries.toTypedArray()) { type ->
+                    val isSel = type == currentMask.type
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSel) colors.accentPurple else colors.surfaceElevated)
+                            .sketchPencilBorder(strokeWidth = 1.2.dp, color = if (isSel) colors.border else colors.borderSubtle, cornerRadius = 8.dp)
+                            .clickable {
+                                currentMask = currentMask.copy(type = type)
+                                onUpdateMask(currentMask)
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = type.displayName,
+                            color = if (isSel) Color.White else colors.textPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            if (currentMask.type != MaskType.NONE) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Mask Size / Scale", color = colors.textSecondary, fontSize = 11.sp)
+                    Text("${(currentMask.width * 100).toInt()}%", color = colors.accentPurple, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                Slider(
+                    value = currentMask.width,
+                    onValueChange = {
+                        currentMask = currentMask.copy(width = it, height = it)
+                        onUpdateMask(currentMask)
+                    },
+                    valueRange = 0.1f..1.0f,
+                    colors = SliderDefaults.colors(thumbColor = colors.border, activeTrackColor = colors.accentPurple)
+                )
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Feather (Edge Softness)", color = colors.textSecondary, fontSize = 11.sp)
+                    Text("${(currentMask.feather * 100).toInt()}%", color = colors.accentPurple, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                Slider(
+                    value = currentMask.feather,
+                    onValueChange = {
+                        currentMask = currentMask.copy(feather = it)
+                        onUpdateMask(currentMask)
+                    },
+                    valueRange = 0.0f..0.5f,
+                    colors = SliderDefaults.colors(thumbColor = colors.border, activeTrackColor = colors.accentPurple)
+                )
+            }
+        }
+    }
+}
+
+// Phase 1: Keyframe Animation Manager Sheet
+@Composable
+fun KeyframeSheet(
+    clip: MediaClip?,
+    onAddKeyframe: (property: KeyframeProperty, value: Float, easing: EasingCurve) -> Unit,
+    onRemoveKeyframe: (keyframeId: String) -> Unit,
+    onClose: () -> Unit
+) {
+    val colors = PencilTheme.colors
+    var selectedProperty by remember { mutableStateOf(KeyframeProperty.SCALE) }
+    var selectedEasing by remember { mutableStateOf(EasingCurve.EASE_IN_OUT) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            .background(colors.surface)
+            .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 18.dp)
+            .testTag("keyframe_sheet")
+    ) {
+        TornPaperEdge(paperColor = colors.surfaceElevated, borderColor = colors.borderSubtle)
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("💎", fontSize = 16.sp)
+                    Text("Keyframe Animator", color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.textSecondary)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Select Animated Property:", color = colors.textSecondary, fontSize = 11.sp)
+            Spacer(modifier = Modifier.height(4.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(KeyframeProperty.entries.toTypedArray()) { prop ->
+                    val isSel = prop == selectedProperty
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSel) colors.accentPink else colors.surfaceElevated)
+                            .clickable { selectedProperty = prop }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(prop.displayName, color = if (isSel) Color.White else colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = {
+                        val initialValue = when (selectedProperty) {
+                            KeyframeProperty.SCALE -> clip?.scale ?: 1f
+                            KeyframeProperty.POSITION_X -> clip?.posX ?: 0.5f
+                            KeyframeProperty.POSITION_Y -> clip?.posY ?: 0.5f
+                            KeyframeProperty.ROTATION -> clip?.rotation ?: 0f
+                            KeyframeProperty.OPACITY -> clip?.opacity ?: 1f
+                            KeyframeProperty.VOLUME -> clip?.volume ?: 1f
+                        }
+                        onAddKeyframe(selectedProperty, initialValue, selectedEasing)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.accentPink),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("+ Add Keyframe 💎", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+
+                Text("${clip?.keyframes?.size ?: 0} Active Keyframes", color = colors.textSecondary, fontSize = 11.sp)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            val clipKeyframes = clip?.keyframes ?: emptyList()
+            if (clipKeyframes.isNotEmpty()) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(clipKeyframes) { kf ->
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colors.surfaceElevated)
+                                .border(1.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("💎 ${kf.property.displayName} @ ${kf.timestampMs}ms", color = colors.textPrimary, fontSize = 10.sp)
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Remove",
+                                tint = colors.accentRed,
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clickable { onRemoveKeyframe(kf.id) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

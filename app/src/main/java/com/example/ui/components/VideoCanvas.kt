@@ -63,6 +63,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.transform.CircleCropTransformation
 import com.example.R
+import com.example.data.KeyframeInterpolator
 import com.example.model.AspectRatioType
 import com.example.model.EffectType
 import com.example.model.MediaClip
@@ -190,7 +191,8 @@ fun VideoCanvas(
                 RenderClipVisual(
                     clip = activeClip,
                     activeEffects = activeEffects,
-                    pulseAlpha = pulseAlpha
+                    pulseAlpha = pulseAlpha,
+                    currentClipLocalMs = clipLocalTimeMs
                 )
 
                 // Transition effect
@@ -408,8 +410,12 @@ fun VideoCanvas(
 private fun RenderClipVisual(
     clip: MediaClip,
     activeEffects: List<com.example.model.TimelineEffect>,
-    pulseAlpha: Float
+    pulseAlpha: Float,
+    currentClipLocalMs: Long = 0L
 ) {
+    val keyScale = KeyframeInterpolator.getScale(clip, currentClipLocalMs)
+    val keyRotation = KeyframeInterpolator.getRotation(clip, currentClipLocalMs)
+    val keyOpacity = KeyframeInterpolator.getOpacity(clip, currentClipLocalMs)
     val colorFilter = when (clip.filter) {
         VideoFilter.SKETCH_GRAPHITE -> ColorFilter.colorMatrix(ColorMatrix(
             floatArrayOf(
@@ -498,7 +504,8 @@ private fun RenderClipVisual(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .rotate(clip.rotation)
+            .scale(keyScale)
+            .rotate(keyRotation)
             .scale(if (clip.isMirrored) -1f else 1f, 1f)
     ) {
         if (clip.uriString != null) {
