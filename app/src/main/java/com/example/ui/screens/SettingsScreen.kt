@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -46,7 +47,12 @@ import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -89,11 +95,14 @@ fun SettingsScreen(
     onToggleWatermark: (Boolean) -> Unit,
     onSelectLanguage: (AppLanguage) -> Unit = {},
     onClearCache: () -> Unit,
+    onClearAllProjects: () -> Unit,
     onOpenSystemLogs: () -> Unit,
     isPopup: Boolean = false,
     onBack: () -> Unit
 ) {
     val colors = PencilTheme.colors
+
+    var showClearAllConfirm by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -305,6 +314,7 @@ fun SettingsScreen(
                 icon = Icons.Default.DeleteSweep,
                 iconTint = colors.accentRed
             ) {
+                // Clear Cache Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -342,6 +352,51 @@ fun SettingsScreen(
                     ) {
                         Text(
                             if (cacheSizeMb > 0) stringResource(R.string.clear_cache_short) else stringResource(R.string.cache_clean_short),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Clear All Projects Row (Danger Zone)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(colors.surfaceVariant)
+                        .border(1.dp, colors.accentRed.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.clear_all_projects),
+                            color = colors.accentRed,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = stringResource(R.string.clear_all_projects_desc),
+                            color = colors.textSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    Button(
+                        onClick = { showClearAllConfirm = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = colors.accentRed,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Text(
+                            stringResource(R.string.clear_all_projects),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -396,6 +451,35 @@ fun SettingsScreen(
                 .testTag("settings_done")
         ) {
             Text("Done", color = Color.White, fontWeight = FontWeight.Bold)
+        }
+
+        // Confirmation Dialog for Clear All Projects
+        if (showClearAllConfirm) {
+            AlertDialog(
+                onDismissRequest = { showClearAllConfirm = false },
+                title = { Text(stringResource(R.string.confirm_clear_all), color = colors.textPrimary, fontWeight = FontWeight.Bold) },
+                text = { Text(stringResource(R.string.confirm_clear_all_desc), color = colors.textSecondary, fontSize = 13.sp) },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            onClearAllProjects()
+                            showClearAllConfirm = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.accentRed),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(stringResource(R.string.clear_all_projects), color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showClearAllConfirm = false },
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(stringResource(R.string.cancel), color = colors.textPrimary, fontWeight = FontWeight.Bold)
+                    }
+                }
+            )
         }
     }
 }

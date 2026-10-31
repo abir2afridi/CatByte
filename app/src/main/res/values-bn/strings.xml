@@ -109,6 +109,11 @@
     <string name="fps_label">%1$d fps</string>
     <string name="version_label">Version %1$s</string>
     <string name="confirm_delete_draft">Delete project?</string>
+    <string name="clear_all_projects">Clear All Projects</string>
+    <string name="clear_all_projects_desc">Permanently delete all projects and drafts</string>
+    <string name="confirm_clear_all">Delete all projects?</string>
+    <string name="confirm_clear_all_desc">This will permanently delete all your projects. This action cannot be undone.</string>
+    <string name="all_projects_cleared">All projects cleared</string>
 
     <!-- Editor and tool sheets -->
     <string name="editor_no_project">No active project</string>

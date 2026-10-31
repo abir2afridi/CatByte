@@ -4,10 +4,12 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ProjectEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class CatByteDatabase : RoomDatabase() {
@@ -20,6 +22,13 @@ abstract class CatByteDatabase : RoomDatabase() {
         @Volatile
         private var instance: CatByteDatabase? = null
 
+        // Migration from v1 to v2: Clear all projects (remove demo/seeded data)
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DELETE FROM projects")
+            }
+        }
+
         fun getInstance(context: Context): CatByteDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -27,7 +36,8 @@ abstract class CatByteDatabase : RoomDatabase() {
                     CatByteDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .addMigrations(MIGRATION_1_2)
+                    .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }
             }

@@ -260,6 +260,7 @@ fun CapCutApp(
                         onToggleWatermark = { viewModel.toggleWatermark(it) },
                         onSelectLanguage = { viewModel.setAppLanguage(it) },
                         onClearCache = { viewModel.clearCache() },
+                        onClearAllProjects = { viewModel.clearAllProjects() },
                         onOpenSystemLogs = { navigateToSystemLogs() },
                         isPopup = true,
                         onBack = { closeSettings() }

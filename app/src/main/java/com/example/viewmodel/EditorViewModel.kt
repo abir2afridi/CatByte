@@ -311,7 +311,7 @@ class EditorViewModel(
 
     fun duplicateProject(id: String) {
         repository.duplicateProject(id)
-        playerManager?.loadProject(_currentProject.value!!)
+        _currentProject.value?.let { playerManager?.loadProject(it) }
     }
 
     fun deleteProject(id: String) {
@@ -319,13 +319,21 @@ class EditorViewModel(
             _currentProject.value = null
         }
         repository.deleteProject(id)
-        playerManager?.loadProject(_currentProject.value!!)
+        _currentProject.value?.let { playerManager?.loadProject(it) } ?: playerManager?.pause()
     }
 
     /** Restores a draft removed from the home screen (undo delete). */
     fun restoreProject(project: VideoProject) {
         repository.saveProject(project)
-        playerManager?.loadProject(_currentProject.value!!)
+        _currentProject.value = project
+        playerManager?.loadProject(project)
+    }
+
+    /** Clears ALL projects from the repository (database + memory). */
+    fun clearAllProjects() {
+        _currentProject.value = null
+        repository.deleteAllProjects()
+        playerManager?.pause()
     }
 
     fun setActiveSheet(sheet: ActiveToolSheet) {
