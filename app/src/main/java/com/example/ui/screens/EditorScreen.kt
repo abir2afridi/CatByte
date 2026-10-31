@@ -93,12 +93,11 @@ import com.example.ui.components.TextEditorSheet
 import com.example.ui.components.TransitionsPickerSheet
 import com.example.ui.components.VideoCanvas
 import com.example.ui.theme.PencilTheme
-import com.example.ui.theme.pencilHatching
-import com.example.ui.theme.sketchPencilBorder
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
 import com.example.data.MediaDurationFallback
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun EditorScreen(
     viewModel: EditorViewModel,
@@ -174,7 +173,7 @@ fun EditorScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
-        // 1. Sketched Top Bar
+        // 1. Top Bar
         EditorTopBar(
             project = project!!,
             canUndo = canUndo,
@@ -187,7 +186,7 @@ fun EditorScreen(
             onOpenSettings = onOpenSettings
         )
 
-        // 2. Sketched Video Preview Canvas
+        // 2. Video Preview Canvas
         val context = androidx.compose.ui.platform.LocalContext.current
         val videoPlayer = androidx.compose.runtime.remember(context) {
             (context.applicationContext as? com.example.CatByteApplication)
@@ -224,7 +223,7 @@ fun EditorScreen(
             onZoomChanged = { viewModel.setTimelineZoom(it) }
         )
 
-        // 4. Sketched Multi-Track Timeline
+        // 4. Multi-Track Timeline
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -429,7 +428,7 @@ fun EditorScreen(
                 ActiveToolSheet.NONE -> {}
             }
         } else {
-            // Sketched Bottom Action Toolbar
+            // Bottom Action Toolbar
             CapCutBottomActionBar(
                 onSplit = { viewModel.splitClipAtPlayhead() },
                 onAudio = { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY) },
@@ -563,7 +562,7 @@ private fun EditorTopBar(
                     .padding(horizontal = 9.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = "${project.aspectRatio.label} ✏️",
+                    text = project.aspectRatio.label,
                     color = colors.textPrimary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
@@ -698,14 +697,13 @@ private fun PlaybackControlsStrip(
             )
         }
 
-        // Center Play / Pause Button with sketch pencil border and hatching
+        // Center Play / Pause Button
         Box(
             modifier = Modifier
                 .size(42.dp)
                 .clip(CircleShape)
                 .background(colors.surfaceElevated)
-                .pencilHatching(color = colors.accentCyan.copy(alpha = 0.08f), spacing = 5.dp)
-                .sketchPencilBorder(strokeWidth = 1.8.dp, color = colors.border, cornerRadius = 21.dp)
+                .border(1.8.dp, colors.border, CircleShape)
                 .clickable { onTogglePlay() }
                 .testTag("editor_play_pause_button"),
             contentAlignment = Alignment.Center
@@ -733,7 +731,7 @@ private fun PlaybackControlsStrip(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
                 .background(colors.surfaceElevated)
-                .sketchPencilBorder(strokeWidth = 1.3.dp, color = colors.border, cornerRadius = 8.dp)
+                .border(1.3.dp, colors.border, RoundedCornerShape(8.dp))
                 .clickable { onQuickSplit() }
                 .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
@@ -756,7 +754,7 @@ private fun PlaybackControlsStrip(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .background(colors.surfaceElevated)
-                    .sketchPencilBorder(strokeWidth = 1.3.dp, color = colors.border, cornerRadius = 8.dp)
+                    .border(1.3.dp, colors.border, RoundedCornerShape(8.dp))
                     .clickable { onBeatSync() }
                     .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {
@@ -778,10 +776,10 @@ private fun PlaybackControlsStrip(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
                 .background(if (magneticSnap) colors.surfaceElevated else colors.surface)
-                .sketchPencilBorder(
-                    strokeWidth = 1.3.dp,
+                .border(
+                    width = 1.3.dp,
                     color = if (magneticSnap) colors.border else colors.borderSubtle,
-                    cornerRadius = 8.dp
+                    shape = RoundedCornerShape(8.dp)
                 )
                 .clickable { onToggleMagneticSnap() }
                 .padding(horizontal = 8.dp, vertical = 5.dp)
@@ -878,8 +876,7 @@ private fun BottomActionItem(
                 .size(36.dp)
                 .clip(CircleShape)
                 .background(colors.surfaceElevated)
-                .pencilHatching(color = tintColor.copy(alpha = 0.08f), spacing = 4.dp)
-                .sketchPencilBorder(strokeWidth = 1.3.dp, color = colors.border, cornerRadius = 18.dp),
+                .border(1.3.dp, colors.border, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -898,4 +895,3 @@ private fun BottomActionItem(
         )
     }
 }
-

@@ -69,7 +69,7 @@ import com.example.BuildConfig
 import com.example.data.AppLog
 import com.example.data.AppLogEntry
 import com.example.data.AppLogLevel
-import com.example.ui.theme.PencilPaperColors
+import com.example.ui.theme.AppColors
 import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.WashiTapeSticker
 import com.example.ui.theme.pencilHatching
@@ -819,7 +819,7 @@ private enum class LogFilter(val label: String, val level: AppLogLevel?) {
     DEBUG("Debug", AppLogLevel.DEBUG)
 }
 
-private fun LogFilter.tint(colors: PencilPaperColors): Color = when (this) {
+private fun LogFilter.tint(colors: AppColors): Color = when (this) {
     LogFilter.ALL -> colors.border
     LogFilter.ERROR -> colors.accentRed
     LogFilter.WARN -> colors.accentYellow
@@ -827,7 +827,7 @@ private fun LogFilter.tint(colors: PencilPaperColors): Color = when (this) {
     LogFilter.DEBUG -> colors.accentPurple
 }
 
-private fun AppLogLevel.tint(colors: PencilPaperColors): Color = when (this) {
+private fun AppLogLevel.tint(colors: AppColors): Color = when (this) {
     AppLogLevel.ERROR -> colors.accentRed
     AppLogLevel.WARN -> colors.accentYellow
     AppLogLevel.INFO -> colors.accentCyan

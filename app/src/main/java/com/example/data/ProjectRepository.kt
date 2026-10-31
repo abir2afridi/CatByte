@@ -45,14 +45,6 @@ class ProjectRepository(context: Context? = null) {
             AppLog.error("ProjectRepository", "Could not read the project database", it)
             emptyList()
         }
-        if (rows.isEmpty()) {
-            // First launch: store the starter drafts so the home screen is not empty.
-            val seeds = SampleDataProvider.getInitialProjects()
-            runCatching { dao.upsertAll(seeds.map { it.toEntity() }) }
-                .onFailure { AppLog.error("ProjectRepository", "Could not seed the project database", it) }
-            _projects.value = seeds
-            return
-        }
         val restored = rows.mapNotNull { ProjectJson.fromJson(it.payload) }
         if (restored.isNotEmpty()) {
             _projects.value = restored

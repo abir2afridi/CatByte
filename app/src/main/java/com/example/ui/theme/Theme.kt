@@ -9,70 +9,70 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
 enum class AppThemeMode(val title: String, val subtitle: String) {
-    PENCIL_LIGHT("Pencil on Paper (Light)", "Warm sketchbook parchment with 2B graphite"),
-    CHARCOAL_DARK("Charcoal Slate (Dark)", "Dark chalkboard with chalk sketch lines"),
+    LIGHT("Light", "Clean light theme"),
+    DARK("Dark", "Professional dark theme"),
     SYSTEM("Follow System", "Match Android device appearance")
 }
 
-private val LightPaperMaterialScheme = lightColorScheme(
-    primary = PencilAccentCyanLight,
+private val LightMaterialScheme = lightColorScheme(
+    primary = LightAccentCyan,
     onPrimary = Color.White,
-    primaryContainer = PaperSurfaceElevatedLight,
-    onPrimaryContainer = PencilTextPrimaryLight,
-    secondary = PencilAccentPurpleLight,
+    primaryContainer = LightSurfaceElevated,
+    onPrimaryContainer = LightTextPrimary,
+    secondary = LightAccentPurple,
     onSecondary = Color.White,
-    secondaryContainer = PaperSurfaceVariantLight,
-    onSecondaryContainer = PencilTextPrimaryLight,
-    tertiary = PencilAccentGreenLight,
+    secondaryContainer = LightSurfaceVariant,
+    onSecondaryContainer = LightTextPrimary,
+    tertiary = LightAccentGreen,
     onTertiary = Color.White,
-    background = PaperBackgroundLight,
-    onBackground = PencilTextPrimaryLight,
-    surface = PaperSurfaceLight,
-    onSurface = PencilTextPrimaryLight,
-    surfaceVariant = PaperSurfaceVariantLight,
-    onSurfaceVariant = PencilTextSecondaryLight,
-    outline = PencilBorderLight,
-    error = PencilAccentRedLight,
+    background = LightBackground,
+    onBackground = LightTextPrimary,
+    surface = LightSurface,
+    onSurface = LightTextPrimary,
+    surfaceVariant = LightSurfaceVariant,
+    onSurfaceVariant = LightTextSecondary,
+    outline = LightBorder,
+    error = LightAccentRed,
     onError = Color.White
 )
 
-private val DarkSlateMaterialScheme = darkColorScheme(
-    primary = ChalkAccentCyanDark,
+private val DarkMaterialScheme = darkColorScheme(
+    primary = DarkAccentCyan,
     onPrimary = Color.Black,
-    primaryContainer = SlateSurfaceElevatedDark,
-    onPrimaryContainer = ChalkTextPrimaryDark,
-    secondary = ChalkAccentPurpleDark,
+    primaryContainer = DarkSurfaceElevated,
+    onPrimaryContainer = DarkTextPrimary,
+    secondary = DarkAccentPurple,
     onSecondary = Color.White,
-    secondaryContainer = SlateSurfaceVariantDark,
-    onSecondaryContainer = ChalkTextPrimaryDark,
-    tertiary = ChalkAccentGreenDark,
+    secondaryContainer = DarkSurfaceVariant,
+    onSecondaryContainer = DarkTextPrimary,
+    tertiary = DarkAccentGreen,
     onTertiary = Color.Black,
-    background = SlateBackgroundDark,
-    onBackground = ChalkTextPrimaryDark,
-    surface = SlateSurfaceDark,
-    onSurface = ChalkTextPrimaryDark,
-    surfaceVariant = SlateSurfaceVariantDark,
-    onSurfaceVariant = ChalkTextSecondaryDark,
-    outline = ChalkBorderDark,
-    error = ChalkAccentRedDark,
+    background = DarkBackground,
+    onBackground = DarkTextPrimary,
+    surface = DarkSurface,
+    onSurface = DarkTextPrimary,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkTextSecondary,
+    outline = DarkBorder,
+    error = DarkAccentRed,
     onError = Color.White
 )
 
 @Composable
 fun MyApplicationTheme(
-    themeMode: AppThemeMode = AppThemeMode.PENCIL_LIGHT,
+    themeMode: AppThemeMode = AppThemeMode.LIGHT,
     content: @Composable () -> Unit
 ) {
     val isDark = when (themeMode) {
-        AppThemeMode.PENCIL_LIGHT -> false
-        AppThemeMode.CHARCOAL_DARK -> true
+        AppThemeMode.LIGHT -> false
+        AppThemeMode.DARK -> true
         AppThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
 
-    val pencilColors = if (isDark) DarkPencilPaperColors else LightPencilPaperColors
-    val materialScheme = if (isDark) DarkSlateMaterialScheme else LightPaperMaterialScheme
+    val appColors = if (isDark) DarkAppColors else LightAppColors
+    val materialScheme = if (isDark) DarkMaterialScheme else LightMaterialScheme
 
-    CompositionLocalProvider(LocalPencilPaperColors provides pencilColors) {
+    CompositionLocalProvider(LocalAppColors provides appColors) {
         MaterialTheme(
             colorScheme = materialScheme,
             typography = Typography,

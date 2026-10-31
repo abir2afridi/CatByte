@@ -6,69 +6,69 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 // ==========================================
-// Pencil & Paper Light Palette (Notebook Parchment & 2B Graphite)
+// Light Palette (Clean Professional)
 // ==========================================
-val PaperBackgroundLight = Color(0xFFF7F3E8)     // Textured sketchbook cream parchment
-val PaperSurfaceLight = Color(0xFFFFFDF8)        // Fresh drawing paper
-val PaperSurfaceVariantLight = Color(0xFFEFE8D8) // Warm sketch card layer
-val PaperSurfaceElevatedLight = Color(0xFFE6DEC9) // Pressed kraft paper pill
-val PaperSurfaceGlassLight = Color(0xEEF8F4EA)
-val PencilBorderLight = Color(0xFF2C2B28)        // Sharp graphite pencil outline
-val PencilBorderSubtleLight = Color(0xFFD6CEBD)  // Faint notebook grid line
+val LightBackground = Color(0xFFF8F9FA)        // Clean light background
+val LightSurface = Color(0xFFFFFFFF)           // Pure white surface
+val LightSurfaceVariant = Color(0xFFF1F3F4)    // Subtle card layer
+val LightSurfaceElevated = Color(0xFFE8EAED)   // Elevated card
+val LightSurfaceGlass = Color(0xEEF8F9FA)
+val LightBorder = Color(0xFF202124)            // Primary outline
+val LightBorderSubtle = Color(0xFFDADCE0)      // Subtle divider
 
-val PencilTextPrimaryLight = Color(0xFF1F1D1A)   // Dark 2B graphite core
-val PencilTextSecondaryLight = Color(0xFF5D5850) // Soft shading lead
-val PencilTextTertiaryLight = Color(0xFF8E877C)  // Light pencil draft guide
+val LightTextPrimary = Color(0xFF202124)       // Primary text
+val LightTextSecondary = Color(0xFF5F6368)     // Secondary text
+val LightTextTertiary = Color(0xFF80868B)      // Tertiary text
 
-val PencilAccentCyanLight = Color(0xFF0284C7)    // Blueprint cyan pencil
-val PencilAccentRedLight = Color(0xFFD90429)     // Red editing pencil
-val PencilAccentYellowLight = Color(0xFFD97706)  // Ochre yellow crayon
-val PencilAccentPurpleLight = Color(0xFF7B2CBF)  // Violet colored pencil
-val PencilAccentGreenLight = Color(0xFF059669)   // Forest green drafting pencil
-val PencilAccentPinkLight = Color(0xFFDB2777)    // Magenta highlighter
-val PencilAccentTealLight = Color(0xFF0D9488)
+val LightAccentCyan = Color(0xFF1A73E8)        // Primary cyan
+val LightAccentRed = Color(0xFFD93025)         // Red accent
+val LightAccentYellow = Color(0xFFF29900)      // Yellow accent
+val LightAccentPurple = Color(0xFF8E24AA)      // Purple accent
+val LightAccentGreen = Color(0xFF34A853)       // Green accent
+val LightAccentPink = Color(0xFFC2185B)        // Pink accent
+val LightAccentTeal = Color(0xFF009688)        // Teal accent
 
-val PencilPlayheadLight = Color(0xFF1F1D1A)
-val PencilPlayheadGlowLight = Color(0xFF0284C7)
-val PencilTimelineTrackLight = Color(0xFFECE4D2)
-val PencilClipBgLight = Color(0xFFE0D7C3)
-val PencilClipSelectedLight = Color(0xFFD2C7B0)
-val PencilHandleWhiteLight = Color(0xFF1F1D1A)
-
-// ==========================================
-// Charcoal Slate Dark Palette (Chalk on Black Sketchpad)
-// ==========================================
-val SlateBackgroundDark = Color(0xFF141519)      // Charcoal drawing pad
-val SlateSurfaceDark = Color(0xFF1C1D24)         // Matte slate studio deck
-val SlateSurfaceVariantDark = Color(0xFF262732)  // Graphite shade card
-val SlateSurfaceElevatedDark = Color(0xFF323442) // Elevated chalk block
-val SlateSurfaceGlassDark = Color(0xDD1B1C23)
-val ChalkBorderDark = Color(0xFF4C4E61)          // White chalk sketch border
-val ChalkBorderSubtleDark = Color(0xFF2B2D3A)    // Blueprint grid
-
-val ChalkTextPrimaryDark = Color(0xFFF6F6F9)     // Pure chalk white
-val ChalkTextSecondaryDark = Color(0xFFA5A9B8)   // Faded pencil sketch
-val ChalkTextTertiaryDark = Color(0xFF6B7082)    // Charcoal shadow
-
-val ChalkAccentCyanDark = Color(0xFF38BDF8)      // Electric blue chalk
-val ChalkAccentRedDark = Color(0xFFFF4D6D)       // Red chalk mark
-val ChalkAccentYellowDark = Color(0xFFFFB703)    // Yellow pastel
-val ChalkAccentPurpleDark = Color(0xFFA855F7)    // Lavender pastel
-val ChalkAccentGreenDark = Color(0xFF34D399)     // Mint pastel
-val ChalkAccentPinkDark = Color(0xFFF472B6)      // Pink pastel
-val ChalkAccentTealDark = Color(0xFF2DD4BF)
-
-val ChalkPlayheadDark = Color(0xFFFFFFFF)
-val ChalkPlayheadGlowDark = Color(0xFF38BDF8)
-val ChalkTimelineTrackDark = Color(0xFF181A20)
-val ChalkClipBgDark = Color(0xFF282A36)
-val ChalkClipSelectedDark = Color(0xFF373A4C)
-val ChalkHandleWhiteDark = Color(0xFFFFFFFF)
+val LightPlayhead = Color(0xFF1A73E8)
+val LightPlayheadGlow = Color(0xFF1A73E8)
+val LightTimelineTrack = Color(0xFFE8EAED)
+val LightClipBg = Color(0xFFF1F3F4)
+val LightClipSelected = Color(0xFFE8EAED)
+val LightHandle = Color(0xFF1A73E8)
 
 // ==========================================
-// Semantic Pencil Theme System
+// Dark Palette (Professional Dark)
 // ==========================================
-data class PencilPaperColors(
+val DarkBackground = Color(0xFF121212)         // Pure dark background
+val DarkSurface = Color(0xFF1E1E1E)            // Dark surface
+val DarkSurfaceVariant = Color(0xFF2C2C2C)     // Dark card layer
+val DarkSurfaceElevated = Color(0xFF383838)    // Elevated dark card
+val DarkSurfaceGlass = Color(0xDD1E1E1E)
+val DarkBorder = Color(0xFFE0E0E0)             // White border
+val DarkBorderSubtle = Color(0xFF424242)       // Subtle divider
+
+val DarkTextPrimary = Color(0xFFFFFFFF)        // White text
+val DarkTextSecondary = Color(0xFFB0B0B0)      // Gray text
+val DarkTextTertiary = Color(0xFF808080)       // Darker gray
+
+val DarkAccentCyan = Color(0xFF42A5F5)         // Bright cyan
+val DarkAccentRed = Color(0xFFEF5350)          // Bright red
+val DarkAccentYellow = Color(0xFFFFB74D)       // Bright yellow
+val DarkAccentPurple = Color(0xFFCE93D8)       // Bright purple
+val DarkAccentGreen = Color(0xFF66BB6A)        // Bright green
+val DarkAccentPink = Color(0xFFF48FB1)         // Bright pink
+val DarkAccentTeal = Color(0xFF4DB6AC)         // Bright teal
+
+val DarkPlayhead = Color(0xFF42A5F5)
+val DarkPlayheadGlow = Color(0xFF42A5F5)
+val DarkTimelineTrack = Color(0xFF1A1A1A)
+val DarkClipBg = Color(0xFF2C2C2C)
+val DarkClipSelected = Color(0xFF383838)
+val DarkHandle = Color(0xFF42A5F5)
+
+// ==========================================
+// Semantic Theme System
+// ==========================================
+data class AppColors(
     val isLight: Boolean,
     val background: Color,
     val surface: Color,
@@ -92,61 +92,61 @@ data class PencilPaperColors(
     val handle: Color
 )
 
-val LightPencilPaperColors = PencilPaperColors(
+val LightAppColors = AppColors(
     isLight = true,
-    background = PaperBackgroundLight,
-    surface = PaperSurfaceLight,
-    surfaceVariant = PaperSurfaceVariantLight,
-    surfaceElevated = PaperSurfaceElevatedLight,
-    border = PencilBorderLight,
-    borderSubtle = PencilBorderSubtleLight,
-    textPrimary = PencilTextPrimaryLight,
-    textSecondary = PencilTextSecondaryLight,
-    textTertiary = PencilTextTertiaryLight,
-    accentCyan = PencilAccentCyanLight,
-    accentRed = PencilAccentRedLight,
-    accentYellow = PencilAccentYellowLight,
-    accentPurple = PencilAccentPurpleLight,
-    accentGreen = PencilAccentGreenLight,
-    accentPink = PencilAccentPinkLight,
-    playhead = PencilPlayheadLight,
-    timelineTrack = PencilTimelineTrackLight,
-    clipBg = PencilClipBgLight,
-    clipSelected = PencilClipSelectedLight,
-    handle = PencilHandleWhiteLight
+    background = LightBackground,
+    surface = LightSurface,
+    surfaceVariant = LightSurfaceVariant,
+    surfaceElevated = LightSurfaceElevated,
+    border = LightBorder,
+    borderSubtle = LightBorderSubtle,
+    textPrimary = LightTextPrimary,
+    textSecondary = LightTextSecondary,
+    textTertiary = LightTextTertiary,
+    accentCyan = LightAccentCyan,
+    accentRed = LightAccentRed,
+    accentYellow = LightAccentYellow,
+    accentPurple = LightAccentPurple,
+    accentGreen = LightAccentGreen,
+    accentPink = LightAccentPink,
+    playhead = LightPlayhead,
+    timelineTrack = LightTimelineTrack,
+    clipBg = LightClipBg,
+    clipSelected = LightClipSelected,
+    handle = LightHandle
 )
 
-val DarkPencilPaperColors = PencilPaperColors(
+val DarkAppColors = AppColors(
     isLight = false,
-    background = SlateBackgroundDark,
-    surface = SlateSurfaceDark,
-    surfaceVariant = SlateSurfaceVariantDark,
-    surfaceElevated = SlateSurfaceElevatedDark,
-    border = ChalkBorderDark,
-    borderSubtle = ChalkBorderSubtleDark,
-    textPrimary = ChalkTextPrimaryDark,
-    textSecondary = ChalkTextSecondaryDark,
-    textTertiary = ChalkTextTertiaryDark,
-    accentCyan = ChalkAccentCyanDark,
-    accentRed = ChalkAccentRedDark,
-    accentYellow = ChalkAccentYellowDark,
-    accentPurple = ChalkAccentPurpleDark,
-    accentGreen = ChalkAccentGreenDark,
-    accentPink = ChalkAccentPinkDark,
-    playhead = ChalkPlayheadDark,
-    timelineTrack = ChalkTimelineTrackDark,
-    clipBg = ChalkClipBgDark,
-    clipSelected = ChalkClipSelectedDark,
-    handle = ChalkHandleWhiteDark
+    background = DarkBackground,
+    surface = DarkSurface,
+    surfaceVariant = DarkSurfaceVariant,
+    surfaceElevated = DarkSurfaceElevated,
+    border = DarkBorder,
+    borderSubtle = DarkBorderSubtle,
+    textPrimary = DarkTextPrimary,
+    textSecondary = DarkTextSecondary,
+    textTertiary = DarkTextTertiary,
+    accentCyan = DarkAccentCyan,
+    accentRed = DarkAccentRed,
+    accentYellow = DarkAccentYellow,
+    accentPurple = DarkAccentPurple,
+    accentGreen = DarkAccentGreen,
+    accentPink = DarkAccentPink,
+    playhead = DarkPlayhead,
+    timelineTrack = DarkTimelineTrack,
+    clipBg = DarkClipBg,
+    clipSelected = DarkClipSelected,
+    handle = DarkHandle
 )
 
-val LocalPencilPaperColors = staticCompositionLocalOf { LightPencilPaperColors }
+val LocalAppColors = staticCompositionLocalOf { LightAppColors }
 
 object PencilTheme {
-    val colors: PencilPaperColors
+    val colors: AppColors
         @Composable
         @ReadOnlyComposable
-        get() = LocalPencilPaperColors.current
+        get() = LocalAppColors.current
 }
 
 // ==========================================
@@ -166,4 +166,3 @@ val CapCutYellow: Color @Composable get() = PencilTheme.colors.accentYellow
 val CapCutPurple: Color @Composable get() = PencilTheme.colors.accentPurple
 val CapCutGreen: Color @Composable get() = PencilTheme.colors.accentGreen
 val CapCutPink: Color @Composable get() = PencilTheme.colors.accentPink
-

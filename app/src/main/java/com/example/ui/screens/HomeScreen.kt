@@ -97,13 +97,8 @@ import com.example.BuildConfig
 import com.example.R
 import com.example.model.AspectRatioType
 import com.example.model.VideoProject
-import com.example.ui.theme.MetalPaperclip
 import com.example.ui.theme.PencilTheme
-import com.example.ui.theme.TornPaperEdge
-import com.example.ui.theme.WashiTapeCorner
-import com.example.ui.theme.WashiTapeSticker
 import com.example.ui.theme.pencilHatching
-import com.example.ui.theme.sketchPencilBorder
 import kotlinx.coroutines.delay
 
 @Composable
@@ -169,7 +164,7 @@ fun HomeScreen(
             .background(colors.background)
             .statusBarsPadding()
     ) {
-        // 1. Sketched Top Bar
+        // 1. Top Bar
         HomeTopBar(onOpenSettings = onOpenSettings)
 
         // Content Area
@@ -180,12 +175,12 @@ fun HomeScreen(
         ) {
             when (selectedBottomNav) {
                 0 -> {
-                    // "Edit" Tab: Hero New Project + Quick Tools + Projects/Templates
+                    // "Edit" Tab: Hero New Project + Quick Tools + Projects
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
-                        // Hero "New Project" Card with Pencil Sketch border
+                        // Hero "New Project" Card
                         item {
                             HeroNewProjectSection(
                                 onNewProjectClick = { showNewProjectDialog = true },
@@ -193,7 +188,7 @@ fun HomeScreen(
                             )
                         }
 
-                        // Quick Tools Sketched Tiles
+                        // Quick Tools Tiles
                         item {
                             Spacer(modifier = Modifier.height(18.dp))
                             QuickToolsRow()
@@ -213,7 +208,7 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.height(10.dp))
                         }
 
-                        // Drafts list
+                        // Projects list
                         if (filteredProjects.isEmpty()) {
                             item {
                                 if (searchQuery.isNotBlank() || filterChoice != 0) {
@@ -274,7 +269,7 @@ fun HomeScreen(
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(colors.surfaceElevated)
-                        .sketchPencilBorder(strokeWidth = 1.5.dp, color = colors.border, cornerRadius = 12.dp)
+                        .border(1.5.dp, colors.border, RoundedCornerShape(12.dp))
                         .padding(14.dp)
                 ) {
                     Row(
@@ -302,13 +297,13 @@ fun HomeScreen(
             }
         }
 
-        // Sketched Bottom Navigation Bar
+        // Bottom Navigation Bar
         CapCutBottomNavigationBar(
             selectedIndex = selectedBottomNav,
             onSelect = { selectedBottomNav = it }
         )
 
-        // New Project Blueprint Setup Dialog
+        // New Project Setup Dialog
         if (showNewProjectDialog) {
             NewProjectBlueprintDialog(
                 onDismiss = { showNewProjectDialog = false },
@@ -328,7 +323,7 @@ fun HomeScreen(
 }
 
 // ==========================================
-// Sketched Top Bar
+// Top Bar
 // ==========================================
 
 @Composable
@@ -345,7 +340,7 @@ private fun HomeTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Logo & Pencil Badge
+        // Logo & Theme Badge
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -357,7 +352,7 @@ private fun HomeTopBar(
                 fontWeight = FontWeight.Black,
                 letterSpacing = (-0.5).sp
             )
-            // Pencil Sketch Badge
+            // Theme Badge
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
@@ -366,7 +361,7 @@ private fun HomeTopBar(
                     .padding(horizontal = 7.dp, vertical = 2.dp)
             ) {
                 Text(
-                    text = if (colors.isLight) "✏️ SKETCH LIGHT" else "✏️ CHARCOAL DARK",
+                    text = if (colors.isLight) "LIGHT" else "DARK",
                     color = colors.textPrimary,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
@@ -379,7 +374,7 @@ private fun HomeTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Settings Button (Opens Light/Dark Theme & APK Settings)
+            // Settings Button
             IconButton(
                 onClick = onOpenSettings,
                 modifier = Modifier
@@ -401,7 +396,7 @@ private fun HomeTopBar(
 }
 
 // ==========================================
-// Sketched Hero New Project
+// Hero New Project Section
 // ==========================================
 
 @Composable
@@ -418,28 +413,18 @@ private fun HeroNewProjectSection(
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Main "New Project" Hand-Drawn Paper Card
+        // Main "New Project" Card
         Box(
             modifier = Modifier
                 .weight(1.8f)
                 .height(135.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(colors.surface)
-                .pencilHatching(color = colors.border.copy(alpha = 0.04f), spacing = 8.dp)
-                .sketchPencilBorder(strokeWidth = 2.dp, color = colors.border, cornerRadius = 16.dp)
+                .border(1.5.dp, colors.border, RoundedCornerShape(16.dp))
                 .clickable { onNewProjectClick() }
                 .testTag("hero_new_project_button")
                 .padding(14.dp)
         ) {
-            // Washi tape in top corner
-            WashiTapeCorner(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = (-2).dp),
-                tapeLabel = "SKETCH",
-                rotationDegrees = 10f
-            )
-
             Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.SpaceBetween
@@ -454,7 +439,7 @@ private fun HeroNewProjectSection(
                             .size(46.dp)
                             .clip(CircleShape)
                             .background(colors.surfaceElevated)
-                            .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 23.dp),
+                            .border(1.6.dp, colors.border, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -483,7 +468,7 @@ private fun HeroNewProjectSection(
 
                 Column {
                     Text(
-                        text = "New project",
+                        text = "New Project",
                         color = colors.textPrimary,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -504,21 +489,13 @@ private fun HeroNewProjectSection(
                 .height(135.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(colors.surfaceVariant)
-                .pencilHatching(color = colors.accentRed.copy(alpha = 0.05f), spacing = 8.dp)
-                .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 16.dp)
+                .border(1.5.dp, colors.border, RoundedCornerShape(16.dp))
                 .clickable { 
                     Toast.makeText(context, context.getString(R.string.camera_prompter_not_implemented), Toast.LENGTH_SHORT).show()
                 }
                 .padding(14.dp),
             contentAlignment = Alignment.Center
         ) {
-            WashiTapeCorner(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = (-2).dp),
-                tapeLabel = "REC",
-                tapeColor = Color(0xDDFCD5D8)
-            )
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
@@ -528,7 +505,7 @@ private fun HeroNewProjectSection(
                         .size(42.dp)
                         .clip(CircleShape)
                         .background(colors.surfaceElevated)
-                        .sketchPencilBorder(strokeWidth = 1.3.dp, color = colors.border, cornerRadius = 21.dp),
+                        .border(1.3.dp, colors.border, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -546,7 +523,7 @@ private fun HeroNewProjectSection(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Prompter (demo)",
+                    text = stringResource(R.string.camera_prompter_not_implemented),
                     color = colors.textTertiary,
                     fontSize = 10.sp
                 )
@@ -562,27 +539,22 @@ private fun HeroNewProjectSection(
 @Composable
 private fun QuickToolsRow() {
     val colors = PencilTheme.colors
-    val context = LocalContext.current
-    val tools = listOf(
-        Triple(Icons.Default.Subtitles, "Captions", colors.accentYellow),
-        Triple(Icons.Default.AutoAwesome, "Cutout BG", colors.accentPink),
-        Triple(Icons.Default.Speed, "Velocity", colors.accentCyan),
-        Triple(Icons.Default.GraphicEq, "Speech AI", colors.accentGreen),
-        Triple(Icons.Default.VolumeUp, "Extract", colors.accentPurple),
-        Triple(Icons.Default.VideoLibrary, "AutoCut", colors.accentRed)
-    )
 
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        items(tools) { (icon, name, tintColor) ->
+        items(listOf(
+            Triple(Icons.Default.Subtitles, "Captions", colors.accentYellow),
+            Triple(Icons.Default.AutoAwesome, "Background", colors.accentPink),
+            Triple(Icons.Default.Speed, "Velocity", colors.accentCyan),
+            Triple(Icons.Default.GraphicEq, "Audio", colors.accentGreen),
+            Triple(Icons.Default.VolumeUp, "Extract", colors.accentPurple),
+            Triple(Icons.Default.VideoLibrary, "Auto Cut", colors.accentRed)
+        )) { (icon, name, tintColor) ->
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .clickable { 
-                        Toast.makeText(context, "$name not implemented in this build", Toast.LENGTH_SHORT).show()
-                    }
                     .width(68.dp)
             ) {
                 Box(
@@ -590,8 +562,7 @@ private fun QuickToolsRow() {
                         .size(52.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(colors.surface)
-                        .pencilHatching(color = tintColor.copy(alpha = 0.08f), spacing = 5.dp)
-                        .sketchPencilBorder(strokeWidth = 1.3.dp, color = colors.border, cornerRadius = 14.dp),
+                        .border(1.3.dp, colors.border, RoundedCornerShape(14.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -616,7 +587,7 @@ private fun QuickToolsRow() {
 }
 
 // ==========================================
-// Project Draft Item
+// Project Item
 // ==========================================
 
 @Composable
@@ -637,20 +608,20 @@ private fun ProjectCardItem(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .background(colors.surface)
-                .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 14.dp)
+                .border(1.6.dp, colors.border, RoundedCornerShape(14.dp))
                 .clickable { onSelect() }
                 .padding(10.dp)
                 .testTag("project_item_${project.id}"),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
-        // Thumbnail with polaroid / sketched photo border
+        // Thumbnail with border
         Box(
             modifier = Modifier
                 .size(width = 84.dp, height = 76.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(colors.surfaceElevated)
-                .sketchPencilBorder(strokeWidth = 1.2.dp, color = colors.border, cornerRadius = 8.dp)
+                .border(1.2.dp, colors.border, RoundedCornerShape(8.dp))
         ) {
             if (project.thumbnailResId != null) {
                 Image(
@@ -713,7 +684,7 @@ private fun ProjectCardItem(
             Spacer(modifier = Modifier.height(4.dp))
             val durationSec = project.totalDurationMs / 1000f
             Text(
-                text = "${String.format("%.1fs", durationSec)} • ${project.clips.size} clips • ${project.paperStyle}",
+                text = "${String.format("%.1fs", durationSec)} • ${project.clips.size} clips",
                 color = colors.textSecondary,
                 fontSize = 12.sp
             )
@@ -784,21 +755,30 @@ private fun ProjectCardItem(
         }
     }
 
-    // Metal Paperclip clamping the top of pinned project drafts
+    // Metal Paperclip for pinned projects
     if (project.isFavorite) {
-        MetalPaperclip(
+        Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .offset(x = 18.dp, y = (-10).dp)
-        )
+                .size(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.PushPin,
+                contentDescription = "Pinned",
+                tint = colors.accentRed,
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 
     // Delete confirmation dialog
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete draft?", color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold) },
-            text = { Text("This sketch draft will be removed. You can undo within a few seconds.", color = colors.textSecondary, fontSize = 13.sp) },
+            title = { Text("Delete project?", color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+            text = { Text("This project will be removed. You can undo within a few seconds.", color = colors.textSecondary, fontSize = 13.sp) },
             confirmButton = {
                 TextButton(onClick = { 
                     showDeleteConfirm = false
@@ -816,7 +796,7 @@ private fun ProjectCardItem(
                 .fillMaxWidth()
                 .padding(20.dp)
                 .background(colors.surface)
-                .sketchPencilBorder(strokeWidth = 2.dp, color = colors.border, cornerRadius = 16.dp)
+                .border(2.dp, colors.border, RoundedCornerShape(16.dp))
         )
     }
 }
@@ -855,13 +835,13 @@ private fun EmptyProjectsPlaceholder(
         }
         Spacer(modifier = Modifier.height(14.dp))
         Text(
-            text = stringResource(R.string.clean_sketchpad_page),
+            text = stringResource(R.string.empty_state_title),
             color = colors.textPrimary,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "Tap 'New project' to start sketching your video cut",
+            text = stringResource(R.string.empty_state_subtitle),
             color = colors.textSecondary,
             fontSize = 12.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -872,7 +852,7 @@ private fun EmptyProjectsPlaceholder(
             colors = ButtonDefaults.buttonColors(containerColor = colors.border),
             shape = RoundedCornerShape(20.dp)
         ) {
-            Text("Start Editing", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("Start Editing", color = if (colors.isLight) Color.White else Color.Black, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -897,7 +877,7 @@ private fun InboxTabContent(projects: List<VideoProject>) {
         Icon(Icons.Default.Notifications, contentDescription = null, tint = colors.textPrimary, modifier = Modifier.size(48.dp))
         Spacer(modifier = Modifier.height(12.dp))
         Text(stringResource(R.string.inbox_title), color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text(stringResource(R.string.weekly_tips_appear_here), color = colors.textSecondary, fontSize = 12.sp)
+        Text(stringResource(R.string.inbox_subtitle), color = colors.textSecondary, fontSize = 12.sp)
         Spacer(modifier = Modifier.height(16.dp))
         Box(
             modifier = Modifier
@@ -912,14 +892,14 @@ private fun InboxTabContent(projects: List<VideoProject>) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("📊 Your Draft Stats", color = colors.accentCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("📊 Your Project Stats", color = colors.accentCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("$draftCount", color = colors.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Text("Drafts", color = colors.textSecondary, fontSize = 11.sp)
+                        Text("Projects", color = colors.textSecondary, fontSize = 11.sp)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("$favoriteCount", color = colors.accentRed, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -963,11 +943,11 @@ private fun ProfileTabContent(
             Icon(Icons.Default.Person, contentDescription = null, tint = colors.textPrimary, modifier = Modifier.size(42.dp))
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Text(stringResource(R.string.catbyte_sketch_artist), color = colors.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Text("ID: 8942019 • Pencil Edition PRO", color = colors.accentCyan, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(stringResource(R.string.profile_title), color = colors.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.profile_id), color = colors.accentCyan, fontSize = 12.sp, fontWeight = FontWeight.Medium)
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Sketched Stats Row
+        // Stats Row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -979,7 +959,7 @@ private fun ProfileTabContent(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("$draftCount", color = colors.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Sketches", color = colors.textSecondary, fontSize = 11.sp)
+                Text("Projects", color = colors.textSecondary, fontSize = 11.sp)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("${String.format("%.1fs", totalDurationSec)}", color = colors.accentCyan, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -1002,13 +982,13 @@ private fun ProfileTabContent(
         ) {
             Icon(Icons.Default.Settings, contentDescription = null, tint = colors.textPrimary)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Open Appearance & Settings", color = colors.textPrimary, fontWeight = FontWeight.Bold)
+            Text("Open Settings", color = colors.textPrimary, fontWeight = FontWeight.Bold)
         }
     }
 }
 
 // ==========================================
-// Sketched Bottom Navigation Bar
+// Bottom Navigation Bar
 // ==========================================
 
 @Composable
@@ -1043,7 +1023,7 @@ private fun CapCutBottomNavigationBar(
             selected = selectedIndex == 1,
             onClick = { onSelect(1) },
             icon = { Icon(Icons.Default.Notifications, contentDescription = "Inbox") },
-            label = { Text("Notes", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+            label = { Text("Inbox", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = colors.accentCyan,
                 selectedTextColor = colors.accentCyan,
@@ -1055,8 +1035,8 @@ private fun CapCutBottomNavigationBar(
         NavigationBarItem(
             selected = selectedIndex == 2,
             onClick = { onSelect(2) },
-            icon = { Icon(Icons.Default.Person, contentDescription = "Me") },
-            label = { Text("Artist", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+            icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
+            label = { Text("Profile", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = colors.accentCyan,
                 selectedTextColor = colors.accentCyan,
@@ -1069,7 +1049,7 @@ private fun CapCutBottomNavigationBar(
 }
 
 // ==========================================
-// Sketched Search & Filter Bar
+// Search & Filter Bar
 // ==========================================
 
 @Composable
@@ -1089,13 +1069,13 @@ private fun ProjectSearchAndFilterBar(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Sketched Search Input
+        // Search Input
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchQueryChanged,
             placeholder = {
                 Text(
-                    text = "Search sketch drafts by title...",
+                    text = "Search projects by title...",
                     color = colors.textTertiary,
                     fontSize = 13.sp
                 )
@@ -1177,7 +1157,7 @@ private fun ProjectSearchAndFilterBar(
 }
 
 // ==========================================
-// New Project Blueprint Setup Dialog
+// New Project Setup Dialog
 // ==========================================
 
 @Composable
@@ -1187,22 +1167,22 @@ private fun NewProjectBlueprintDialog(
     onPickMedia: () -> Unit
 ) {
     val colors = PencilTheme.colors
-    var projectTitle by remember { mutableStateOf("Sketchbook Draft #${System.currentTimeMillis() % 1000}") }
+    var projectTitle by remember { mutableStateOf("New Project #${System.currentTimeMillis() % 1000}") }
     var selectedRatio by remember { mutableStateOf(AspectRatioType.RATIO_9_16) }
-    var selectedPaperStyle by remember { mutableStateOf("Drafting Grid") }
+    var selectedPaperStyle by remember { mutableStateOf("Standard") }
 
     val ratios = listOf(
-        Triple(AspectRatioType.RATIO_9_16, "9:16", "TikTok / Shorts / Reels"),
+        Triple(AspectRatioType.RATIO_9_16, "9:16", "Reels / Shorts / TikTok"),
         Triple(AspectRatioType.RATIO_16_9, "16:9", "YouTube / Cinema"),
         Triple(AspectRatioType.RATIO_1_1, "1:1", "Instagram Square"),
         Triple(AspectRatioType.RATIO_4_5, "4:5", stringResource(R.string.portrait_feed_post))
     )
 
     val paperStyles = listOf(
-        "Drafting Grid",
-        "Ruled Notebook",
-        "Blank Parchment",
-        "Sepia Kraft"
+        "Standard",
+        "Grid",
+        "Clean",
+        "Dark"
     )
 
     Dialog(onDismissRequest = onDismiss) {
@@ -1211,7 +1191,7 @@ private fun NewProjectBlueprintDialog(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
                 .background(colors.surface)
-                .sketchPencilBorder(strokeWidth = 2.dp, color = colors.border, cornerRadius = 18.dp)
+                .border(2.dp, colors.border, RoundedCornerShape(18.dp))
                 .padding(20.dp)
                 .testTag("new_project_blueprint_dialog")
         ) {
@@ -1228,7 +1208,7 @@ private fun NewProjectBlueprintDialog(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("📐", fontSize = 18.sp)
                         Text(
-                            text = "New Project Blueprint",
+                            text = "New Project",
                             color = colors.textPrimary,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Black
@@ -1315,10 +1295,10 @@ private fun NewProjectBlueprintDialog(
                     }
                 }
 
-                // Notebook Texture / Paper Style
+                // Background Style
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "Paper Texture Style",
+                        text = "Background Style",
                         color = colors.textSecondary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
@@ -1344,7 +1324,7 @@ private fun NewProjectBlueprintDialog(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = style.substringBefore(" "),
+                                    text = style,
                                     color = colors.textPrimary,
                                     fontSize = 10.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
@@ -1386,7 +1366,7 @@ private fun NewProjectBlueprintDialog(
                         modifier = Modifier.weight(1.3f)
                     ) {
                         Text(
-                            text = "Start Drafting ✏️",
+                            text = "Create Project",
                             color = if (colors.isLight) Color.White else Color.Black,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold

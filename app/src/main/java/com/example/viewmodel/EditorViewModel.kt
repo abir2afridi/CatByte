@@ -116,7 +116,7 @@ class EditorViewModel(
     private val _exportState = MutableStateFlow(ExportUiState())
     val exportState: StateFlow<ExportUiState> = _exportState.asStateFlow()
 
-    private val _appThemeMode = MutableStateFlow(com.example.ui.theme.AppThemeMode.PENCIL_LIGHT)
+    private val _appThemeMode = MutableStateFlow(com.example.ui.theme.AppThemeMode.LIGHT)
     val appThemeMode: StateFlow<com.example.ui.theme.AppThemeMode> = _appThemeMode.asStateFlow()
 
     private val _isSettingsOpen = MutableStateFlow(false)
@@ -291,30 +291,14 @@ class EditorViewModel(
     fun createNewProjectWithParams(
         title: String,
         ratio: AspectRatioType = AspectRatioType.RATIO_9_16,
-        paperStyle: String = "Drafting Grid"
+        paperStyle: String = "Standard"
     ) {
         pausePlayback()
-        val defaultClips = listOf(
-            MediaClip(
-                id = UUID.randomUUID().toString(),
-                title = "Scene 1 (Sketch)",
-                gradientColors = listOf(0xFF1A1A1A, 0xFF2D2D2D, 0xFF3D3D3D),
-                durationMs = 3500L,
-                filter = VideoFilter.SKETCH_GRAPHITE
-            ),
-            MediaClip(
-                id = UUID.randomUUID().toString(),
-                title = "Scene 2 (Blueprint)",
-                gradientColors = listOf(0xFF001F3F, 0xFF003366, 0xFF0074D9),
-                durationMs = 4000L,
-                filter = VideoFilter.BLUEPRINT
-            )
-        )
         val proj = repository.createNewProject(
-            title = title.ifBlank { "Notebook Draft #${System.currentTimeMillis() % 1000}" },
+            title = title.ifBlank { "New Project #${System.currentTimeMillis() % 1000}" },
             aspectRatio = ratio,
             paperStyle = paperStyle,
-            initialClips = defaultClips,
+            initialClips = emptyList(),
             resolution = _defaultResolution.value,
             fps = _defaultFps.value
         )
@@ -322,7 +306,7 @@ class EditorViewModel(
     }
 
     fun createNewProject() {
-        createNewProjectWithParams("Notebook Draft #${System.currentTimeMillis() % 1000}")
+        createNewProjectWithParams("New Project #${System.currentTimeMillis() % 1000}")
     }
 
     fun duplicateProject(id: String) {

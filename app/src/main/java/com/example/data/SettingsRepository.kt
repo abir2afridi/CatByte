@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.map
 import java.io.IOException
 
 data class AppSettings(
-    val themeMode: AppThemeMode = AppThemeMode.PENCIL_LIGHT,
+    val themeMode: AppThemeMode = AppThemeMode.LIGHT,
     val defaultResolution: String = "1080P",
     val defaultFps: Int = 30,
     val showPaperGrid: Boolean = true,
@@ -55,7 +55,7 @@ class SettingsRepository(private val context: Context) {
             AppSettings(
                 themeMode = prefs[Keys.THEME]
                     ?.let { value -> runCatching { AppThemeMode.valueOf(value) }.getOrNull() }
-                    ?: AppThemeMode.PENCIL_LIGHT,
+                    ?: AppThemeMode.LIGHT,
                 defaultResolution = prefs[Keys.RESOLUTION] ?: "1080P",
                 defaultFps = prefs[Keys.FPS] ?: 30,
                 showPaperGrid = prefs[Keys.PAPER_GRID] ?: true,
