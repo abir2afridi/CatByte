@@ -1,0 +1,10 @@
+dist/
+build/
+node_modules/
+src-tauri/target/
+*.svg
+*.png
+*.ico
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

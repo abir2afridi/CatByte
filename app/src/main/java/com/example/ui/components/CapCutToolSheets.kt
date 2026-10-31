@@ -100,6 +100,8 @@ import com.example.model.KeyframeProperty
 import com.example.model.MaskData
 import com.example.model.MaskType
 import com.example.model.MediaClip
+import com.example.model.SpeedCurve
+import com.example.model.SpeedCurvePreset
 import com.example.model.TextAnimationType
 import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
@@ -388,11 +390,56 @@ fun SpeedSheet(
     }
 }
 
+// ==========================================
+// Custom Curve Editor Sheet
+// ==========================================
+
+@Composable
+fun SpeedCurveEditorSheet(
+    speedCurve: SpeedCurve,
+    onCurveChanged: (SpeedCurve) -> Unit,
+    onClose: () -> Unit
+) {
+    val colors = PencilTheme.colors
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(600.dp)
+            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            .background(colors.surface)
+            .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 18.dp)
+            .testTag("speed_curve_editor_sheet")
+    ) {
+        TornPaperEdge(
+            paperColor = colors.surfaceElevated,
+            borderColor = colors.borderSubtle
+        )
+
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Custom Speed Curve", color = colors.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.textSecondary)
+                }
+            }
+
+            SpeedCurveEditor(
+                speedCurve = speedCurve,
+                onCurveChanged = onCurveChanged,
+                onClose = onClose
+            )
+        }
+    }
+}
 
 // ==========================================
 // 3. Audio & Voice Recorder Sheet
-// ==========================================
-
+// ===========================================
 @Composable
 fun AudioSheet(
     isRecordingVoice: Boolean,

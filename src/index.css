@@ -1,0 +1,230 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 4%;
+    --foreground: 210 40% 98%;
+    --primary: 263 70% 50%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 263 70% 50%;
+    --radius: 0.5rem;
+
+    --timeline-track: 217 33% 12%;
+    --timeline-clip: 263 70% 45%;
+    --timeline-clip-hover: 263 70% 55%;
+    --timeline-playhead: 263 70% 60%;
+  }
+
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 4%;
+    --primary: 263 70% 50%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 4%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 4%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 263 70% 50%;
+
+    --timeline-track: 210 40% 94%;
+    --timeline-clip: 263 70% 50%;
+    --timeline-clip-hover: 263 70% 60%;
+    --timeline-playhead: 263 70% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted));
+    border-radius: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground));
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-secondary/50 backdrop-blur-sm border border-border rounded-lg;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+  .btn-secondary {
+    @apply btn bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+  .btn-ghost {
+    @apply btn hover:bg-accent hover:text-accent-foreground;
+  }
+  .btn-destructive {
+    @apply btn bg-destructive text-destructive-foreground hover:bg-destructive/90;
+  }
+  .btn-icon {
+    @apply btn p-2;
+  }
+  .input {
+    @apply flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .label {
+    @apply text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70;
+  }
+  .separator {
+    @apply shrink-0 bg-border;
+  }
+  .separator-horizontal {
+    @apply separator h-[1px] w-full;
+  }
+  .separator-vertical {
+    @apply separator w-[1px] h-full;
+  }
+}
+
+/* Fabric.js canvas overrides */
+.canvas-container {
+  @apply rounded-lg overflow-hidden;
+}
+
+/* Timeline specific styles */
+.timeline-track {
+  @apply h-24 bg-timeline-track rounded-md border border-border relative overflow-hidden;
+}
+.timeline-clip {
+  @apply absolute top-1 bottom-1 bg-timeline-clip rounded border border-border/50 cursor-grab active:cursor-grabbing transition-colors;
+}
+.timeline-clip:hover {
+  background-color: hsl(var(--timeline-clip-hover));
+}
+.timeline-clip-selected {
+  @apply ring-2 ring-primary ring-offset-2 ring-offset-background;
+}
+.timeline-playhead {
+  @apply absolute top-0 bottom-0 w-[2px] bg-timeline-playhead pointer-events-none z-10;
+}
+.timeline-playhead::before {
+  content: '';
+  @apply absolute -left-1.5 top-0 w-3 h-3 rounded-full bg-timeline-playhead border-2 border-background;
+}
+.timeline-playhead::after {
+  content: '';
+  @apply absolute -left-1.5 bottom-0 w-3 h-3 rounded-full bg-timeline-playhead border-2 border-background;
+}
+
+/* Video preview */
+.video-preview {
+  @apply relative bg-black rounded-lg overflow-hidden;
+}
+.video-preview video {
+  @apply w-full h-full object-contain;
+}
+
+/* Property panel */
+.property-group {
+  @apply space-y-3 py-3 border-b border-border last:border-0;
+}
+.property-label {
+  @apply flex items-center justify-between text-sm;
+}
+.property-label-text {
+  @apply font-medium text-foreground;
+}
+.property-label-hint {
+  @apply text-xs text-muted-foreground;
+}
+
+/* Media bin */
+.media-item {
+  @apply relative aspect-video bg-muted rounded-lg overflow-hidden border border-border transition-all hover:border-primary/50;
+}
+.media-item-selected {
+  @apply ring-2 ring-primary ring-offset-2 ring-offset-background;
+}
+.media-thumbnail {
+  @apply w-full h-full object-cover;
+}
+.media-duration {
+  @apply absolute bottom-1 right-1 px-1.5 py-0.5 text-xs bg-black/80 text-white rounded;
+}
+
+/* Effects panel */
+.effect-item {
+  @apply flex items-center gap-3 p-2 rounded-md hover:bg-accent cursor-pointer transition-colors;
+}
+.effect-item-active {
+  @apply bg-accent text-accent-foreground;
+}
+
+/* Keyframes panel */
+.keyframe-marker {
+  @apply absolute w-[4px] h-[4px] rounded-full bg-primary border-2 border-background transform -translate-x-1/2 -translate-y-1/2 cursor-pointer hover:scale-150 transition-transform;
+}
+.keyframe-marker-selected {
+  @apply bg-primary ring-2 ring-primary ring-offset-2 ring-offset-background;
+}
+
+/* Export dialog */
+.export-preset {
+  @apply p-3 rounded-lg border border-border hover:border-primary/50 cursor-pointer transition-colors;
+}
+.export-preset-selected {
+  @apply border-primary bg-primary/10;
+}
+
+/* Loading states */
+.skeleton {
+  @apply animate-pulse bg-muted rounded;
+}
+
+/* Tooltips */
+.tooltip {
+  @apply absolute z-50 px-2 py-1 text-xs text-white bg-gray-900 rounded shadow-lg pointer-events-none;
+}
