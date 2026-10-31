@@ -139,9 +139,7 @@ fun EditorScreen(
     val addMediaLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
-        uris.forEachIndexed { idx, uri ->
-            viewModel.addClipFromUri(uri.toString(), "Clip ${project?.clips?.size?.plus(idx + 1)}")
-        }
+        viewModel.launchImportUris(uris)
     }
 
     // Media Picker for adding Overlay PIP clips

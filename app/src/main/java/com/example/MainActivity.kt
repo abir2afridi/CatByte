@@ -186,10 +186,11 @@ fun CapCutApp(
                     },
                     onAddMediaClips = { uris ->
                         viewModel.createNewProject()
-                        uris.forEachIndexed { idx, uri ->
-                            viewModel.addClipFromUri(uri.toString(), "Clip ${idx + 1}")
+                        val uriStrings = uris.map { it.toString() }
+                        val titles = uriStrings.indices.map { "Clip ${it + 1}" }
+                        viewModel.importMultipleUris(uriStrings, titles) {
+                            currentScreen = AppScreen.EDITOR
                         }
-                        currentScreen = AppScreen.EDITOR
                     },
                     onDuplicateProject = { id ->
                         viewModel.duplicateProject(id)

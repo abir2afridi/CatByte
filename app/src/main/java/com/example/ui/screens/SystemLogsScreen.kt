@@ -45,9 +45,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,6 +97,19 @@ fun SystemLogsScreen(
     var query by remember { mutableStateOf("") }
     var expandedKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showClearDialog by remember { mutableStateOf(false) }
+    var autoRefresh by remember { mutableStateOf(false) }
+
+    // Auto-refresh logs every 2 seconds when enabled
+    LaunchedEffect(autoRefresh) {
+        if (autoRefresh) {
+            while (autoRefresh) {
+                kotlinx.coroutines.delay(2000)
+                if (autoRefresh) {
+                    entries = AppLog.snapshot()
+                }
+            }
+        }
+    }
 
     val filteredEntries = remember(entries, filter, query) {
         entries.filter { entry ->
@@ -166,7 +181,9 @@ fun SystemLogsScreen(
                         entries = AppLog.snapshot()
                         expandedKeys = emptySet()
                     },
-                    onClear = { showClearDialog = true }
+                    onClear = { showClearDialog = true },
+                    autoRefresh = autoRefresh,
+                    onAutoRefreshChange = { autoRefresh = it }
                 )
             }
 
@@ -440,7 +457,9 @@ private fun SystemLogsTopBar(
 private fun OverviewCard(
     entries: List<AppLogEntry>,
     onRefresh: () -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    autoRefresh: Boolean,
+    onAutoRefreshChange: (Boolean) -> Unit
 ) {
     val colors = PencilTheme.colors
     val errors = entries.count { it.level == AppLogLevel.ERROR }

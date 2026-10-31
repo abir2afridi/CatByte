@@ -18,52 +18,69 @@ import java.nio.ByteBuffer
  */
 object MediaMetadata {
 
+    private const val TAG = "MediaMetadata"
+
     /** Maximum amount of audio (in milliseconds) that is analysed for the waveform. */
     private const val WAVEFORM_ANALYSIS_LIMIT_MS = 90_000L
 
     /** Returns the duration of the media in milliseconds, or 0 when unknown. */
     suspend fun durationMs(context: Context, uri: Uri): Long = withContext(Dispatchers.IO) {
+        AppLog.debug(TAG, "durationMs() called for uri=$uri")
         // Persist URI permission for future access
         try {
             context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            AppLog.debug(TAG, "Persisted URI permission for duration check")
         } catch (e: Exception) {
-            AppLog.warn("MediaMetadata", "Failed to persist URI permission", e)
+            AppLog.warn(TAG, "Failed to persist URI permission", e)
         }
         
-        runCatching {
+        val result = runCatching {
             val retriever = MediaMetadataRetriever()
             try {
+                AppLog.debug(TAG, "Setting data source on MediaMetadataRetriever")
                 retriever.setDataSource(context, uri)
-                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                val duration = durationStr?.toLongOrNull() ?: 0L
+                AppLog.info(TAG, "Got duration: ${duration}ms for uri=$uri")
+                duration
             } finally {
                 runCatching { retriever.release() }
             }
         }.onFailure { e ->
-            AppLog.warn("MediaMetadata", "Failed to get duration for $uri", e)
+            AppLog.warn(TAG, "Failed to get duration for $uri", e)
         }.getOrDefault(0L)
+        
+        AppLog.debug(TAG, "durationMs() returning: ${result}ms")
+        result
     }
 
     /** Returns a human readable name for the media. */
     suspend fun displayName(context: Context, uri: Uri): String = withContext(Dispatchers.IO) {
+        AppLog.debug(TAG, "displayName() called for uri=$uri")
         // Persist URI permission for future access
         try {
             context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            AppLog.debug(TAG, "Persisted URI permission for displayName")
         } catch (e: Exception) {
-            AppLog.warn("MediaMetadata", "Failed to persist URI permission", e)
+            AppLog.warn(TAG, "Failed to persist URI permission", e)
         }
         
-        runCatching {
+        val result = runCatching {
             val retriever = MediaMetadataRetriever()
             try {
+                AppLog.debug(TAG, "Setting data source on MediaMetadataRetriever for displayName")
                 retriever.setDataSource(context, uri)
                 retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
             } finally {
                 runCatching { retriever.release() }
             }
         }.onFailure { e ->
-            AppLog.warn("MediaMetadata", "Failed to get display name for $uri", e)
+            AppLog.warn(TAG, "Failed to get display name for $uri", e)
         }.getOrNull()?.takeIf { it.isNotBlank() }
             ?: uri.lastPathSegment.orEmpty().substringBeforeLast('.')
+        
+        AppLog.debug(TAG, "displayName() returning: $result")
+        result
     }
 
     /**
@@ -73,16 +90,31 @@ object MediaMetadata {
      */
     suspend fun waveform(context: Context, uri: Uri, buckets: Int = 48): List<Float>? =
         withContext(Dispatchers.IO) {
-            runCatching { decodeWaveform(context, uri, buckets) }.getOrNull()
+            AppLog.info(TAG, "waveform() called for uri=$uri, buckets=$buckets")
+            val result = runCatching { decodeWaveform(context, uri, buckets) }
+                .onFailure { e ->
+                    AppLog.warn(TAG, "Waveform decode failed for $uri", e)
+                }
+                .getOrNull()
+            
+            if (result != null) {
+                AppLog.info(TAG, "Waveform extracted: ${result.size} buckets for uri=$uri")
+            } else {
+                AppLog.warn(TAG, "Waveform extraction returned null for uri=$uri")
+            }
+            result
         }
 
     private fun decodeWaveform(context: Context, uri: Uri, buckets: Int): List<Float>? {
+        AppLog.debug(TAG, "decodeWaveform() started for uri=$uri")
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         try {
             // Ensure we have read permission for the URI
             context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            AppLog.debug(TAG, "Persisted URI permission for waveform extraction")
             
+            AppLog.debug(TAG, "Setting data source on MediaExtractor")
             extractor.setDataSource(context, uri, null)
 
             var trackIndex = -1
@@ -96,11 +128,19 @@ object MediaMetadata {
                     break
                 }
             }
-            if (trackIndex < 0 || format == null) return null
+            if (trackIndex < 0 || format == null) {
+                AppLog.warn(TAG, "No audio track found in uri=$uri")
+                return null
+            }
+            AppLog.debug(TAG, "Selected audio track index=$trackIndex, mime=${format.getString(MediaFormat.KEY_MIME)}")
 
             val mime = format.getString(MediaFormat.KEY_MIME) ?: return null
             val durationUs = format.getLong(MediaFormat.KEY_DURATION, 0L)
-            if (durationUs <= 0L) return null
+            if (durationUs <= 0L) {
+                AppLog.warn(TAG, "Invalid duration: $durationUs us for uri=$uri")
+                return null
+            }
+            AppLog.debug(TAG, "Audio duration: ${durationUs / 1000}ms")
 
             val analysisUs = minOf(durationUs, WAVEFORM_ANALYSIS_LIMIT_MS * 1000L)
             val bucketUs = analysisUs / buckets.coerceAtLeast(1)
@@ -111,17 +151,18 @@ object MediaMetadata {
             extractor.selectTrack(trackIndex)
             val decoder = MediaCodec.createDecoderByType(mime)
             if (decoder == null) {
-                AppLog.warn("MediaMetadata", "No decoder found for mime: $mime")
+                AppLog.warn(TAG, "No decoder found for mime: $mime")
                 return null
             }
             codec = decoder
             try {
                 codec.configure(format, null, null, 0)
             } catch (e: Exception) {
-                AppLog.warn("MediaMetadata", "Codec configure failed for $mime", e)
+                AppLog.warn(TAG, "Codec configure failed for $mime", e)
                 return null
             }
             codec.start()
+            AppLog.debug(TAG, "Codec started successfully")
 
             val bufferInfo = MediaCodec.BufferInfo()
             var sawInputEos = false
@@ -174,17 +215,25 @@ object MediaMetadata {
                 }
             }
 
-            if (bucketHits.sum() == 0) return null
+            if (bucketHits.sum() == 0) {
+                AppLog.warn(TAG, "No audio data decoded for uri=$uri")
+                return null
+            }
             val maxPeak = peaks.maxOrNull() ?: 0f
-            if (maxPeak <= 0f) return null
+            if (maxPeak <= 0f) {
+                AppLog.warn(TAG, "Max peak is 0 for uri=$uri")
+                return null
+            }
+            AppLog.info(TAG, "Waveform decoded successfully: maxPeak=$maxPeak, buckets=${peaks.size}")
             return peaks.map { (it / maxPeak).coerceIn(0f, 1f) }
         } catch (e: Exception) {
-            AppLog.warn("MediaMetadata", "Waveform decode failed for $uri", e)
+            AppLog.warn(TAG, "Waveform decode failed for $uri", e)
             return null
         } finally {
             runCatching { codec?.stop() }
             runCatching { codec?.release() }
             runCatching { extractor.release() }
+            AppLog.debug(TAG, "decodeWaveform() cleanup done")
         }
     }
 

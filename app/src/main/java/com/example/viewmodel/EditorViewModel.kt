@@ -266,6 +266,7 @@ class EditorViewModel(
     }
 
     fun openProject(project: VideoProject) {
+        AppLog.info("EditorViewModel", "openProject() called: projectId=${project.id}, title=${project.title}, clips=${project.clips.size}, totalDuration=${project.totalDurationMs}ms")
         pausePlayback()
         playerManager?.loadProject(project)
         _currentProject.value = project
@@ -277,6 +278,7 @@ class EditorViewModel(
         redoStack.clear()
         _canUndo.value = false
         _canRedo.value = false
+        AppLog.debug("EditorViewModel", "openProject() completed, currentProject set")
     }
 
     fun toggleProjectFavorite(id: String) {
@@ -566,53 +568,83 @@ class EditorViewModel(
     }
 
     /** Adds a clip by looking up its real duration and waveform from the file. */
-    fun addClipFromUri(uriString: String, title: String) {
+    suspend fun addClipFromUri(uriString: String, title: String) {
         val ctx = context ?: return
         val uri = Uri.parse(uriString)
+        AppLog.info("EditorViewModel", "addClipFromUri() started: uri=$uriString, title=$title")
         _isImporting.value = true
+        try {
+            AppLog.debug("EditorViewModel", "Fetching duration for uri=$uriString")
+            val durationMs = MediaMetadata.durationMs(ctx, uri)
+            AppLog.debug("EditorViewModel", "Fetching waveform for uri=$uriString")
+            val waveform = MediaMetadata.waveform(ctx, uri, 48) ?: emptyList()
+            val realTitle = title.takeIf { it.isNotBlank() }
+                ?: MediaMetadata.displayName(ctx, uri)
+            // Place clip after existing clips on the timeline
+            val currentProject = _currentProject.value
+            val lastEndMs = currentProject?.clips?.maxOfOrNull { it.startTimelineMs + it.durationMs } ?: 0L
+            AppLog.debug("EditorViewModel", "Creating clip: title=$realTitle, startTimelineMs=$lastEndMs, durationMs=$durationMs, waveformSize=${waveform.size}")
+            val clip = MediaClip(
+                id = UUID.randomUUID().toString(),
+                title = realTitle,
+                uriString = uriString,
+                startTimelineMs = lastEndMs,
+                durationMs = if (durationMs > 0) durationMs else 4000L,
+                originalDurationMs = if (durationMs > 0) durationMs else 4000L,
+                waveform = waveform.ifEmpty { emptyList() },
+                filter = VideoFilter.NONE
+            )
+            _isImporting.value = false
+            updateProject { proj ->
+                proj.copy(clips = proj.clips + clip)
+            }
+            _selectedClipId.value = clip.id
+            AppLog.info("EditorViewModel", "Successfully imported clip: $realTitle (${durationMs}ms), clipId=${clip.id}")
+            // Reload the player with the updated project
+            playerManager?.loadProject(_currentProject.value!!)
+        } catch (e: Exception) {
+            _isImporting.value = false
+            AppLog.error("EditorViewModel", "Failed to import clip from $uriString", e)
+            // Still create a clip with fallback values so the user can at least see it
+            val currentProject = _currentProject.value
+            val lastEndMs = currentProject?.clips?.maxOfOrNull { it.startTimelineMs + it.durationMs } ?: 0L
+            val fallbackClip = MediaClip(
+                id = UUID.randomUUID().toString(),
+                title = title.takeIf { it.isNotBlank() } ?: "Imported Clip",
+                uriString = uriString,
+                startTimelineMs = lastEndMs,
+                durationMs = 4000L,
+                originalDurationMs = 4000L,
+                filter = VideoFilter.NONE
+            )
+            updateProject { proj ->
+                proj.copy(clips = proj.clips + fallbackClip)
+            }
+            _selectedClipId.value = fallbackClip.id
+            playerManager?.loadProject(_currentProject.value!!)
+        }
+    }
+
+    /** Imports multiple URIs sequentially, then calls [onComplete] when all are done. */
+    fun importMultipleUris(uris: List<String>, titles: List<String>, onComplete: () -> Unit) {
         importJob?.cancel()
         importJob = viewModelScope.launch {
-            try {
-                val durationMs = MediaMetadata.durationMs(ctx, uri)
-                val waveform = MediaMetadata.waveform(ctx, uri, 48) ?: emptyList()
-                val realTitle = title.takeIf { it.isNotBlank() }
-                    ?: MediaMetadata.displayName(ctx, uri)
-                val clip = MediaClip(
-                    id = UUID.randomUUID().toString(),
-                    title = realTitle,
-                    uriString = uriString,
-                    durationMs = if (durationMs > 0) durationMs else 4000L,
-                    originalDurationMs = if (durationMs > 0) durationMs else 4000L,
-                    waveform = waveform.ifEmpty { emptyList() },
-                    filter = VideoFilter.NONE
-                )
-                _isImporting.value = false
-                updateProject { proj ->
-                    proj.copy(clips = proj.clips + clip)
-                }
-                _selectedClipId.value = clip.id
-                AppLog.info("EditorViewModel", "Successfully imported clip: $realTitle (${durationMs}ms)")
-                // Reload the player with the updated project
-                playerManager?.loadProject(_currentProject.value!!)
-            } catch (e: Exception) {
-                _isImporting.value = false
-                AppLog.error("EditorViewModel", "Failed to import clip from $uriString", e)
-                // Still create a clip with fallback values so the user can at least see it
-                val fallbackClip = MediaClip(
-                    id = UUID.randomUUID().toString(),
-                    title = title.takeIf { it.isNotBlank() } ?: "Imported Clip",
-                    uriString = uriString,
-                    durationMs = 4000L,
-                    originalDurationMs = 4000L,
-                    filter = VideoFilter.NONE
-                )
-                updateProject { proj ->
-                    proj.copy(clips = proj.clips + fallbackClip)
-                }
-                _selectedClipId.value = fallbackClip.id
-                playerManager?.loadProject(_currentProject.value!!)
+            AppLog.info("EditorViewModel", "importMultipleUris() started: ${uris.size} URIs to import")
+            uris.forEachIndexed { index, uriString ->
+                AppLog.info("EditorViewModel", "Importing URI ${index + 1}/${uris.size}: $uriString")
+                addClipFromUri(uriString, titles.getOrElse(index) { "Clip ${index + 1}" })
             }
+            AppLog.info("EditorViewModel", "importMultipleUris() completed all imports")
+            onComplete()
         }
+    }
+
+    /** Launch import of multiple URIs from Composable (non-suspend context). */
+    fun launchImportUris(uris: List<android.net.Uri>) {
+        val uriStrings = uris.map { it.toString() }
+        val titles = uriStrings.indices.map { "Clip ${it + 1}" }
+        AppLog.info("EditorViewModel", "launchImportUris() called: ${uris.size} URIs")
+        importMultipleUris(uriStrings, titles) { }
     }
 
     /** Updates the trim of the selected clip. */
