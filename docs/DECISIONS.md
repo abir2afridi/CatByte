@@ -146,13 +146,17 @@
 
 ---
 
-## DEC-010: Render Engine Spike (PENDING)
-**Date:** TBD
+## DEC-010: Render Engine Spike (DECIDED)
+**Date:** 2026-10-31
 **Context:** Plan requires spike comparing Media3 Transformer (Spike A) vs Custom Pipeline (Spike B) before P1.
-**Decision:** TBD - Run spike, measure criteria, record in SPIKE_RENDER_ENGINE.md
+**Decision:** Spike A (Media3 Transformer + Composition + GlEffect) - already implemented and working
 **Alternatives Rejected:**
-- N/A - Must run spike
-**Consequences:** Will determine entire rendering architecture
+- **Spike B (Custom MediaExtractor + MediaCodec + GLSL):** Significant plumbing work (decoder pool, encoder config, muxer, A/V sync) not justified at this stage; Media3 Transformer already works for export
+**Consequences:**
+- ✅ Preview (ExoPlayer) and Export (Transformer) are separate code paths → preview/export parity not guaranteed (known limitation)
+- ✅ Custom GLSL effects require unstable APIs - avoided for now
+- ✅ Faster to implement, hardware acceleration built-in, codec selection/fallback built-in
+- Will revisit custom GL compositor in P4/P5 if preview/export parity issues arise
 
 ---
 

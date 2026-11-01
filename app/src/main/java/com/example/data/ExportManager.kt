@@ -1,6 +1,9 @@
 package com.example.data
 
 import android.content.Context
+import android.media.MediaCodecList
+import android.media.MediaExtractor
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.core.net.toUri
 import androidx.media3.common.C
@@ -100,8 +103,30 @@ class ExportManager(private val context: Context) {
             return@withContext null
         }
 
+        // Storage precheck: estimate = bitrate × duration × 1.1
+        val estimatedSize = estimateExportSize(project)
+        val availableSpace = context.getExternalFilesDir(null)?.usableSpace ?: 0L
+        if (availableSpace < estimatedSize) {
+            _progress.value = ExportProgress(
+                error = "Insufficient storage: need ~${estimatedSize / 1024 / 1024}MB, have ${availableSpace / 1024 / 1024}MB available"
+            )
+            AppLog.warn("ExportManager", "Export aborted: insufficient storage")
+            return@withContext null
+        }
+
         val (outWidth, outHeight) = ExportPresets.outputSize(project.aspectRatio, resolution)
         _progress.value = ExportProgress(progress = 0f, stage = "Preparing timeline...")
+
+        // Query codec capabilities for the target resolution
+        val supportedCodecs = querySupportedCodecs(outWidth, outHeight, fps)
+        AppLog.info("ExportManager", "Supported codecs for ${outWidth}x${outHeight}@${fps}fps: $supportedCodecs")
+        if (supportedCodecs.isEmpty()) {
+            _progress.value = ExportProgress(
+                error = "No supported video codec for ${outWidth}x${outHeight}@${fps}fps"
+            )
+            AppLog.warn("ExportManager", "Export aborted: no supported codec for ${outWidth}x${outHeight}@${fps}fps")
+            return@withContext null
+        }
 
         val outputDir = File(context.getExternalFilesDir(null), "exports").apply { mkdirs() }
         val outputFile = File(outputDir, "CatByte_${project.id}_${System.currentTimeMillis()}.mp4")
@@ -121,6 +146,19 @@ class ExportManager(private val context: Context) {
         val galleryUri = runCatching {
             MediaStoreSaver.saveVideo(context, outputFile, "CatByte_${project.title.take(24).replace("/", "-")}")
         }.getOrNull()
+
+        // Validate exported MP4 before reporting success
+        val validation = validateExport(outputFile, project)
+        if (!validation.isValid) {
+            _progress.value = ExportProgress(
+                progress = 0f,
+                stage = "Export validation failed",
+                error = validation.error ?: "Export validation failed",
+                isCancelled = false
+            )
+            AppLog.error("ExportManager", "Export validation failed: ${validation.error}")
+            return@withContext null
+        }
 
         _progress.value = ExportProgress(
             progress = 1f,
@@ -150,6 +188,121 @@ class ExportManager(private val context: Context) {
         transformer = null
         AppLog.warn("ExportManager", "Export cancelled by user")
         _progress.value = _progress.value.copy(error = "Export cancelled", isCancelled = true, isDone = false)
+    }
+
+    /**
+     * Validates an exported MP4 file using MediaMetadataRetriever.
+     * Checks: file exists, has video track, duration within tolerance.
+     */
+    fun validateExport(outputFile: File, project: VideoProject): ValidationResult {
+        val file = outputFile
+        if (!file.exists()) {
+            return ValidationResult(false, "Exported file does not exist: ${outputFile.absolutePath}")
+        }
+        val fileSize = file.length()
+        if (fileSize == 0L) {
+            return ValidationResult(false, "Exported file is empty: ${outputFile.absolutePath}")
+        }
+        AppLog.info("ExportManager", "Validating export: ${outputFile.name} (${fileSize} bytes)")
+
+        return runCatching {
+            val retriever = MediaMetadataRetriever()
+            retriever.setDataSource(outputFile.absolutePath)
+
+            // Check video track dimensions
+            val widthStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+            val heightStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+            if (widthStr == null || heightStr == null) {
+                return ValidationResult(false, "Exported video has no video track dimensions")
+            }
+            val width = widthStr.toIntOrNull() ?: 0
+            val height = heightStr.toIntOrNull() ?: 0
+            if (width <= 0 || height <= 0) {
+                return ValidationResult(false, "Invalid video dimensions: ${width}x${height}")
+            }
+
+            // Check duration
+            val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+            val durationMs = durationStr?.toLongOrNull() ?: 0L
+            val expectedDurationMs = project.totalDurationMs
+            val durationDiff = kotlin.math.abs(durationMs - expectedDurationMs)
+            if (durationMs == 0L) {
+                return ValidationResult(false, "Exported video has zero duration")
+            }
+            if (durationDiff > 1000L) { // Allow 1 second tolerance
+                return ValidationResult(false, "Duration mismatch: expected ${expectedDurationMs}ms, got ${durationMs}ms (diff ${durationDiff}ms)")
+            }
+
+            AppLog.info("ExportManager", "Export validation PASSED: ${outputFile.name} (${width}x${height}, ${durationMs}ms)")
+            ValidationResult(true, null)
+        }.getOrElse { e ->
+            AppLog.warn("ExportManager", "Export validation failed for $outputFile", e)
+            ValidationResult(false, "Validation error: ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+
+    data class ValidationResult(
+        val isValid: Boolean,
+        val error: String?
+    )
+
+    /**
+     * Estimates export file size: bitrate × duration × 1.1 safety margin.
+     * Uses typical bitrate based on resolution if not specified in project.
+     */
+    private fun estimateExportSize(project: VideoProject): Long {
+        val (width, height) = ExportPresets.outputSize(project.aspectRatio, "1080P")
+        val bitrateMbps = when {
+            width >= 3840 -> 45.0   // 4K
+            width >= 1920 -> 16.0   // 1080p
+            width >= 1280 -> 8.0    // 720p
+            else -> 5.0             // 480p
+        }
+        val bitrateBps = bitrateMbps * 1_000_000L
+        val durationSeconds = project.totalDurationMs / 1000.0
+        val estimatedBytes = (bitrateBps * durationSeconds * 1.1).toLong()
+        return estimatedBytes
+    }
+
+    /**
+     * Query MediaCodecList for supported video codecs at the given resolution and fps.
+     * Returns a list of supported mime types, ordered by preference.
+     */
+    fun querySupportedCodecs(width: Int, height: Int, fps: Int): List<String> {
+        val supportedCodecs = mutableListOf<String>()
+        val mediaCodecList = android.media.MediaCodecList(android.media.MediaCodecList.ALL_CODECS)
+        for (codecInfo in mediaCodecList.codecInfos) {
+            val name = codecInfo.name
+            // Skip encoders that are hardware-accelerated software fallbacks
+            if (codecInfo.isHardwareAccelerated() || codecInfo.isSoftwareOnly()) {
+                continue
+            }
+            for (i in 0 until codecInfo.supportedTypes.size) {
+                val mime = codecInfo.supportedTypes[i]
+                if (mime?.startsWith("video/") == false) continue
+                val caps = codecInfo.getCapabilitiesForType(mime)
+                caps?.videoCapabilities?.let { videoCaps ->
+                val list = videoCaps as java.util.List<*>
+                val size = list.size
+                for (j in 0 until size) {
+                    val cap = list[j]
+                    // Use reflection or dynamic method calls to avoid import issues
+                    try {
+                        val isSizeSupported = cap.javaClass.getMethod("isSizeSupported", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType).invoke(cap, width, height) as Boolean
+                        val isFrameRateSupported = cap.javaClass.getMethod("isFrameRateSupported", Float::class.javaPrimitiveType).invoke(cap, fps.toFloat()) as Boolean
+                        if (isSizeSupported && isFrameRateSupported) {
+                            supportedCodecs.add(mime)
+                            return@let
+                        }
+                    } catch (e: Exception) {
+                        AppLog.warn("ExportManager", "Failed to check codec capabilities for $mime", e)
+                    }
+                }
+            }
+            }
+        }
+        AppLog.info("ExportManager", "Supported codecs for ${width}x${height}@${fps}fps: $supportedCodecs")
+        return supportedCodecs
     }
 
     // ---------------------------------------------------------------------
