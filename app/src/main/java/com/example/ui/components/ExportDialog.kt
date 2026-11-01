@@ -42,6 +42,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,7 +65,8 @@ fun ExportDialog(
     onStartExport: (resolution: String, fps: Int, watermark: Boolean) -> Unit,
     onCancelExport: () -> Unit,
     onDismiss: () -> Unit,
-    onShareExport: (platform: String) -> Unit
+    onShareExport: (platform: String) -> Unit,
+    onStartBackgroundExport: (resolution: String, fps: Int, watermark: Boolean) -> Unit = { _, _, _ -> }
 ) {
     val colors = PencilTheme.colors
     val context = LocalContext.current
@@ -340,6 +343,22 @@ fun ExportDialog(
                         ) {
                             Text("Export 🚀", color = if (colors.isLight) Color.White else Color.Black, fontWeight = FontWeight.Bold)
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // CapCut-style escape hatch: kick the render off in the
+                    // foreground service and keep editing right away.
+                    TextButton(
+                        onClick = {
+                            onStartBackgroundExport(selectedRes, selectedFps, watermarkEnabled)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            stringResource(R.string.export_background_hint),
+                            color = colors.textSecondary,
+                            fontSize = 12.sp
+                        )
                     }
                 }
             }

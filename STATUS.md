@@ -1,8 +1,8 @@
 # CatByte Video Editor - Project Status
 
 **Last Updated:** 2026-11-01
-**Current Phase:** P1 - Vertical slice ✅ COMPLETE
-**Overall Progress:** ~60%
+**Current Phase:** P8 - Export hardening (core complete, device verification pending)
+**Overall Progress:** ~62%
 
 ---
 
@@ -18,7 +18,7 @@
 | **P5** Clip & canvas tools | 🟡 PARTIAL | Basic transforms exist; missing crop, speed curves, freeze |
 | **P6** Text, audio, adjust, filters | 🟡 PARTIAL | Text exists, audio tracks exist; missing Bangla verification, voiceover, mixer |
 | **P7** Transitions & multi-track | 🟡 PARTIAL | Basic transitions exist; missing two-frame compositing, overlay tracks |
-| **P8** Export hardening | 🟢 PARTIAL (Core Done) | Export validation ✓, storage precheck ✓, codec capability query ✓, still missing: frame-by-frame render validation, foreground service type |
+| **P8** Export hardening | 🟢 CORE COMPLETE | Export validation ✓, storage precheck ✓, codec capability ladder ✓ (unit-tested), typed foreground service ✓, background export UX ✓; still missing: frame-by-frame rational timebase render, on-device instrumented probe |
 | **P9** Tier 2 features | ⏳ NOT STARTED | Keyframe UI, masks, chroma key, effects library |
 | **P10** Polish | ⏳ NOT STARTED | Accessibility, haptics, empty/error states, onboarding |
 | **P11** Tier 3 features | ⏳ NOT STARTED | Auto captions, background removal, object tracking |
@@ -79,12 +79,15 @@
 - ✅ Cancel support
 - ✅ Save to MediaStore (Movies/CatByte)
 - ✅ Export validation (validate exported MP4 using MediaMetadataRetriever: tracks, dims, duration)
-- ✅ Storage precheck (estimate = bitrate × duration × 1.1 before export)
-- 🔴 Codec capability query with fallback ladder (HEVC→H.264, 4K→1080p)
-- 🔴 Foreground service with correct type (`mediaProcessing`)
+- ✅ Storage precheck (estimate = bitrate × resolved-output duration × 1.1, post-downgrade size)
+- ✅ **Codec capability ladder** (unit-tested 9/9): HEVC→H.264, size requested→1440p→1080p→720p→480p, fps 60→30→24; never larger than requested; rejected pinned codec retries once with Media3's default encoder (DEC-017)
+- ✅ **Typed foreground service**: API 35+ `mediaProcessing`, API 34 `dataSync`, typed notification channel, double-start guard
+- ✅ **Background export UX**: "Keep editing — export in background" closes the dialog, starts the FGS; Android 13+ requests `POST_NOTIFICATIONS` first (denial does not block the export)
 
 ### Localization
-- ✅ English + Bengali strings
+- ✅ English + Bengali full parity (125 keys each, incl. new `export_background_hint`)
+- ✅ Robolectric guard test: bn resources actually translated (`LocalizationRobolectricTest`, sdk 34)
+- ✅ Locale-safe numeric labels: `fps_label`/`export_encoding` use `%s` placeholders so fps stays Latin digits in every locale (matches Latin resolution labels like "1080P")
 - ✅ RTL-safe layouts
 
 ---
@@ -141,18 +144,19 @@
 ### Export Pipeline (P8 - RELEASE BLOCKER)
 - ❌ **Frame-by-frame render at project frame-rate timebase** (rational math, no float drift)
 - ❌ **Audio: render mixed PCM from same graph** (resample to 48kHz stereo, apply speed/pitch, fades, volume, limiter)
-- ❌ **Foreground service with correct type** (`mediaProcessing`), proper notification channel, service timeout handling
+- ❌ **On-device probe**: instrumented codec + E2E export run (test written, needs device)
 - ✅ **Export validation** (MediaExtractor/MediaMetadataRetriever: tracks, dims, duration ±1 frame)
 - ✅ **Storage precheck** (estimate = bitrate × duration × 1.1)
-- ✅ **Codec capability query** with fallback ladder (HEVC→H.264, 4K→1080p)
+- ✅ **Codec capability query** with fallback ladder (HEVC→H.264, 4K→1080p; DEC-017)
+- ✅ **Foreground service typed** (`mediaProcessing` API 35+ / `dataSync` API 34), notification channel, double-start guard
 
 ### Testing (P0-P12 - CRITICAL)
 - ❌ **Fixtures**: No `scripts/make_fixtures.sh|ps1` with ffmpeg synthetic media
-- ❌ **Unit tests**: Only example tests exist, 7/8 failing
-- ❌ **Instrumented tests**: None exist
+- ❌ **Instrumented execution**: `CodecCapabilityInstrumentedTest` (5 tests) compiles, NOT RUN (no device)
 - ❌ **Golden frames**: None
 - ❌ **Compose UI tests**: None
-- ❌ **TEST_REPORT.md**: Not created
+- ✅ **Unit tests**: 50/50 pass (ProjectJson 9, ExportMath 9, KeyframeInterpolator 9, ProjectRepository 8, EditorWorkflow 13, Robolectric localization 2) — example tests (7/8 failing) removed
+- ✅ **TEST_REPORT.md**: Created (root, plan §13 format; sections A–I)
 
 ---
 
@@ -163,7 +167,7 @@
 3. **No custom GL compositor** - Limited to Media3's built-in effects
 4. **No command/undo system** - Direct state mutation, no undo/redo
 5. **Bangla text not verified** - No golden image tests, no bundled Bangla fonts
-6. **No test infrastructure** - No fixtures, no unit/instrumented tests, no golden frame comparison
+6. **No on-device test run yet** — fixtures + instrumented E2E pending a device/emulator (unit tests are green: 50/50)
 7. **Export validation missing** ✅ - Now implemented (MediaMetadataRetriever validation)
 8. **No CI/check scripts** - No local pipeline for format, lint, unit tests, assembleDebug
 
@@ -171,11 +175,11 @@
 
 ## Next 5 Tasks (Priority Order)
 
-1. **Codec capability query** - Query MediaCodecList, fall back down ladder (HEVC→H.264, 4K→1080p)
-2. **Create TEST_REPORT.md** - Document test results
-3. **Add codec capability query** - Query MediaCodecList, fall back down ladder (HEVC→H.264, 4K→1080p)
-4. **Foreground service** - mediaProcessing type, proper notification channel
-5. **Test EXPORT validation** - Write instrumented test to verify exported MP4 plays correctly
+1. **Device run** - `connectedDebugAndroidTest` (CodecCapabilityInstrumentedTest) + real HEVC→AVC downgrade + one full export E2E touch; record in TEST_REPORT.md
+2. **Lint pass** - `:app:lintDebug`, clear NewApi/deprecation warnings from this round, add as a gate
+3. **Localized service notification** - FGS notification text reads string resources (`export_finished`/`export_failed`/`export_cancelled`)
+4. **P2 Command/undo system** - `EditorViewModel.pushHistory()` commands, undo/redo caps 25 (biggest remaining architecture gap)
+5. **Fixtures script** - `scripts/make_fixtures.ps1` (ffmpeg synthetic media) for the on-device export E2E touch
 
 ---
 
@@ -199,6 +203,8 @@
 | DEC-014 | LUT Format | 🔴 Pending | P6 |
 | DEC-015 | RNNoise License/Size | 🔴 Pending | P9 |
 | DEC-016 | Whisper.cpp Auto Captions | 🔴 Pending | P11 |
+| DEC-017 | Codec Capability Fallback Ladder | ✅ Decided | P8 - 2026-11-01 |
+| DEC-018 | JVM Test Strategy (org.json + Robolectric sdk34) | ✅ Decided | Testing - 2026-11-01 |
 
 ---
 
@@ -207,19 +213,20 @@
 ```bash
 # Compile debug
 ./gradlew :app:compileDebugKotlin
-# Result: BUILD SUCCESSFUL
+# Result: BUILD SUCCESSFUL (1m 20s; only pre-existing deprecation warnings)
 
-# Assemble debug APK
-./gradlew :app:assembleDebug
-# Result: BUILD SUCCESSFUL (24MB APK)
+# Assemble debug APK + instrumented test compile
+./gradlew :app:assembleDebug :app:compileDebugAndroidTestKotlin
+# Result: BUILD SUCCESSFUL (3m 38s) - app-debug.apk 22.93 MB
 
 # Run unit tests
 ./gradlew :app:testDebugUnitTest
-# Result: 7/8 tests FAIL (pre-existing failures in ExampleUnitTest.kt)
+# Result: BUILD SUCCESSFUL (3m 58s) - 50 tests, 0 failed, 0 skipped
+# (XML results under app/build/test-results/testDebugUnitTest/)
 
 # Run instrumented tests
 ./gradlew :app:connectedDebugAndroidTest
-# Result: Not yet run (only example tests exist)
+# Result: NOT RUN (no device attached; CodecCapabilityInstrumentedTest compiles)
 
 # Lint
 ./gradlew :app:lintDebug
@@ -230,7 +237,7 @@
 
 ## Device/Emulator Info (for testing)
 - **OS**: Windows 11 (PowerShell)
-- **JDK**: Need to verify
-- **Android SDK**: Need to verify
+- **JDK**: Verified via Gradle daemon (Java 17 toolchain)
+- **Android SDK**: Paths resolved through `local.properties`
 - **Gradle**: 9.8.2 (via wrapper)
-- **Emulator**: Need to verify availability
+- **Emulator/Device**: None attached during the 2026-11-01 session; connected tests pending

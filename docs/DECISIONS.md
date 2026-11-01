@@ -223,6 +223,42 @@
 
 ---
 
+## DEC-017: Codec Capability Fallback Ladder
+**Date:** 2026-11-01
+**Status:** ✅ Decided (P8)
+**Context:** Exports requested HEVC/4K/60fps blindly; devices without those encoders fail the render with cryptic `ExportException`s.
+**Decision:** New `CodecCapabilityChecker` (`data/export/CodecCapability.kt`) queries `MediaCodecList(REGULAR_CODECS)` and walks a fallback ladder before every export: codec HEVC→H.264 (AVC), heights requested→1440p→1080p→720p→480p, fps 60→30→24. `ExportManager` pins the resolved mime via `Transformer.Builder.setVideoMimeType()`; if a pinned codec is still rejected mid-render (`ERROR_CODE_ENCODER_INIT_FAILED`, `ERROR_CODE_ENCODING_FAILED`, `ERROR_CODE_ENCODING_FORMAT_UNSUPPORTED` — verified against the media3 1.11.1 `ExportException` docs, note `ERROR_CODE_ENCODING_UNSPECIFIED` does not exist), it retries ONCE with the Media3 default encoder instead of failing. Sizes/only-downgrade rule: never propose a larger output than the user requested.
+**Alternatives Rejected:**
+- **Trusting Media3's default encoder selection:** fails late on constrained devices and produces inconsistent resolution labels.
+- **Reflection-based probing of hidden `MediaCodecInfo` APIs:** fragile; typed `VideoCapabilities` API exists on API >= 21.
+**Consequences:**
+- ✅ Exports degrade gracefully instead of failing on low-end/H.264-only devices
+- ✅ Downgrade reason surfaced to the user via progress stage text
+- ✅ Logic unit-tested on the JVM (`ExportMathTest`, 9 tests); codec marker `maxWidth/maxHeight` fields dropped (no consumer needed them)
+- ❌ Does not cover audio codec limits (AAC is assumed); on-device probe still pending instrumented run
+
+---
+
+## DEC-018: JVM Test Strategy (org.json + Robolectric SDK 34 pin)
+**Date:** 2026-11-01
+**Status:** ✅ Decided (testing infrastructure)
+**Context:** Replacing the broken example tests (7/8 failing JVM tests seeded by `SampleDataProvider`, `AppLog` calling `android.util.Log` on the JVM) required a repeatable local test setup.
+**Decision:** Two-track setup in `:app`:
+1. `testOptions.unitTests.isReturnDefaultValues = true` so plain JVM tests can exercise ViewModel/repository logic, and `AppLog.logToLogcat` degrades gracefully.
+2. Real `org.json:json` on the unit-test classpath (`testImplementation`, documented at developer.android.com/studio/test#addRealJson) because android.jar's org.json stubs return nulls and round-trip JSON tests would NPE.
+3. Resource/localization tests run under Robolectric 4.16.1 with `@Config(sdk = [34])` — the SDK-34 `android-all-instrumented` jar is cached locally and works; other SDK levels must not be requested without caching matching jars (SDK 36 failed with native-loader NoSuchFile).
+4. Locale-sensitive numeric strings (`fps_label`, `export_encoding`) use `%s` placeholders fed by integer values: `String.valueOf` always yields Latin digits, so labels stay consistent with Latin resolution labels ("1080P") in all locales.
+**Alternatives Rejected:**
+- **Keeping the example tests:** they depended on demo seed data that was removed on purpose.
+- **kotlinx-serialization rewrite of ProjectJson:** large production change to fix a test-infra problem.
+**Consequences:**
+- ✅ 50/50 unit tests pass locally, repeated and stable
+- ✅ Bangla localization guarded by a Robolectric test (bn strings actually resolve)
+- ❌ Robolectric only usable for sdk 34 until more jars are cached
+- ❌ Instrumented tests (`CodecCapabilityInstrumentedTest`, 5 tests) compile but need a device/emulator to run
+
+---
+
 ## Decision Index
 
 | ID | Title | Status | Phase |
@@ -243,3 +279,5 @@
 | DEC-014 | LUT Format | 🔴 Pending | P6 |
 | DEC-015 | RNNoise License/Size | 🔴 Pending | P9 |
 | DEC-016 | Whisper.cpp Auto Captions | 🔴 Pending | P11 |
+| DEC-017 | Codec Capability Fallback Ladder | ✅ Decided | P8 |
+| DEC-018 | JVM Test Strategy (org.json + Robolectric sdk34) | ✅ Decided | Testing |

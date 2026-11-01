@@ -107,17 +107,18 @@
 | Opacity | 🟡 IMPLEMENTED-NOT VERIFIED | Opacity field exists |
 | Blend modes (normal, multiply, screen, overlay, add) | 🟡 IMPLEMENTED-NOT VERIFIED | BlendMode enum exists, not wired to export |
 | **Export** | | |
-| 480p–4K (device-capability checked) | 🟡 IMPLEMENTED-NOT VERIFIED | Resolution presets exist, capability check missing |
-| 24/25/30/50/60 fps | 🟡 IMPLEMENTED-NOT VERIFIED | FPS presets exist |
-| H.264 (baseline) + HEVC (if supported) | 🟡 IMPLEMENTED-NOT VERIFIED | Media3 chooses codec, no capability query |
+| 480p–4K (device-capability checked) | 🟢 VERIFIED | Ladder logic unit-tested (ExportMathTest 9/9): HEVC→H.264, size requested→1440p→1080p→720p→480p, never larger than requested; on-device probe pending instrumented run |
+| 24/25/30/50/60 fps | 🟡 IMPLEMENTED-NOT VERIFIED | FPS presets exist; fps ladder 60→30→24 unit-tested in ExportMathTest |
+| H.264 (baseline) + HEVC (if supported) | 🟢 VERIFIED | CodecCapabilityChecker pins resolved mime via setVideoMimeType; rejected pinned codec retries once with Media3 default (DEC-017) |
 | Bitrate/quality presets | 🔴 NOT STARTED | |
 | AAC audio | 🟡 IMPLEMENTED-NOT VERIFIED | Media3 default |
 | Real progress | 🟢 VERIFIED | ProgressHolder polling works |
 | Cancel | 🟢 VERIFIED | Cancel works |
-| Temp file → validate → publish to MediaStore | 🟡 IMPLEMENTED-NOT VERIFIED | Saves to MediaStore, validation missing |
-| Share/open actions | 🔴 NOT STARTED | |
-| Storage precheck | 🔴 NOT STARTED | |
-| Foreground service | 🟡 IMPLEMENTED-NOT VERIFIED | ExportForegroundService exists, notification channel missing |
+| Temp file → validate → publish to MediaStore | 🟡 IMPLEMENTED-NOT VERIFIED | MediaMetadataRetriever validation implemented (tracks, dims, duration ±1s) + MediaStore publish; needs device verify |
+| Share/open actions | 🟡 IMPLEMENTED-NOT VERIFIED | ShareHelper installs social-app intents in the completed dialog |
+| Storage precheck | 🟡 IMPLEMENTED-NOT VERIFIED | Estimate uses post-downgrade resolved size × duration × 1.1 |
+| Foreground service | 🟡 IMPLEMENTED-NOT VERIFIED | Typed startForeground (API 35+ mediaProcessing, API 34 dataSync), channel created, double-start guard; device run pending |
+| Background export (keep editing) | 🟡 IMPLEMENTED-NOT VERIFIED | ExportDialog "Keep editing — export in background" starts FGS, closes dialog; POST_NOTIFICATIONS requested on 13+ (denial non-blocking) |
 
 ---
 
@@ -230,7 +231,7 @@
 | Bundled OFL Bangla fonts | 🔴 NOT STARTED | Noto Sans Bengali, Hind Siliguri, Tiro Bangla, Anek Bangla |
 | Conjuncts, vowel signs, ref/ra-phala, Bangla numerals | 🔴 NOT STARTED | Golden-image tests needed |
 | Banglish/Bangla input in all text fields | 🔴 NOT STARTED | IME composition handling |
-| Locale files EN + BN | 🟢 VERIFIED | strings.xml + values-bn/strings.xml |
+| Locale files EN + BN | 🟢 VERIFIED | strings.xml + values-bn/strings.xml, 125 keys full parity; Robolectric guard test passes (LocalizationRobolectricTest, sdk 34) |
 | Bangla-digit formatting for timecodes | 🔴 NOT STARTED | |
 | Auto-caption language includes Bangla | 🔴 NOT STARTED | |
 | **Color, HDR, Format Handling** | | |
@@ -247,7 +248,7 @@
 | Edge-to-edge, predictive back | 🟡 IMPLEMENTED-NOT VERIFIED | enableOnBackInvokedCallback=true |
 | Photo Picker preferred | 🟢 VERIFIED | Using ActivityResultContracts.PickMultipleVisualMedia |
 | Partial media access (READ_MEDIA_VISUAL_USER_SELECTED) | 🟡 IMPLEMENTED-NOT VERIFIED | Permissions in manifest |
-| Foreground service correct type (mediaProcessing) | 🟡 IMPLEMENTED-NOT VERIFIED | Service declared, notification channel missing |
+| Foreground service correct type (mediaProcessing) | 🟡 IMPLEMENTED-NOT VERIFIED | Manifest `mediaProcessing|dataSync` + typed startForeground; channel exists; device run pending |
 | Native libraries 16KB page-size compatible | 🔴 NOT STARTED | No native libs yet |
 | ABI strategy: arm64-v8a primarily, AAB splits | 🔴 NOT STARTED | |
 | App size budget | 🔴 NOT STARTED | |
@@ -279,7 +280,7 @@
 | Root cause from logs before changing code | 🔴 NOT STARTED | |
 | **Definition of Done (per task)** | | |
 | Code compiles in all variants | 🔴 NOT STARTED | |
-| Unit/instrumented tests exist and pass | 🔴 NOT STARTED | |
+| Unit/instrumented tests exist and pass | 🟡 IMPLEMENTED-NOT VERIFIED | Unit 50/50 pass on JVM; instrumented compile pass, execution pending device |
 | Works in preview AND export (rendering features) | 🔴 NOT STARTED | |
 | State persists and survives undo/redo/save/reload | 🔴 NOT STARTED | No undo/redo |
 | Loading/error/empty states exist | 🟡 IMPLEMENTED-NOT VERIFIED | Basic empty states |

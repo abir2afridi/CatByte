@@ -1,10 +1,14 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -190,6 +194,32 @@ fun EditorScreen(
             (context.applicationContext as? com.example.CatByteApplication)
                 ?.container?.playerManager?.exoPlayer
         }
+
+        // Background export needs the notification permission on Android 13+.
+        // A denial must not block the export (the foreground service runs
+        // either way; only the progress notification stays hidden).
+        var pendingBackgroundExport by remember { mutableStateOf<Pair<String, Int>?>(null) }
+        val notificationPermissionLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { _ ->
+            pendingBackgroundExport?.let { (res, fps) ->
+                viewModel.startBackgroundExportWithContext(context, res, fps)
+            }
+            pendingBackgroundExport = null
+        }
+        val startBackgroundExport: (resolution: String, fps: Int) -> Unit = { res, fps ->
+            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                pendingBackgroundExport = res to fps
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                viewModel.startBackgroundExportWithContext(context, res, fps)
+            }
+        }
+
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -382,7 +412,8 @@ fun EditorScreen(
                         onStartExport = { res, fps, wm -> viewModel.startExport(res, fps) },
                         onCancelExport = { viewModel.cancelExport() },
                         onDismiss = { viewModel.dismissExport() },
-                        onShareExport = { platform -> viewModel.shareExportMessage(platform) }
+                        onShareExport = { platform -> viewModel.shareExportMessage(platform) },
+                        onStartBackgroundExport = { res, fps, _ -> startBackgroundExport(res, fps) }
                     )
                 }
                 ActiveToolSheet.KEYFRAME -> {

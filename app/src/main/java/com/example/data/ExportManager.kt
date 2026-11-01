@@ -29,6 +29,7 @@ import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
 import com.example.data.export.ColorGradeEffect
+import com.example.data.export.CodecCapabilityChecker
 import com.example.data.export.ExportPresets
 import com.example.data.export.FilterMapper
 import com.example.data.export.OverlayRenderer
@@ -103,8 +104,38 @@ class ExportManager(private val context: Context) {
             return@withContext null
         }
 
-        // Storage precheck: estimate = bitrate × duration × 1.1
-        val estimatedSize = estimateExportSize(project)
+        // Resolve codec + output size against real device capabilities.
+        // Fallback ladder: HEVC -> H.264 for codecs, 4K -> 1080P -> 720P -> 480P
+        // for frame sizes. Nothing here fails the export - if nothing matches we
+        // fall back to Media3's default encoder (graceful degradation).
+        _progress.value = ExportProgress(progress = 0f, stage = "Checking device capabilities...")
+        val target = CodecCapabilityChecker.resolve(project.aspectRatio, resolution, fps)
+        val downgradeNote = when {
+            target.downgraded && target.fpsDowngraded ->
+                "Device limit: exporting at ${target.resolutionLabel}, ${target.fps} fps"
+
+            target.downgraded -> "Device limit: exporting at ${target.resolutionLabel}"
+            target.fpsDowngraded -> "Device limit: exporting at ${target.fps} fps"
+            else -> null
+        }
+        if (downgradeNote != null) {
+            AppLog.warn("ExportManager", downgradeNote)
+        } else {
+            AppLog.info(
+                "ExportManager",
+                "Export target: ${target.width}x${target.height}@${target.fps}fps (${target.mime ?: "default encoder"})"
+            )
+        }
+        if (target.mime == null) {
+            AppLog.warn(
+                "ExportManager",
+                "No encoder matched the target capabilities; Media3 will choose a default encoder"
+            )
+        }
+
+        // Storage precheck: estimate = bitrate x duration x 1.1, using the
+        // resolved output size (never larger than what the user asked for).
+        val estimatedSize = estimateExportSize(target.width, target.height, project.totalDurationMs)
         val availableSpace = context.getExternalFilesDir(null)?.usableSpace ?: 0L
         if (availableSpace < estimatedSize) {
             _progress.value = ExportProgress(
@@ -114,19 +145,12 @@ class ExportManager(private val context: Context) {
             return@withContext null
         }
 
-        val (outWidth, outHeight) = ExportPresets.outputSize(project.aspectRatio, resolution)
-        _progress.value = ExportProgress(progress = 0f, stage = "Preparing timeline...")
-
-        // Query codec capabilities for the target resolution
-        val supportedCodecs = querySupportedCodecs(outWidth, outHeight, fps)
-        AppLog.info("ExportManager", "Supported codecs for ${outWidth}x${outHeight}@${fps}fps: $supportedCodecs")
-        if (supportedCodecs.isEmpty()) {
-            _progress.value = ExportProgress(
-                error = "No supported video codec for ${outWidth}x${outHeight}@${fps}fps"
-            )
-            AppLog.warn("ExportManager", "Export aborted: no supported codec for ${outWidth}x${outHeight}@${fps}fps")
-            return@withContext null
-        }
+        val outWidth = target.width
+        val outHeight = target.height
+        _progress.value = ExportProgress(
+            progress = 0f,
+            stage = downgradeNote ?: "Preparing timeline..."
+        )
 
         val outputDir = File(context.getExternalFilesDir(null), "exports").apply { mkdirs() }
         val outputFile = File(outputDir, "CatByte_${project.id}_${System.currentTimeMillis()}.mp4")
@@ -138,8 +162,20 @@ class ExportManager(private val context: Context) {
             buildPlainComposition(mediaClips)
         }
 
-        val exportResult = runTransformer(composition, outputFile)
+        var run = runTransformer(composition, outputFile, target.mime)
+        // If a pinned codec was rejected by the encoder, retry once with the
+        // default codec path instead of failing the whole export.
+        if (run.result == null && target.mime != null && isEncoderRelatedFailure(run.failure)) {
+            AppLog.warn("ExportManager", "Codec ${target.mime} was rejected; retrying with the default encoder")
+            _progress.value = _progress.value.copy(progress = 0f, stage = "Retrying with the default encoder...")
+            run = runTransformer(composition, outputFile, null)
+        }
+        val exportResult = run.result
         if (exportResult == null) {
+            _progress.value = _progress.value.copy(
+                error = run.failure?.message ?: "Export failed",
+                isCancelled = false
+            )
             return@withContext null
         }
 
@@ -248,10 +284,9 @@ class ExportManager(private val context: Context) {
 
     /**
      * Estimates export file size: bitrate × duration × 1.1 safety margin.
-     * Uses typical bitrate based on resolution if not specified in project.
+     * Bitrate is chosen from the real output size (post capability downgrade).
      */
-    private fun estimateExportSize(project: VideoProject): Long {
-        val (width, height) = ExportPresets.outputSize(project.aspectRatio, "1080P")
+    private fun estimateExportSize(width: Int, height: Int, durationMs: Long): Long {
         val bitrateMbps = when {
             width >= 3840 -> 45.0   // 4K
             width >= 1920 -> 16.0   // 1080p
@@ -259,50 +294,26 @@ class ExportManager(private val context: Context) {
             else -> 5.0             // 480p
         }
         val bitrateBps = bitrateMbps * 1_000_000L
-        val durationSeconds = project.totalDurationMs / 1000.0
+        val durationSeconds = durationMs / 1000.0
         val estimatedBytes = (bitrateBps * durationSeconds * 1.1).toLong()
         return estimatedBytes
     }
 
     /**
-     * Query MediaCodecList for supported video codecs at the given resolution and fps.
-     * Returns a list of supported mime types, ordered by preference.
+     * Query MediaCodecList for encoders supporting the given resolution/fps.
+     * Kept as a thin wrapper over [CodecCapabilityChecker] so existing callers
+     * and tests keep working. Returns ordered mime types (HEVC before AVC).
      */
-    fun querySupportedCodecs(width: Int, height: Int, fps: Int): List<String> {
-        val supportedCodecs = mutableListOf<String>()
-        val mediaCodecList = android.media.MediaCodecList(android.media.MediaCodecList.ALL_CODECS)
-        for (codecInfo in mediaCodecList.codecInfos) {
-            val name = codecInfo.name
-            // Skip encoders that are hardware-accelerated software fallbacks
-            if (codecInfo.isHardwareAccelerated() || codecInfo.isSoftwareOnly()) {
-                continue
-            }
-            for (i in 0 until codecInfo.supportedTypes.size) {
-                val mime = codecInfo.supportedTypes[i]
-                if (mime?.startsWith("video/") == false) continue
-                val caps = codecInfo.getCapabilitiesForType(mime)
-                caps?.videoCapabilities?.let { videoCaps ->
-                val list = videoCaps as java.util.List<*>
-                val size = list.size
-                for (j in 0 until size) {
-                    val cap = list[j]
-                    // Use reflection or dynamic method calls to avoid import issues
-                    try {
-                        val isSizeSupported = cap.javaClass.getMethod("isSizeSupported", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType).invoke(cap, width, height) as Boolean
-                        val isFrameRateSupported = cap.javaClass.getMethod("isFrameRateSupported", Float::class.javaPrimitiveType).invoke(cap, fps.toFloat()) as Boolean
-                        if (isSizeSupported && isFrameRateSupported) {
-                            supportedCodecs.add(mime)
-                            return@let
-                        }
-                    } catch (e: Exception) {
-                        AppLog.warn("ExportManager", "Failed to check codec capabilities for $mime", e)
-                    }
-                }
-            }
-            }
-        }
-        AppLog.info("ExportManager", "Supported codecs for ${width}x${height}@${fps}fps: $supportedCodecs")
-        return supportedCodecs
+    fun querySupportedCodecs(width: Int, height: Int, fps: Int): List<String> =
+        CodecCapabilityChecker.querySupportedCodecs(width, height, fps).map { it.mime }
+
+    /** True when the failure looks like the device encoder refusing our codec. */
+    private fun isEncoderRelatedFailure(failure: Throwable?): Boolean {
+        if (failure == null) return true
+        if (failure !is ExportException) return false
+        return failure.errorCode == ExportException.ERROR_CODE_ENCODER_INIT_FAILED ||
+            failure.errorCode == ExportException.ERROR_CODE_ENCODING_FAILED ||
+            failure.errorCode == ExportException.ERROR_CODE_ENCODING_FORMAT_UNSUPPORTED
     }
 
     // ---------------------------------------------------------------------
@@ -537,17 +548,54 @@ class ExportManager(private val context: Context) {
     // Transformer
     // ---------------------------------------------------------------------
 
-    private suspend fun runTransformer(composition: Composition, outputFile: File): ExportResult? =
-        coroutineScope {
-            var completed: ExportResult? = null
-            var failure: ExportException? = null
+    /** Outcome of a single Transformer run. */
+    private data class TransformerRun(
+        val result: ExportResult? = null,
+        val failure: Throwable? = null
+    )
 
-            val newTransformer = Transformer.Builder(context).build()
-            transformer = newTransformer
+    /**
+     * Runs the render. When [videoMime] is set the Transformer is asked for that
+     * output codec (e.g. HEVC); `null` leaves Media3's default encoder choice.
+     */
+    private suspend fun runTransformer(
+        composition: Composition,
+        outputFile: File,
+        videoMime: String? = null
+    ): TransformerRun = coroutineScope {
+        var outcome = TransformerRun()
+
+        val newTransformer = Transformer.Builder(context)
+            .apply { videoMime?.let { mime -> setVideoMimeType(mime) } }
+            .build()
+        transformer = newTransformer
+
+        suspendCancellableCoroutine<Unit> { continuation ->
+            val holder = ProgressHolder()
+            val poller = launch {
+                while (isActive) {
+                    val state = runCatching { newTransformer.getProgress(holder) }.getOrDefault(0)
+                    if (state == Transformer.PROGRESS_STATE_AVAILABLE) {
+                        val fraction = (holder.progress / 100f).coerceIn(0f, 1f)
+                        _progress.value = _progress.value.copy(
+                            progress = fraction,
+                            stage = "Rendering video... ${holder.progress}%"
+                        )
+                    }
+                    delay(180L)
+                }
+            }
+
+            continuation.invokeOnCancellation {
+                poller.cancel()
+                runCatching { newTransformer.cancel() }
+            }
 
             val listener = object : Transformer.Listener {
                 override fun onCompleted(composition: Composition, exportResult: ExportResult) {
-                    completed = exportResult
+                    outcome = TransformerRun(result = exportResult)
+                    poller.cancel()
+                    if (continuation.isActive) continuation.resume(Unit)
                 }
 
                 override fun onError(
@@ -555,69 +603,26 @@ class ExportManager(private val context: Context) {
                     exportResult: ExportResult,
                     exportException: ExportException
                 ) {
-                    failure = exportException
+                    outcome = TransformerRun(failure = exportException)
+                    poller.cancel()
+                    AppLog.error("ExportManager", "Video export failed", exportException)
+                    if (continuation.isActive) continuation.resume(Unit)
                 }
             }
             newTransformer.addListener(listener)
 
-            suspendCancellableCoroutine<Unit> { continuation ->
-                val holder = ProgressHolder()
-                val poller = launch {
-                    while (isActive) {
-                        val state = runCatching { newTransformer.getProgress(holder) }.getOrDefault(0)
-                        if (state == Transformer.PROGRESS_STATE_AVAILABLE) {
-                            val fraction = (holder.progress / 100f).coerceIn(0f, 1f)
-                            _progress.value = _progress.value.copy(
-                                progress = fraction,
-                                stage = "Rendering video... ${holder.progress}%"
-                            )
-                        }
-                        delay(180L)
-                    }
-                }
-
-                continuation.invokeOnCancellation {
+            runCatching { newTransformer.start(composition, outputFile.absolutePath) }
+                .onFailure { startError ->
+                    outcome = TransformerRun(failure = startError)
                     poller.cancel()
-                    runCatching { newTransformer.cancel() }
+                    AppLog.error("ExportManager", "Could not start the render", startError)
+                    if (continuation.isActive) continuation.resume(Unit)
                 }
-
-                val completionListener = object : Transformer.Listener {
-                    override fun onCompleted(composition: Composition, exportResult: ExportResult) {
-                        poller.cancel()
-                        if (continuation.isActive) continuation.resume(Unit)
-                    }
-
-                    override fun onError(
-                        composition: Composition,
-                        exportResult: ExportResult,
-                        exportException: ExportException
-                    ) {
-                        poller.cancel()
-                        if (continuation.isActive) continuation.resume(Unit)
-                    }
-                }
-                newTransformer.addListener(completionListener)
-
-                runCatching { newTransformer.start(composition, outputFile.absolutePath) }
-                    .onFailure {
-                        poller.cancel()
-                        if (continuation.isActive) continuation.resume(Unit)
-                    }
-            }
-
-            transformer = null
-
-            val error = failure
-            if (error != null) {
-                AppLog.error("ExportManager", "Video export failed", error)
-                _progress.value = _progress.value.copy(
-                    error = error.message ?: "Export failed",
-                    isCancelled = false
-                )
-                return@coroutineScope null
-            }
-            completed
         }
+
+        transformer = null
+        outcome
+    }
 }
 
 /** A constant playback speed for a clip. */

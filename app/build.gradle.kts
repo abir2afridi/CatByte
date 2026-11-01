@@ -62,7 +62,14 @@ android {
     buildConfig = true
   }
 
-  testOptions { unitTests { isIncludeAndroidResources = true } }
+  testOptions {
+    unitTests {
+      isIncludeAndroidResources = true
+      // android.util.Log & friends return defaults instead of throwing, so
+      // plain JVM unit tests can exercise ViewModel / repository logic.
+      isReturnDefaultValues = true
+    }
+  }
   dependenciesInfo {
     includeInApk = false
     includeInBundle = true
@@ -109,6 +116,9 @@ dependencies {
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)
+  // Real org.json implementation for ProjectJsonTest (android.jar stubs of
+  // org.json return defaults on the JVM and would NPE in every round trip).
+  testImplementation(libs.json)
   androidTestImplementation(platform(libs.androidx.compose.bom))
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   androidTestImplementation(libs.androidx.espresso.core)
