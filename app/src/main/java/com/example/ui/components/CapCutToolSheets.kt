@@ -2317,17 +2317,23 @@ fun ChromaKeySheet(
 }
 
 // ==========================================
-// Volume Booster (Up to 1000% Boost) Sheet
+// Volume Booster (Up to 1000% Boost) & Audio Studio Sheet
 // ==========================================
 
 @Composable
 fun VolumeSheet(
     currentVolume: Float,
+    isDuckingEnabled: Boolean = false,
+    isNoiseReductionEnabled: Boolean = false,
     onVolumeChange: (Float) -> Unit,
+    onToggleDucking: (Boolean) -> Unit = {},
+    onToggleNoiseReduction: (Boolean) -> Unit = {},
     onClose: () -> Unit
 ) {
     val colors = PencilTheme.colors
     var volume by remember(currentVolume) { mutableStateOf(currentVolume) }
+    var ducking by remember(isDuckingEnabled) { mutableStateOf(isDuckingEnabled) }
+    var noiseReduction by remember(isNoiseReductionEnabled) { mutableStateOf(isNoiseReductionEnabled) }
 
     Column(
         modifier = Modifier
@@ -2346,7 +2352,7 @@ fun VolumeSheet(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🔊", fontSize = 18.sp)
                 Text(
-                    text = "Clip Volume Boost",
+                    text = "Audio & Sound Studio",
                     color = colors.textPrimary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
@@ -2364,11 +2370,11 @@ fun VolumeSheet(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Volume Level", color = colors.textSecondary, fontSize = 12.sp)
+            Text("Volume Boost", color = colors.textSecondary, fontSize = 12.sp)
             Text("${(volume * 100).toInt()}%", color = colors.accentCyan, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         androidx.compose.material3.Slider(
             value = volume,
@@ -2379,7 +2385,7 @@ fun VolumeSheet(
             valueRange = 0f..10f
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2407,6 +2413,47 @@ fun VolumeSheet(
                     )
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Professional Audio Toggles: Auto Ducking & AI Noise Reduction
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("Auto Audio Ducking", color = colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("Lower background music during voiceover", color = colors.textTertiary, fontSize = 10.sp)
+            }
+            androidx.compose.material3.Switch(
+                checked = ducking,
+                onCheckedChange = {
+                    ducking = it
+                    onToggleDucking(it)
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("AI Noise Reduction", color = colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("Remove background hiss and ambient wind", color = colors.textTertiary, fontSize = 10.sp)
+            }
+            androidx.compose.material3.Switch(
+                checked = noiseReduction,
+                onCheckedChange = {
+                    noiseReduction = it
+                    onToggleNoiseReduction(it)
+                }
+            )
         }
     }
 }

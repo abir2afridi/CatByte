@@ -111,11 +111,9 @@ fun SettingsScreen(
             .background(colors.background)
             .then(
                 if (isPopup) {
-                    Modifier.sketchPencilBorder(
-                        strokeWidth = 2.dp,
-                        color = colors.border,
-                        cornerRadius = 22.dp
-                    )
+                    Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .border(1.dp, colors.borderSubtle, RoundedCornerShape(20.dp))
                 } else {
                     Modifier
                         .statusBarsPadding()
@@ -493,72 +491,37 @@ fun SettingsScreen(
 private fun SettingsTopBar(onBack: () -> Unit) {
     val colors = PencilTheme.colors
 
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .height(56.dp)
+            .background(colors.surface)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(colors.surfaceElevated)
+                .testTag("settings_back")
         ) {
-            // Back button
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(colors.surface)
-                    .sketchPencilBorder(strokeWidth = 1.4.dp, color = colors.border, cornerRadius = 20.dp)
-                    .clickable { onBack() }
-                    .testTag("settings_back"),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = colors.textPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(colors.surfaceElevated)
-                    .border(1.dp, colors.border, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Settings,
-                    contentDescription = "Settings",
-                    tint = colors.accentCyan,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Settings",
-                    color = colors.textPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Pencil & Paper Edition",
-                    color = colors.textSecondary,
-                    fontSize = 11.sp
-                )
-            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = colors.textPrimary,
+                modifier = Modifier.size(18.dp)
+            )
         }
 
-        WashiTapeSticker(
-            modifier = Modifier.align(Alignment.TopEnd),
-            text = "PENCIL CONFIG"
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Text(
+            text = "Settings",
+            color = colors.textPrimary,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
         )
     }
 }
@@ -579,29 +542,28 @@ private fun SettingsSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(colors.surface)
-            .pencilHatching(color = colors.border.copy(alpha = 0.04f), spacing = 9.dp)
-            .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 16.dp)
-            .padding(14.dp)
+            .border(1.dp, colors.borderSubtle, RoundedCornerShape(14.dp))
+            .padding(16.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = 10.dp)
+            modifier = Modifier.padding(bottom = 12.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = iconTint,
-                modifier = Modifier.size(15.dp)
+                modifier = Modifier.size(16.dp)
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = title,
+                text = title.uppercase(),
                 color = colors.accentCyan,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp
+                letterSpacing = 0.8.sp
             )
         }
 
@@ -661,7 +623,7 @@ private fun SettingsActionRow(
             imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
             contentDescription = "Navigate",
             tint = colors.textTertiary,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(16.dp)
         )
     }
 }
@@ -735,7 +697,7 @@ private fun ThemeSelectionCard(
             .clip(RoundedCornerShape(12.dp))
             .background(if (isSelected) colors.surfaceElevated else colors.surfaceVariant)
             .border(
-                width = if (isSelected) 2.dp else 1.dp,
+                width = if (isSelected) 1.5.dp else 1.dp,
                 color = if (isSelected) colors.accentCyan else colors.borderSubtle,
                 shape = RoundedCornerShape(12.dp)
             )
@@ -746,17 +708,17 @@ private fun ThemeSelectionCard(
         // Color thumbnail swatch representing the theme
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(36.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(previewColor)
-                .border(1.5.dp, borderColor, RoundedCornerShape(8.dp)),
+                .border(1.dp, borderColor, RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = title,
                 tint = borderColor,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(18.dp)
             )
         }
 
