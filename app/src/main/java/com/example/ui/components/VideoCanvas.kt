@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import android.view.SurfaceView
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -29,8 +30,10 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +60,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.transform.CircleCropTransformation
@@ -87,6 +92,15 @@ fun VideoCanvas(
     isPlaying: Boolean,
     onTogglePlay: () -> Unit,
     watermarkEnabled: Boolean = false,
+    /**
+     * Composition preview player. When [compositionPreview] is true this single
+     * surface already contains the composited video, PIP layers, text, stickers,
+     * effects and watermark, so the Compose fallback layers are skipped.
+     */
+    player: Player? = null,
+    compositionPreview: Boolean = false,
+    previewError: String? = null,
+    previewWarnings: List<String> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val colors = PencilTheme.colors
@@ -200,8 +214,17 @@ fun VideoCanvas(
                 heightDp = 14.dp,
                 tapeLabel = "DRAFT"
             )
-            if (activeClip != null) {
-                // Visual Rendering
+            if (compositionPreview && player != null) {
+                // One texture: the Media3 render graph already contains video,
+                // PIP overlays, text, stickers, effects and the watermark.
+                key(player) {
+                    CompositionPreviewSurface(
+                        player = player,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            } else if (activeClip != null) {
+                // Fallback visual rendering (no composition player available).
                 RenderClipVisual(
                     clip = activeClip,
                     activeEffects = activeEffects,
@@ -239,7 +262,8 @@ fun VideoCanvas(
                 }
             }
 
-            // Text Overlays
+            // Text Overlays (fallback renderer only - composition burns them in)
+            if (!compositionPreview) {
             activeTexts.forEach { textOverlay ->
                 val displayText = if (textOverlay.animation == TextAnimationType.TYPEWRITER) {
                     val progress = ((currentPositionMs - textOverlay.startTimelineMs).toFloat() / textOverlay.durationMs).coerceIn(0f, 1f)
@@ -333,6 +357,7 @@ fun VideoCanvas(
                     )
                 }
             }
+            } // end fallback-only 2D layers
 
             // Centered Play/Pause HUD when paused - Sketched Paper & Graphite Button
             if (!isPlaying) {
@@ -397,6 +422,39 @@ fun VideoCanvas(
                 }
             }
 
+            // Render-fidelity notice. Warnings are never hidden: if a mask or
+            // blend mode is approximated, the user sees it before exporting.
+            val previewNotice = previewError?.let { "Preview error: $it" }
+                ?: previewWarnings.firstOrNull()
+            if (previewNotice != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 36.dp, start = 16.dp, end = 16.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(
+                            if (previewError != null) {
+                                colors.accentRed.copy(alpha = 0.92f)
+                            } else {
+                                colors.accentYellow.copy(alpha = 0.92f)
+                            }
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (previewWarnings.size > 1) {
+                            "$previewNotice (+${previewWarnings.size - 1} more)"
+                        } else {
+                            previewNotice
+                        },
+                        color = Color.Black,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2
+                    )
+                }
+            }
+
             // Bottom Timecode Overlay
             Box(
                 modifier = Modifier
@@ -416,6 +474,34 @@ fun VideoCanvas(
                     fontWeight = FontWeight.SemiBold
                 )
             }
+        }
+    }
+}
+
+/**
+ * A SurfaceView is required by CompositionPlayer (it rejects TextureView).
+ * The player instance is part of the key in the caller, so switching between
+ * the composition and fallback players always re-attaches a fresh surface.
+ */
+@Composable
+private fun CompositionPreviewSurface(
+    player: Player,
+    modifier: Modifier = Modifier
+) {
+    AndroidView(
+        factory = { context ->
+            SurfaceView(context).also { surfaceView ->
+                runCatching { player.setVideoSurfaceView(surfaceView) }
+            }
+        },
+        update = { surfaceView ->
+            runCatching { player.setVideoSurfaceView(surfaceView) }
+        },
+        modifier = modifier
+    )
+    DisposableEffect(player) {
+        onDispose {
+            runCatching { player.clearVideoSurface() }
         }
     }
 }

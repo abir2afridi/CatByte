@@ -101,6 +101,15 @@ fun ExportDialog(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(exportState.stage, color = colors.accentCyan, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    if (exportState.warnings.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = exportState.warnings.first(),
+                            color = colors.accentYellow,
+                            fontSize = 10.sp,
+                            maxLines = 2
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(18.dp))
                     LinearProgressIndicator(
@@ -163,6 +172,43 @@ fun ExportDialog(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
                         )
+                    }
+
+                    // Compatibility notes: the export is never silently
+                    // missing effects; approximations are listed here.
+                    if (exportState.warnings.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.surfaceVariant)
+                                .border(1.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text(
+                                text = "Rendered with ${exportState.warnings.size} note(s)",
+                                color = colors.accentYellow,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            exportState.warnings.take(4).forEach { warning ->
+                                Text(
+                                    text = "• $warning",
+                                    color = colors.textSecondary,
+                                    fontSize = 10.sp,
+                                    maxLines = 2
+                                )
+                            }
+                            if (exportState.warnings.size > 4) {
+                                Text(
+                                    text = "+${exportState.warnings.size - 4} more in the log",
+                                    color = colors.textTertiary,
+                                    fontSize = 9.sp
+                                )
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))

@@ -2,6 +2,7 @@ package com.example
 
 import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -40,11 +41,13 @@ import com.example.data.LocaleUtils
 import com.example.model.AspectRatioType
 import com.example.ui.screens.EditorScreen
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.QuickTool
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SystemLogsScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.paperNotebookBackground
+import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
 import com.example.viewmodel.EditorViewModelFactory
 
@@ -160,6 +163,57 @@ fun CapCutApp(
         showSettings = true
     }
 
+    val appContext = androidx.compose.ui.platform.LocalContext.current
+
+    // Quick Tools are real shortcuts: creation tools open a fresh project with
+    // the relevant sheet, while clip tools open the most recent project that
+    // actually contains video (or explain what is missing).
+    val handleQuickTool: (QuickTool) -> Unit = { tool ->
+        when (tool) {
+            QuickTool.CAPTIONS -> {
+                viewModel.createNewProject()
+                viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR)
+                currentScreen = AppScreen.EDITOR
+            }
+            QuickTool.CANVAS -> {
+                viewModel.createNewProject()
+                viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO)
+                currentScreen = AppScreen.EDITOR
+            }
+            QuickTool.AUDIO -> {
+                viewModel.createNewProject()
+                viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY)
+                currentScreen = AppScreen.EDITOR
+            }
+            QuickTool.VELOCITY, QuickTool.KEYFRAMES, QuickTool.EXTRACT_AUDIO -> {
+                val target = viewModel.currentProject.value
+                    ?.takeIf { it.allVideoClips.isNotEmpty() }
+                    ?: projects.firstOrNull { it.allVideoClips.isNotEmpty() }
+                if (target == null) {
+                    Toast.makeText(
+                        appContext,
+                        "Add a video clip before using this tool",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    viewModel.openProject(target)
+                    currentScreen = AppScreen.EDITOR
+                    when (tool) {
+                        QuickTool.VELOCITY ->
+                            viewModel.setActiveSheet(ActiveToolSheet.SPEED)
+                        QuickTool.KEYFRAMES ->
+                            viewModel.setActiveSheet(ActiveToolSheet.KEYFRAME)
+                        QuickTool.EXTRACT_AUDIO -> {
+                            viewModel.extractAudioFromSelectedClip()
+                            viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY)
+                        }
+                        else -> Unit
+                    }
+                }
+            }
+        }
+    }
+
     AnimatedContent(
         targetState = currentScreen,
         transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -201,6 +255,7 @@ fun CapCutApp(
                     onRestoreProject = { project ->
                         viewModel.restoreProject(project)
                     },
+                    onQuickTool = handleQuickTool,
                     onOpenSettings = { navigateToSettings() }
                 )
             }

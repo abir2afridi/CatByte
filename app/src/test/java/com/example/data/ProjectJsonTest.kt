@@ -2,6 +2,7 @@ package com.example.data.db
 
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
+import com.example.model.BezierPoint
 import com.example.model.BlendMode
 import com.example.model.EasingCurve
 import com.example.model.EffectType
@@ -10,6 +11,8 @@ import com.example.model.KeyframeProperty
 import com.example.model.MaskData
 import com.example.model.MaskType
 import com.example.model.MediaClip
+import com.example.model.SpeedCurve
+import com.example.model.SpeedCurvePreset
 import com.example.model.StickerOverlay
 import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
@@ -43,6 +46,10 @@ class ProjectJsonTest {
             trimStartMs = 200L,
             trimEndMs = 2600L,
             speed = 1.25f,
+            speedCurve = SpeedCurve(
+                preset = SpeedCurvePreset.CUSTOM,
+                points = listOf(BezierPoint(0f, 0.8f), BezierPoint(0.4f, 2.2f), BezierPoint(1f, 1f))
+            ),
             volume = 0.8f,
             filter = VideoFilter.CYBERPUNK,
             transition = com.example.model.TransitionType.DISSOLVE,
@@ -97,6 +104,9 @@ class ProjectJsonTest {
                     uriString = "content://media/audio/7",
                     startTimelineMs = 400L,
                     durationMs = 9000L,
+                    trimStartMs = 150L,
+                    trimEndMs = 8850L,
+                    speed = 1.15f,
                     volume = 0.5f,
                     fadeInMs = 300L,
                     fadeOutMs = 250L,

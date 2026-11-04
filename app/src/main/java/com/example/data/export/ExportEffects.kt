@@ -35,10 +35,69 @@ object ExportPresets {
     }
 
     /** Output frame size for the given aspect ratio and resolution. */
-    fun outputSize(ratio: AspectRatioType, resolution: String): Pair<Int, Int> {
-        val height = heightFor(resolution)
-        val width = (height * ratio.ratioWidth / ratio.ratioHeight).toInt()
-        return Pair(width - (width % 2), height - (height % 2))
+    fun outputSize(ratio: AspectRatioType, resolution: String): Pair<Int, Int> =
+        outputSizeForHeight(ratio, heightFor(resolution))
+
+    /** Output frame size for an explicit height, rounded down to even dimensions. */
+    fun outputSizeForHeight(ratio: AspectRatioType, height: Int): Pair<Int, Int> {
+        val safeHeight = height.coerceAtLeast(2)
+        val width = (safeHeight * ratio.ratioWidth / ratio.ratioHeight).toInt()
+        return Pair(
+            (width - (width % 2)).coerceAtLeast(2),
+            (safeHeight - (safeHeight % 2)).coerceAtLeast(2)
+        )
+    }
+}
+
+/**
+ * Applies the per-channel HSL adjustments to the colour grade.
+ *
+ * Media3's [RgbMatrix] is a linear 4x4 transform, so genuinely selective HSL
+ * would need a custom fragment shader. This helper folds the adjustments into
+ * the neighbouring colour-grade matrix instead of silently dropping the UI
+ * values: hue shifts rotate the channel gains, saturation scales the global
+ * saturation, and luminance adds a bounded brightness offset. The result is a
+ * real, visible approximation that previews and exports identically.
+ */
+class HslColorEffect(
+    private val adjustments: List<com.example.model.HslAdjustment>
+) {
+
+    private val active = adjustments.filter {
+        abs(it.hue) > 0.001f || abs(it.saturation) > 0.001f || abs(it.luminance) > 0.001f
+    }
+
+    fun brightnessOffset(): Float {
+        if (active.isEmpty()) return 0f
+        return (active.map { it.luminance }.average() / 100.0 * 0.28)
+            .toFloat()
+            .coerceIn(-0.35f, 0.35f)
+    }
+
+    fun saturationMultiplier(): Float {
+        if (active.isEmpty()) return 1f
+        return (1f + active.map { it.saturation }.average().toFloat() / 100f * 0.85f)
+            .coerceIn(0f, 2f)
+    }
+
+    fun redMultiplier(): Float = channelMultiplier(com.example.model.HslChannel.RED, 0f)
+
+    fun greenMultiplier(): Float = channelMultiplier(com.example.model.HslChannel.GREEN, 2f / 3f)
+
+    fun blueMultiplier(): Float = channelMultiplier(com.example.model.HslChannel.BLUE, 4f / 3f)
+
+    private fun channelMultiplier(channel: com.example.model.HslChannel, phase: Float): Float {
+        val matches = active.filter { it.channel == channel }
+        if (matches.isEmpty()) return 1f
+        // Hue is displayed in degrees. A positive shift pushes the selected
+        // colour towards the next hue, so bias the primary channels in a
+        // matching direction. The approximation is intentionally conservative.
+        val hue = matches.map { it.hue }.average().toFloat()
+        val luminance = matches.map { it.luminance }.average().toFloat()
+        val saturation = matches.map { it.saturation }.average().toFloat()
+        val hueWave = kotlin.math.sin(Math.toRadians((hue + phase * 180f).toDouble())).toFloat()
+        return (1f + hueWave * 0.18f + luminance / 100f * 0.45f - saturation / 100f * 0.12f)
+            .coerceIn(0.25f, 2.5f)
     }
 }
 
@@ -229,43 +288,49 @@ object FilterMapper {
 }
 
 /** Builds the transition effects that are burned into the exported video. */
+@androidx.media3.common.util.UnstableApi
 object TransitionMapper {
 
     /**
-     * Returns a list of effects for a clip that plays between [clipStartUs] and
-     * [clipEndUs] and uses [transition].
+     * Returns effects for one clip using [transition].
+     *
+     * Presentation timestamps inside an [androidx.media3.transformer.EditedMediaItem]
+     * are clip-local (they start at zero), so every transition is evaluated against
+     * [clipDurationUs] rather than absolute timeline positions. This is what makes
+     * the live CompositionPlayer preview match Transformer's export.
      */
     fun effectsFor(
         transition: TransitionType,
-        clipStartUs: Long,
-        clipEndUs: Long,
+        clipDurationUs: Long,
         transitionDurationMs: Long
     ): List<androidx.media3.effect.GlEffect> {
         if (transition == TransitionType.NONE) return emptyList()
-        val durationUs = transitionDurationMs.coerceIn(80L, 2000L) * 1000L
-        val span = (clipEndUs - clipStartUs).coerceAtLeast(1L)
+        val clipUs = clipDurationUs.coerceAtLeast(1L)
+        val durationUs = (transitionDurationMs.coerceIn(80L, 2000L) * 1000L)
+            .coerceAtMost(clipUs / 2L)
+            .coerceAtLeast(1L)
 
         return when (transition) {
             TransitionType.FADE_BLACK, TransitionType.DISSOLVE, TransitionType.PAGE_FLIP,
             TransitionType.PAPER_TEAR, TransitionType.PENCIL_WIPE, TransitionType.INK_BLEED ->
-                listOf(fadeEffect(clipStartUs, clipEndUs, durationUs, span, flashToWhite = false))
+                listOf(fadeEffect(clipUs, durationUs, flashToWhite = false))
 
             TransitionType.FLASH_WHITE ->
-                listOf(fadeEffect(clipStartUs, clipEndUs, durationUs, span, flashToWhite = true))
+                listOf(fadeEffect(clipUs, durationUs, flashToWhite = true))
 
             TransitionType.WHIP_PAN -> listOf(
-                fadeEffect(clipStartUs, clipEndUs, durationUs, span, flashToWhite = false),
-                slideEffect(clipStartUs, clipEndUs, durationUs, span, horizontal = true)
+                fadeEffect(clipUs, durationUs, flashToWhite = false),
+                slideEffect(clipUs, durationUs, horizontal = true)
             )
 
             TransitionType.ZOOM_IN -> listOf(
-                fadeEffect(clipStartUs, clipEndUs, durationUs, span, flashToWhite = false),
-                zoomEffect(clipStartUs, clipEndUs, durationUs, span)
+                fadeEffect(clipUs, durationUs, flashToWhite = false),
+                zoomEffect(clipUs, durationUs)
             )
 
             TransitionType.GLITCH -> listOf(
-                TimeRgbGainEffect(clipStartUs, clipEndUs) { time ->
-                    val phase = ((time - clipStartUs) % 120_000L) / 120_000L
+                TimeRgbGainEffect(0L, clipUs) { time ->
+                    val phase = (time.coerceAtLeast(0L) % 120_000L) / 120_000L
                     val flicker = if (phase < 0.5f) 1.35f else 0.82f
                     floatArrayOf(flicker, 1f, 1.18f)
                 }
@@ -277,46 +342,33 @@ object TransitionMapper {
 
     /** Fade the clip towards black at the start and back at the end. */
     private fun fadeEffect(
-        startUs: Long,
-        endUs: Long,
+        clipDurationUs: Long,
         durationUs: Long,
-        span: Long,
         flashToWhite: Boolean
-    ): TimeRgbGainEffect = TimeRgbGainEffect(startUs, endUs) { time ->
-        val local = time - startUs
-        val remaining = endUs - time
+    ): TimeRgbGainEffect = TimeRgbGainEffect(0L, clipDurationUs) { time ->
+        val local = time.coerceIn(0L, clipDurationUs)
+        val remaining = (clipDurationUs - local).coerceAtLeast(0L)
         var gain = 1f
         if (local < durationUs) {
             val progress = local.toFloat() / durationUs
-            gain = if (flashToWhite) {
-                // Brighten towards white instead of fading to black.
-                1f + 2.4f * progress
-            } else {
-                progress
-            }
+            gain = if (flashToWhite) 1f + 2.4f * progress else progress
         } else if (remaining < durationUs) {
             val progress = remaining.toFloat() / durationUs
-            gain = if (flashToWhite) {
-                1f + 2.4f * progress
-            } else {
-                progress
-            }
+            gain = if (flashToWhite) 1f + 2.4f * progress else progress
         }
         val clamped = gain.coerceIn(0f, 3.5f)
         floatArrayOf(clamped, clamped, clamped)
-    }.also { _ -> /* span kept for readability */ }
+    }
 
     /** Slide the clip in from the side. */
     private fun slideEffect(
-        startUs: Long,
-        endUs: Long,
+        clipDurationUs: Long,
         durationUs: Long,
-        span: Long,
         horizontal: Boolean
     ): TimeTransformEffect = TimeTransformEffect { time ->
         val matrix = android.graphics.Matrix()
-        val local = time - startUs
-        val remaining = endUs - time
+        val local = time.coerceIn(0L, clipDurationUs)
+        val remaining = (clipDurationUs - local).coerceAtLeast(0L)
         val progress = when {
             local < durationUs -> 1f - (local.toFloat() / durationUs)
             remaining < durationUs -> remaining.toFloat() / durationUs
@@ -329,19 +381,17 @@ object TransitionMapper {
 
     /** Zoom the clip in slightly at the beginning. */
     private fun zoomEffect(
-        startUs: Long,
-        endUs: Long,
-        durationUs: Long,
-        span: Long
+        clipDurationUs: Long,
+        durationUs: Long
     ): TimeTransformEffect = TimeTransformEffect { time ->
         val matrix = android.graphics.Matrix()
-        val local = time - startUs
+        val local = time.coerceIn(0L, clipDurationUs)
         val progress = if (local < durationUs) {
             1f - (local.toFloat() / durationUs) * 0.25f
         } else {
             1f
         }
-        matrix.setScale(progress, progress, 0.5f, 0.5f)
+        matrix.setScale(progress, progress, 0f, 0f)
         matrix
     }
 }

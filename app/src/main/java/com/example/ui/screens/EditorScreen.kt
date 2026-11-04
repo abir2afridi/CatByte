@@ -155,7 +155,7 @@ fun EditorScreen(
         }
     }
 
-    val currentClip = project?.clips?.find { it.id == selectedClipId }
+    val currentClip = project?.allVideoClips?.find { it.id == selectedClipId }
     val currentText = project?.textOverlays?.find { it.id == selectedTextId }
 
     if (project == null) {
@@ -190,10 +190,27 @@ fun EditorScreen(
 
         // 2. Video Preview Canvas
         val context = androidx.compose.ui.platform.LocalContext.current
-        val videoPlayer = androidx.compose.runtime.remember(context) {
+        val playerManager = androidx.compose.runtime.remember(context) {
             (context.applicationContext as? com.example.CatByteApplication)
-                ?.container?.playerManager?.exoPlayer
+                ?.container?.playerManager
         }
+        val previewPlayer = playerManager
+            ?.activePlayer
+            ?.collectAsState()
+            ?.value
+        val compositionPreview = playerManager
+            ?.usesCompositionPreview
+            ?.collectAsState()
+            ?.value == true
+        val previewError = playerManager
+            ?.lastError
+            ?.collectAsState()
+            ?.value
+        val previewWarnings = playerManager
+            ?.previewWarnings
+            ?.collectAsState()
+            ?.value
+            .orEmpty()
 
         // Background export needs the notification permission on Android 13+.
         // A denial must not block the export (the foreground service runs
@@ -226,13 +243,18 @@ fun EditorScreen(
                 .fillMaxWidth()
         ) {
             androidx.compose.runtime.CompositionLocalProvider(
-                com.example.ui.components.LocalVideoPlayer provides videoPlayer
+                com.example.ui.components.LocalVideoPlayer provides previewPlayer
             ) {
                 VideoCanvas(
                     project = project!!,
                     currentPositionMs = currentPositionMs,
                     isPlaying = isPlaying,
                     onTogglePlay = { viewModel.togglePlayback() },
+                    watermarkEnabled = watermarkEnabled,
+                    player = previewPlayer,
+                    compositionPreview = compositionPreview,
+                    previewError = previewError,
+                    previewWarnings = previewWarnings,
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -312,6 +334,7 @@ fun EditorScreen(
                     SpeedSheet(
                         currentSpeed = currentClip?.speed ?: 1.0f,
                         onSpeedSelected = { viewModel.setClipSpeed(it) },
+                        onSelectSpeedCurve = { viewModel.setClipSpeedCurve(it) },
                         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
                     )
                 }
@@ -323,7 +346,8 @@ fun EditorScreen(
                             viewModel.addAudioTrack(track)
                             viewModel.setActiveSheet(ActiveToolSheet.NONE)
                         },
-                        onStartVoiceRecord = { viewModel.startVoiceRecording() },
+                        onExtractAudio = { viewModel.extractAudioFromSelectedClip() },
+                    onStartVoiceRecord = { viewModel.startVoiceRecording() },
                         onStopVoiceRecord = { viewModel.stopAndSaveVoiceRecording() },
                         onTtsVoiceover = {
                             showTtsDialog = true

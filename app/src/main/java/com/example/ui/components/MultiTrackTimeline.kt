@@ -46,6 +46,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -57,12 +59,20 @@ import com.example.model.TextOverlay
 import com.example.model.TimelineEffect
 import com.example.model.TransitionType
 import com.example.model.VideoProject
+import com.example.engine.CenterPlayhead
+import com.example.engine.SnapCandidate
+import com.example.engine.SnapEngine
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.SharpenedPencilTip
 import com.example.ui.theme.pencilHatching
 import com.example.ui.theme.sketchPencilBorder
 
 private const val DP_PER_SECOND = 65f
+
+/** Magnet radius for ruler taps, in dp (about 185 ms at the default zoom). */
+private const val SNAP_THRESHOLD_DP = 12f
 
 @Composable
 fun MultiTrackTimeline(
@@ -85,33 +95,65 @@ fun MultiTrackTimeline(
     val msToDp = (DP_PER_SECOND * zoom) / 1000f
     val timelineWidthDp = (totalMs * msToDp).dp + 260.dp
     val scrollState = rememberScrollState()
+    val density = LocalDensity.current
 
     var isTrackMuted by remember { mutableStateOf(false) }
+    var viewportWidthDp by remember { mutableStateOf(0f) }
 
-    // Precompute cut points for magnetic snapping
-    val cutPoints = remember(project) {
-        val cuts = mutableListOf(0L)
+    val fps = project.fps.coerceIn(1, 120)
+    /** dp per frame: the unit shared by snapping and the center-playhead maths. */
+    val pxPerFrame = (msToDp * (1000f / fps)).coerceAtLeast(0.0001f)
+
+    /**
+     * Magnets come from [SnapEngine] so the ruler, clip edges, text, audio and
+     * effect boundaries all share one priority order (the playhead beats a clip
+     * edge at the same distance).
+     */
+    val snapCandidates: List<SnapCandidate> = remember(project, currentPositionMs, fps) {
+        val edges = mutableListOf<Long>()
         var acc = 0L
-        for (c in project.clips) {
-            acc += c.durationMs
-            cuts.add(acc)
+        project.clips.forEach { clip ->
+            acc += clip.durationMs
+            edges += acc * fps / 1000L
         }
-        for (a in project.audioTracks) {
-            cuts.add(a.startTimelineMs)
-            cuts.add(a.startTimelineMs + a.durationMs)
+        project.overlayTracks.flatMap { it.clips }.forEach { clip ->
+            edges += clip.startTimelineMs * fps / 1000L
+            edges += (clip.startTimelineMs + clip.durationMs) * fps / 1000L
         }
-        for (t in project.textOverlays) {
-            cuts.add(t.startTimelineMs)
-            cuts.add(t.startTimelineMs + t.durationMs)
+        project.audioTracks.forEach { audio ->
+            edges += audio.startTimelineMs * fps / 1000L
+            edges += (audio.startTimelineMs + audio.durationMs) * fps / 1000L
         }
-        cuts.distinct().sorted()
+        project.textOverlays.forEach { text ->
+            edges += text.startTimelineMs * fps / 1000L
+            edges += (text.startTimelineMs + text.durationMs) * fps / 1000L
+        }
+        project.effects.forEach { effect ->
+            edges += effect.startTimelineMs * fps / 1000L
+            edges += (effect.startTimelineMs + effect.durationMs) * fps / 1000L
+        }
+        SnapEngine.collect(
+            playhead = currentPositionMs * fps / 1000L,
+            clipEdges = edges,
+            markers = emptyList(),
+            beats = emptyList()
+        )
+    }
+    val snapThresholdFrames = remember(pxPerFrame) {
+        SnapEngine.thresholdFrames(SNAP_THRESHOLD_DP, pxPerFrame)
     }
 
-    LaunchedEffect(currentPositionMs, isPlaying) {
-        if (isPlaying) {
-            val playheadPx = currentPositionMs * msToDp
-            val targetScroll = (playheadPx - 260).coerceAtLeast(0f).toInt()
-            scrollState.scrollTo(targetScroll)
+    // Fixed center playhead: during playback the content scrolls under a
+    // stationary playhead and pins at the very start/end of the timeline.
+    LaunchedEffect(currentPositionMs, isPlaying, pxPerFrame, viewportWidthDp) {
+        if (isPlaying && viewportWidthDp > 0f) {
+            val offset = CenterPlayhead.offsetForFrame(
+                playheadFrame = currentPositionMs * fps / 1000L,
+                pxPerFrame = pxPerFrame,
+                viewportWidthPx = viewportWidthDp,
+                contentWidthPx = timelineWidthDp.value
+            )
+            scrollState.scrollTo(offset.roundToInt())
         }
     }
 
@@ -134,16 +176,18 @@ fun MultiTrackTimeline(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .onSizeChanged { viewportWidthDp = with(density) { it.width.toDp().value } }
                     .horizontalScroll(scrollState)
-                    .pointerInput(totalMs, msToDp, magneticSnap, cutPoints) {
+                    .pointerInput(totalMs, pxPerFrame, magneticSnap, snapCandidates, snapThresholdFrames, fps) {
                         detectTapGestures { offset ->
-                            var targetMs = (offset.x / msToDp).toLong().coerceIn(0L, totalMs)
-                            if (magneticSnap) {
-                                val nearest = cutPoints.minByOrNull { kotlin.math.abs(it - targetMs) }
-                                if (nearest != null && kotlin.math.abs(nearest - targetMs) <= 180L) {
-                                    targetMs = nearest
-                                }
-                            }
+                            val rawFrame = (offset.x / pxPerFrame).roundToLong().coerceAtLeast(0L)
+                            val snapped = SnapEngine.snap(
+                                targetFrame = rawFrame,
+                                candidates = snapCandidates,
+                                thresholdFrames = snapThresholdFrames,
+                                enabled = magneticSnap
+                            )
+                            val targetMs = (snapped.frame * 1000L / fps).coerceIn(0L, totalMs)
                             onSeek(targetMs)
                         }
                     }
@@ -176,7 +220,19 @@ fun MultiTrackTimeline(
 
                         Spacer(modifier = Modifier.height(5.dp))
 
-                        // 3. Audio / Music Track
+                        // 3. PIP / Overlay Track (rendered above the main video)
+                        val overlayClips = project.overlayTracks.flatMap { it.clips }
+                        if (overlayClips.isNotEmpty()) {
+                            OverlayClipsTrack(
+                                clips = overlayClips,
+                                selectedClipId = selectedClipId,
+                                msToDp = msToDp,
+                                onSelectClip = onSelectClip
+                            )
+                            Spacer(modifier = Modifier.height(5.dp))
+                        }
+
+                        // 4. Audio / Music Track
                         if (project.audioTracks.isNotEmpty()) {
                             AudioClipsTrack(
                                 tracks = project.audioTracks,
@@ -563,19 +619,80 @@ private fun VideoClipsTrack(
 }
 
 @Composable
+private fun OverlayClipsTrack(
+    clips: List<MediaClip>,
+    selectedClipId: String?,
+    msToDp: Float,
+    onSelectClip: (String) -> Unit
+) {
+    val colors = PencilTheme.colors
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .background(colors.timelineTrack)
+            .padding(vertical = 2.dp)
+    ) {
+        clips.forEach { clip ->
+            val isSelected = clip.id == selectedClipId
+            val startOffsetDp = (clip.startTimelineMs * msToDp).dp
+            val widthDp = (clip.durationMs * msToDp).dp.coerceAtLeast(48.dp)
+
+            Box(
+                modifier = Modifier
+                    .offset(x = startOffsetDp)
+                    .width(widthDp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(
+                        colors.accentCyan.copy(alpha = if (isSelected) 0.42f else 0.22f)
+                    )
+                    .border(
+                        width = if (isSelected) 2.2.dp else 1.2.dp,
+                        color = colors.accentCyan,
+                        shape = RoundedCornerShape(6.dp)
+                    )
+                    .clickable { onSelectClip(clip.id) }
+                    .padding(horizontal = 7.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Videocam,
+                        contentDescription = "Overlay clip",
+                        tint = colors.accentCyan,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        text = clip.title,
+                        color = colors.textPrimary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun AudioClipsTrack(
     tracks: List<AudioClip>,
     msToDp: Float
 ) {
     val colors = PencilTheme.colors
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(34.dp)
             .background(colors.timelineTrack)
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 2.dp)
     ) {
         tracks.forEach { audio ->
             val startOffsetDp = (audio.startTimelineMs * msToDp).dp
@@ -624,13 +741,12 @@ private fun TextClipsTrack(
 ) {
     val colors = PencilTheme.colors
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(32.dp)
             .background(colors.timelineTrack)
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 2.dp)
     ) {
         texts.forEach { item ->
             val isSelected = item.id == selectedTextId
@@ -683,13 +799,12 @@ private fun EffectsClipsTrack(
 ) {
     val colors = PencilTheme.colors
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(30.dp)
             .background(colors.timelineTrack)
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 2.dp)
     ) {
         effects.forEach { effect ->
             val startOffsetDp = (effect.startTimelineMs * msToDp).dp

@@ -133,18 +133,18 @@ class EditorWorkflowTest {
     }
 
     @Test
-    fun `history is capped at 25 entries`() {
+    fun `history is capped at 200 entries`() {
         val viewModel = vmWithOneClip()
-        repeat(40) { index ->
+        repeat(220) { index ->
             viewModel.setAspectRatio(if (index % 2 == 0) AspectRatioType.RATIO_16_9 else AspectRatioType.RATIO_9_16)
         }
-        // 40 pushes, stack keeps 25 -> undo until exhausted.
+        // 220 pushes, stack keeps the plan's 200 -> undo until exhausted.
         var undos = 0
-        while (viewModel.canUndo.value && undos < 100) {
+        while (viewModel.canUndo.value && undos < 600) {
             viewModel.undo()
             undos++
         }
-        assertEquals(25, undos)
+        assertEquals(200, undos)
         assertFalse(viewModel.canUndo.value)
     }
 

@@ -129,6 +129,11 @@
     <string name="export_starting">টাইমলাইন প্রস্তুত হচ্ছে...</string>
     <string name="export_encoding">MP4 এনকোড হচ্ছে (%1$s, %2$s fps)...</string>
     <string name="export_background_hint">পেছনে এক্সপোর্ট হোক — এডিটিং চালিয়ে যান</string>
+    <string name="export_notification_title">CatByte এক্সপোর্ট</string>
+    <string name="export_notification_preparing">এক্সপোর্ট প্রস্তুত হচ্ছে…</string>
+    <string name="export_notification_failed">এক্সপোর্ট ব্যর্থ: %1$s</string>
+    <string name="export_notification_tap_to_open">এক্সপোর্ট সম্পূর্ণ! দেখতে ট্যাপ করুন।</string>
+    <string name="export_already_running">একটি এক্সপোর্ট ইতোমধ্যে পেছনে চলছে</string>
     <string name="export_finished">এক্সপোর্ট সম্পূর্ণ!</string>
     <string name="export_failed">এক্সপোর্ট ব্যর্থ হয়েছে: %1$s</string>
     <string name="export_cancelled">এক্সপোর্ট বাতিল করা হয়েছে</string>

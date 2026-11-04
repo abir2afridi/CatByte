@@ -228,6 +228,11 @@ data class AudioClip(
     val uriString: String? = null,
     val startTimelineMs: Long = 0L,
     val durationMs: Long = 6000L,
+    /** Source trim points. Both zero means "play the whole source". */
+    val trimStartMs: Long = 0L,
+    val trimEndMs: Long = 0L,
+    /** Playback speed multiplier for the source audio. */
+    val speed: Float = 1.0f,
     val volume: Float = 1.0f,
     val isVoiceover: Boolean = false,
     val isMuted: Boolean = false,

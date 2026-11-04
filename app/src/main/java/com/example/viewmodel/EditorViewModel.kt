@@ -8,6 +8,7 @@ import com.example.R
 import com.example.data.AppLog
 import com.example.data.AppLanguage
 import com.example.data.CacheManager
+import com.example.data.ClipTiming
 import com.example.data.ExportServiceScheduler
 import com.example.data.MediaDurationFallback
 import com.example.data.MediaMetadata
@@ -26,6 +27,7 @@ import com.example.model.Keyframe
 import com.example.model.KeyframeProperty
 import com.example.model.MaskData
 import com.example.model.MediaClip
+import com.example.model.SpeedCurve
 import com.example.model.StickerOverlay
 import com.example.model.TextAnimationType
 import com.example.model.TextFontStyle
@@ -36,6 +38,9 @@ import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
 import com.example.data.KeyframeInterpolator
+import com.example.data.db.ProjectJson
+import com.example.engine.FileJournalStorage
+import com.example.engine.UndoJournal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -76,7 +81,9 @@ data class ExportUiState(
     val resolution: String = "1080P",
     val fps: Int = 30,
     val videoPath: String = "",
-    val galleryUri: String = ""
+    val galleryUri: String = "",
+    /** Features that were approximated or skipped by the renderer. */
+    val warnings: List<String> = emptyList()
 )
 
 @androidx.media3.common.util.UnstableApi
@@ -183,6 +190,8 @@ class EditorViewModel(
     fun toggleWatermark(enabled: Boolean) {
         _watermarkEnabled.value = enabled
         viewModelScope.launch { settingsRepository?.setWatermarkEnabled(enabled) }
+        // The watermark is burned into the same preview composition as export.
+        playerManager?.setWatermarkEnabled(enabled)
     }
 
     fun refreshCacheSize() {
@@ -210,8 +219,26 @@ class EditorViewModel(
     val voiceRecordingDurationMs: StateFlow<Long> = _voiceRecordingDurationMs.asStateFlow()
 
     // Undo / Redo history stacks
-    private val undoStack = mutableListOf<VideoProject>()
+    private val undoStack = mutableListOf<EditorHistoryEntry>()
     private val redoStack = mutableListOf<VideoProject>()
+
+    /**
+     * Durable copy of the undo history. The in-memory stacks die with the
+     * process; this journal is written atomically to disk so a crash no longer
+     * destroys every undo step of the session.
+     */
+    private val undoJournal: UndoJournal? by lazy {
+        val directory = context?.filesDir?.let { File(it, "undo") }
+        if (directory == null) null else UndoJournal(FileJournalStorage(File(directory, "history.json")))
+    }
+
+    /** One undoable state: the project to revert to, plus gesture metadata. */
+    private data class EditorHistoryEntry(
+        val project: VideoProject,
+        /** Non-null while a drag/slider gesture streams; equal keys collapse. */
+        val key: String? = null,
+        val atMs: Long = System.currentTimeMillis()
+    )
 
     private val _canUndo = MutableStateFlow(false)
     val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
@@ -230,12 +257,35 @@ class EditorViewModel(
     private var voiceRecordJob: Job? = null
     private var exportJob: Job? = null
     private var importJob: Job? = null
+    private var previewRefreshJob: Job? = null
+
+    /**
+     * Rebuilds the render graph after the user stops dragging/sliding. The
+     * composition is identical to the export graph, so a short debounce keeps
+     * sliders smooth without allowing preview/export drift.
+     */
+    private fun schedulePreviewRefresh() {
+        val project = _currentProject.value ?: return
+        previewRefreshJob?.cancel()
+        previewRefreshJob = viewModelScope.launch {
+            delay(120L)
+            playerManager?.loadProject(project)
+        }
+    }
+
+    private fun refreshPreviewNow() {
+        previewRefreshJob?.cancel()
+        previewRefreshJob = null
+        _currentProject.value?.let { playerManager?.loadProject(it) }
+    }
 
     init {
         val initialList = repository.projects.value
         if (initialList.isNotEmpty()) {
-            _currentProject.value = initialList.first()
-            _selectedClipId.value = initialList.first().clips.firstOrNull()?.id
+            val firstProject = initialList.first()
+            _currentProject.value = firstProject
+            _selectedClipId.value = firstProject.clips.firstOrNull()?.id
+                ?: firstProject.overlayTracks.firstOrNull()?.clips?.firstOrNull()?.id
         }
 
         if (settingsRepository != null) {
@@ -260,9 +310,13 @@ class EditorViewModel(
         voiceRecordJob?.cancel()
         exportJob?.cancel()
         importJob?.cancel()
+        previewRefreshJob?.cancel()
         voiceRecorder?.cancel()
         speechSynthesizer?.release()
-        playerManager?.release()
+        // PlayerManager is application-scoped (the editor UI reads it directly).
+        // Releasing it here would leave a dead player when the activity is
+        // recreated after finishing; just stop playback instead.
+        playerManager?.pause()
     }
 
     fun openProject(project: VideoProject) {
@@ -272,6 +326,7 @@ class EditorViewModel(
         _currentProject.value = project
         _currentPositionMs.value = 0L
         _selectedClipId.value = project.clips.firstOrNull()?.id
+            ?: project.overlayTracks.firstOrNull()?.clips?.firstOrNull()?.id
         _selectedTextId.value = null
         _activeSheet.value = ActiveToolSheet.NONE
         undoStack.clear()
@@ -382,6 +437,7 @@ class EditorViewModel(
         _isPlaying.value = true
 
         if (playerManager != null) {
+            // loadProject() is a no-op when the same project is already prepared.
             playerManager.loadProject(project)
             playerManager.seekTo(_currentPositionMs.value)
             playerManager.play()
@@ -391,7 +447,11 @@ class EditorViewModel(
                     delay(50L)
                     playerManager.syncPosition()
                     _currentPositionMs.value = playerManager.currentPositionMs.value
-                    if (!playerManager.isPlaying.value) {
+                    val state = playerManager.playbackState.value
+                    if (state == androidx.media3.common.Player.STATE_ENDED ||
+                        (state == androidx.media3.common.Player.STATE_IDLE &&
+                            playerManager.lastError.value != null)
+                    ) {
                         _isPlaying.value = false
                         break
                     }
@@ -442,51 +502,133 @@ class EditorViewModel(
     // Editing Actions (Undo/Redo Supported)
     // ==========================================
 
-    private fun pushHistory(project: VideoProject) {
-        undoStack.add(project)
-        if (undoStack.size > 25) {
+    /**
+     * Bounded snapshot history (plan §12: immutable snapshots with structural
+     * sharing). Data-class `copy` shares unchanged lists, so snapshots stay
+     * cheap even at a deep history.
+     */
+    private val HISTORY_MAX = 200
+
+    /** Drag/slider streams inside this window collapse into ONE undo step. */
+    private val COALESCE_WINDOW_MS = 500L
+
+    private fun pushHistory(project: VideoProject, coalesceKey: String? = null) {
+        val now = System.currentTimeMillis()
+        val last = undoStack.lastOrNull()
+        if (coalesceKey != null && last != null &&
+            last.key == coalesceKey && now - last.atMs < COALESCE_WINDOW_MS
+        ) {
+            // Same gesture is still streaming: keep the pre-gesture snapshot
+            // on top so ONE undo reverts the whole drag (CapCut behaviour).
+            return
+        }
+        undoStack.add(EditorHistoryEntry(project, coalesceKey, now))
+        if (undoStack.size > HISTORY_MAX) {
             undoStack.removeAt(0)
         }
         redoStack.clear()
         _canUndo.value = undoStack.isNotEmpty()
         _canRedo.value = redoStack.isNotEmpty()
+        undoJournal?.record(ProjectJson.toJson(project), coalesceKey)
+    }
+
+    private fun applyHistoryState(project: VideoProject) {
+        _currentProject.value = project
+        repository.saveProject(project)
+        _canUndo.value = undoStack.isNotEmpty() || undoJournal?.canUndo == true
+        _canRedo.value = redoStack.isNotEmpty() || undoJournal?.canRedo == true
+        schedulePreviewRefresh()
     }
 
     fun undo() {
         val curr = _currentProject.value ?: return
+        // Advance the durable journal alongside the in-memory stack so both stay
+        // aligned; when the stack is empty after a restart, the journal answers.
+        val journalState = undoJournal?.undo(ProjectJson.toJson(curr))?.let { ProjectJson.fromJson(it) }
         if (undoStack.isNotEmpty()) {
             redoStack.add(curr)
-            val prev = undoStack.removeAt(undoStack.lastIndex)
-            _currentProject.value = prev
-            repository.saveProject(prev)
-            _canUndo.value = undoStack.isNotEmpty()
-            _canRedo.value = redoStack.isNotEmpty()
+            applyHistoryState(undoStack.removeAt(undoStack.lastIndex).project)
+        } else if (journalState != null && journalState.id == curr.id) {
+            applyHistoryState(journalState)
         }
     }
 
     fun redo() {
         val curr = _currentProject.value ?: return
+        val journalState = undoJournal?.redo(ProjectJson.toJson(curr))?.let { ProjectJson.fromJson(it) }
         if (redoStack.isNotEmpty()) {
-            undoStack.add(curr)
-            val next = redoStack.removeAt(redoStack.lastIndex)
-            _currentProject.value = next
-            repository.saveProject(next)
-            _canUndo.value = undoStack.isNotEmpty()
-            _canRedo.value = redoStack.isNotEmpty()
+            undoStack.add(EditorHistoryEntry(curr))
+            applyHistoryState(redoStack.removeAt(redoStack.lastIndex))
+        } else if (journalState != null && journalState.id == curr.id) {
+            applyHistoryState(journalState)
         }
     }
 
-    private fun updateProject(transform: (VideoProject) -> VideoProject) {
+    /**
+     * Central mutation helper: snapshots the pre-edit project for undo, applies
+     * [transform] and autosaves. [coalesceKey] groups a drag/slider stream so
+     * one gesture becomes exactly one undo step (plan §12 coalescing rule).
+     */
+    private fun updateProject(
+        coalesceKey: String? = null,
+        transform: (VideoProject) -> VideoProject
+    ) {
         val curr = _currentProject.value ?: return
-        pushHistory(curr)
+        pushHistory(curr, coalesceKey)
         val updated = transform(curr)
         _currentProject.value = updated
         repository.saveProject(updated)
+        schedulePreviewRefresh()
     }
 
     // ==========================================
     // Clip operations
     // ==========================================
+
+    /** Applies [transform] to a clip on the main track or any overlay track. */
+    private fun VideoProject.withUpdatedClip(
+        clipId: String,
+        transform: (MediaClip) -> MediaClip
+    ): VideoProject {
+        var changed = false
+        val updatedMain = clips.map { clip ->
+            if (clip.id == clipId) {
+                changed = true
+                transform(clip)
+            } else clip
+        }
+        val updatedOverlays = overlayTracks.map { track ->
+            val updatedClips = track.clips.map { clip ->
+                if (clip.id == clipId) {
+                    changed = true
+                    transform(clip)
+                } else clip
+            }
+            if (updatedClips == track.clips) track else track.copy(clips = updatedClips)
+        }
+        return if (changed) copy(clips = updatedMain, overlayTracks = updatedOverlays) else this
+    }
+
+    /**
+     * Clip-local time. Main-track clips are laid out cumulatively (their stored
+     * startTimelineMs is not authoritative), overlay clips use their explicit
+     * startTimelineMs. Keyframes are always stored in clip-local time.
+     */
+    private fun VideoProject.localTimeForClip(clipId: String, timelineMs: Long): Long? {
+        var cursor = 0L
+        for (clip in clips) {
+            if (clip.id == clipId) {
+                return (timelineMs - cursor).coerceIn(0L, clip.durationMs)
+            }
+            cursor += clip.durationMs
+        }
+        overlayTracks.forEach { track ->
+            track.clips.firstOrNull { it.id == clipId }?.let { clip ->
+                return (timelineMs - clip.startTimelineMs).coerceIn(0L, clip.durationMs)
+            }
+        }
+        return null
+    }
 
     fun splitClipAtPlayhead() {
         val project = _currentProject.value ?: return
@@ -534,14 +676,21 @@ class EditorViewModel(
     fun deleteSelectedClip() {
         val clipId = _selectedClipId.value ?: return
         updateProject { proj ->
-            val updated = proj.clips.filterNot { it.id == clipId }
-            proj.copy(clips = updated)
+            proj.copy(
+                clips = proj.clips.filterNot { it.id == clipId },
+                overlayTracks = proj.overlayTracks.map { track ->
+                    track.copy(clips = track.clips.filterNot { it.id == clipId })
+                }
+            )
         }
-        _selectedClipId.value = _currentProject.value?.clips?.firstOrNull()?.id
+        val updated = _currentProject.value
+        _selectedClipId.value = updated?.clips?.firstOrNull()?.id
+            ?: updated?.overlayTracks?.firstOrNull()?.clips?.firstOrNull()?.id
     }
 
     fun duplicateSelectedClip() {
         val clipId = _selectedClipId.value ?: return
+        var duplicatedOverlayId: String? = null
         updateProject { proj ->
             val index = proj.clips.indexOfFirst { it.id == clipId }
             if (index != -1) {
@@ -553,8 +702,28 @@ class EditorViewModel(
                 val newClips = proj.clips.toMutableList()
                 newClips.add(index + 1, copy)
                 proj.copy(clips = newClips)
-            } else proj
+            } else {
+                // Overlay clips are absolute on the timeline: place the copy
+                // immediately after the original instead of stacking it on top.
+                val updatedTracks = proj.overlayTracks.map { track ->
+                    val overlayIndex = track.clips.indexOfFirst { it.id == clipId }
+                    if (overlayIndex == -1) {
+                        track
+                    } else {
+                        val original = track.clips[overlayIndex]
+                        val copy = original.copy(
+                            id = UUID.randomUUID().toString(),
+                            title = "${original.title} (Copy)",
+                            startTimelineMs = original.startTimelineMs + original.durationMs
+                        )
+                        duplicatedOverlayId = copy.id
+                        track.copy(clips = track.clips + copy)
+                    }
+                }
+                proj.copy(overlayTracks = updatedTracks)
+            }
         }
+        duplicatedOverlayId?.let { _selectedClipId.value = it }
     }
 
     /** Moves a clip to a new position in the timeline (drag-reorder). */
@@ -601,7 +770,6 @@ class EditorViewModel(
             _selectedClipId.value = clip.id
             AppLog.info("EditorViewModel", "Successfully imported clip: $realTitle (${durationMs}ms), clipId=${clip.id}")
             // Reload the player with the updated project
-            playerManager?.loadProject(_currentProject.value!!)
         } catch (e: Exception) {
             _isImporting.value = false
             AppLog.error("EditorViewModel", "Failed to import clip from $uriString", e)
@@ -621,7 +789,6 @@ class EditorViewModel(
                 proj.copy(clips = proj.clips + fallbackClip)
             }
             _selectedClipId.value = fallbackClip.id
-            playerManager?.loadProject(_currentProject.value!!)
         }
     }
 
@@ -647,86 +814,91 @@ class EditorViewModel(
         importMultipleUris(uriStrings, titles) { }
     }
 
-    /** Updates the trim of the selected clip. */
+    /** Updates the trim of the selected clip. Streams collapse into one undo. */
     fun updateClipTrim(trimStartMs: Long, trimEndMs: Long) {
         val clipId = _selectedClipId.value ?: return
-        updateProject { proj ->
-            val updated = proj.clips.map { clip ->
-                if (clip.id == clipId) {
-                    val newTrimStart = trimStartMs.coerceIn(0L, clip.originalDurationMs.coerceAtLeast(300L))
-                    val newTrimEnd = trimEndMs.coerceIn(newTrimStart + 300L, clip.originalDurationMs)
-                    clip.copy(
-                        trimStartMs = newTrimStart,
-                        trimEndMs = newTrimEnd,
-                        durationMs = (newTrimEnd - newTrimStart).coerceAtLeast(300L)
-                    )
-                } else clip
+        updateProject(coalesceKey = "trim:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                val newTrimStart = trimStartMs.coerceIn(
+                    0L,
+                    clip.originalDurationMs.coerceAtLeast(300L)
+                )
+                val newTrimEnd = trimEndMs.coerceIn(
+                    newTrimStart + 300L,
+                    clip.originalDurationMs.coerceAtLeast(newTrimStart + 300L)
+                )
+                val trimmed = clip.copy(
+                    trimStartMs = newTrimStart,
+                    trimEndMs = newTrimEnd
+                )
+                trimmed.copy(durationMs = ClipTiming.presentationDurationMs(trimmed))
             }
-            proj.copy(clips = updated)
         }
     }
 
+    /**
+     * Sets a constant speed. Picking a constant speed clears the velocity curve
+     * (the two modes are mutually exclusive, like CapCut), and the timeline
+     * duration is recomputed through the shared [ClipTiming] implementation.
+     */
     fun setClipSpeed(speed: Float) {
         val clipId = _selectedClipId.value ?: return
-        updateProject { proj ->
-            val updated = proj.clips.map { clip ->
-                if (clip.id == clipId) {
-                    val sourceLength = (clip.originalDurationMs - clip.trimStartMs - (clip.originalDurationMs - clip.trimEndMs)).coerceAtLeast(300L)
-                    val newDuration = ((sourceLength / speed).toLong()).coerceAtLeast(300L)
-                    clip.copy(speed = speed.coerceIn(0.1f, 16f), durationMs = newDuration)
-                } else clip
+        updateProject(coalesceKey = "speed:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                val updatedClip = clip.copy(
+                    speed = speed.coerceIn(0.1f, 16f),
+                    speedCurve = SpeedCurve()
+                )
+                updatedClip.copy(durationMs = ClipTiming.presentationDurationMs(updatedClip))
             }
-            proj.copy(clips = updated)
+        }
+    }
+
+    /** Applies a velocity curve to the selected clip and retimes the timeline. */
+    fun setClipSpeedCurve(curve: SpeedCurve) {
+        val clipId = _selectedClipId.value ?: return
+        updateProject(coalesceKey = "speedCurve:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                val updatedClip = clip.copy(speedCurve = curve)
+                updatedClip.copy(durationMs = ClipTiming.presentationDurationMs(updatedClip))
+            }
         }
     }
 
     fun setClipFilter(filter: VideoFilter) {
         val clipId = _selectedClipId.value ?: return
         updateProject { proj ->
-            val updated = proj.clips.map { clip ->
-                if (clip.id == clipId) clip.copy(filter = filter) else clip
-            }
-            proj.copy(clips = updated)
+            proj.withUpdatedClip(clipId) { clip -> clip.copy(filter = filter) }
         }
     }
 
     fun setClipTransition(transition: TransitionType) {
         val clipId = _selectedClipId.value ?: return
         updateProject { proj ->
-            val updated = proj.clips.map { clip ->
-                if (clip.id == clipId) clip.copy(transition = transition) else clip
-            }
-            proj.copy(clips = updated)
+            proj.withUpdatedClip(clipId) { clip -> clip.copy(transition = transition) }
         }
     }
 
     fun setClipAnimation(animation: ClipAnimation) {
         val clipId = _selectedClipId.value ?: return
         updateProject { proj ->
-            val updated = proj.clips.map { clip ->
-                if (clip.id == clipId) clip.copy(animationIn = animation) else clip
-            }
-            proj.copy(clips = updated)
+            proj.withUpdatedClip(clipId) { clip -> clip.copy(animationIn = animation) }
         }
     }
 
     fun rotateSelectedClip() {
         val clipId = _selectedClipId.value ?: return
         updateProject { proj ->
-            val updated = proj.clips.map { clip ->
-                if (clip.id == clipId) clip.copy(rotation = (clip.rotation + 90f) % 360f) else clip
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(rotation = (clip.rotation + 90f) % 360f)
             }
-            proj.copy(clips = updated)
         }
     }
 
     fun mirrorSelectedClip() {
         val clipId = _selectedClipId.value ?: return
         updateProject { proj ->
-            val updated = proj.clips.map { clip ->
-                if (clip.id == clipId) clip.copy(isMirrored = !clip.isMirrored) else clip
-            }
-            proj.copy(clips = updated)
+            proj.withUpdatedClip(clipId) { clip -> clip.copy(isMirrored = !clip.isMirrored) }
         }
     }
 
@@ -737,28 +909,23 @@ class EditorViewModel(
         vignette: Float
     ) {
         val clipId = _selectedClipId.value ?: return
-        updateProject { proj ->
-            val updated = proj.clips.map { clip ->
-                if (clip.id == clipId) {
-                    clip.copy(
-                        brightness = brightness.coerceIn(-1f, 1f),
-                        contrast = contrast.coerceIn(0.1f, 2f),
-                        saturation = saturation.coerceIn(0f, 2f),
-                        vignette = vignette.coerceIn(0f, 1f)
-                    )
-                } else clip
+        updateProject(coalesceKey = "adjust:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(
+                    brightness = brightness.coerceIn(-1f, 1f),
+                    contrast = contrast.coerceIn(0.1f, 2f),
+                    saturation = saturation.coerceIn(0f, 2f),
+                    vignette = vignette.coerceIn(0f, 1f)
+                )
             }
-            proj.copy(clips = updated)
         }
     }
 
+    /** Volume slider streams collapse into one undo step. */
     fun setClipVolume(volume: Float) {
         val clipId = _selectedClipId.value ?: return
-        updateProject { proj ->
-            val updated = proj.clips.map { clip ->
-                if (clip.id == clipId) clip.copy(volume = volume.coerceIn(0f, 2f)) else clip
-            }
-            proj.copy(clips = updated)
+        updateProject(coalesceKey = "volume:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip -> clip.copy(volume = volume.coerceIn(0f, 2f)) }
         }
     }
 
@@ -787,7 +954,6 @@ class EditorViewModel(
             updateProject { proj ->
                 proj.copy(audioTracks = proj.audioTracks + audio)
             }
-            playerManager?.loadProject(_currentProject.value!!)
         }
     }
 
@@ -799,12 +965,88 @@ class EditorViewModel(
             )
             proj.copy(audioTracks = proj.audioTracks + track)
         }
-        playerManager?.loadProject(_currentProject.value!!)
     }
 
     fun deleteAudioTrack(id: String) {
         updateProject { proj ->
             proj.copy(audioTracks = proj.audioTracks.filterNot { it.id == id })
+        }
+    }
+
+    /**
+     * Extracts the selected clip's audio as a real timeline audio track. The
+     * source trim and speed are carried over, so the extracted track lines up
+     * with the picture in both preview and export instead of starting from the
+     * beginning of the original recording.
+     */
+    fun extractAudioFromSelectedClip() {
+        val ctx = context ?: return
+        val project = _currentProject.value ?: return
+        val selectedId = _selectedClipId.value
+
+        var found: MediaClip? = null
+        var startMs = 0L
+        var cursor = 0L
+        for (clip in project.clips) {
+            if (clip.id == selectedId) {
+                found = clip
+                startMs = cursor
+                break
+            }
+            cursor += clip.durationMs
+        }
+        if (found == null) {
+            project.overlayTracks.forEach { track ->
+                track.clips.firstOrNull { it.id == selectedId }?.let { clip ->
+                    found = clip
+                    startMs = clip.startTimelineMs
+                }
+            }
+        }
+
+        val clip = found ?: return
+        val uriString = clip.uriString
+        if (uriString.isNullOrBlank()) {
+            AppLog.warn(
+                "EditorViewModel",
+                "Cannot extract audio: '${clip.title}' has no media source"
+            )
+            return
+        }
+
+        val sourceLength = ClipTiming.sourceLengthMs(clip)
+        val trimStart = clip.trimStartMs.coerceAtLeast(0L)
+        val trimEnd = if (clip.trimEndMs > trimStart) clip.trimEndMs else trimStart + sourceLength
+        val effectiveSpeed = if (ClipTiming.hasSpeedCurve(clip)) {
+            (sourceLength.toFloat() / clip.durationMs.coerceAtLeast(1L)).coerceIn(0.1f, 16f)
+        } else {
+            clip.speed.coerceIn(0.1f, 16f)
+        }
+
+        viewModelScope.launch {
+            val waveform = withContext(Dispatchers.IO) {
+                MediaMetadata.waveform(ctx, Uri.parse(uriString), 48)
+            } ?: emptyList()
+            val audio = AudioClip(
+                id = UUID.randomUUID().toString(),
+                title = "${clip.title} (Audio)",
+                artist = "Extracted",
+                uriString = uriString,
+                startTimelineMs = startMs,
+                durationMs = clip.durationMs.coerceAtLeast(300L),
+                trimStartMs = trimStart,
+                trimEndMs = trimEnd,
+                speed = effectiveSpeed,
+                volume = clip.volume.coerceIn(0f, 2f),
+                waveform = waveform
+            )
+            updateProject { proj ->
+                proj.copy(audioTracks = proj.audioTracks + audio)
+            }
+            AppLog.info(
+                "EditorViewModel",
+                "Extracted audio from '${clip.title}': start=${startMs}ms, duration=${audio.durationMs}ms"
+            )
         }
     }
 
@@ -848,7 +1090,6 @@ class EditorViewModel(
             updateProject { proj ->
                 proj.copy(audioTracks = proj.audioTracks + audio)
             }
-            playerManager?.loadProject(_currentProject.value!!)
         }
     }
 
@@ -879,8 +1120,7 @@ class EditorViewModel(
                 updateProject { proj ->
                     proj.copy(audioTracks = proj.audioTracks + audio)
                 }
-                playerManager?.loadProject(_currentProject.value!!)
-            }
+                }
             // The UI can show error if needed
         }
     }
@@ -910,7 +1150,6 @@ class EditorViewModel(
             proj.copy(textOverlays = proj.textOverlays + newText)
         }
         _selectedTextId.value = newText.id
-        playerManager?.loadProject(_currentProject.value!!)
     }
 
     fun updateSelectedText(
@@ -955,7 +1194,6 @@ class EditorViewModel(
         updateProject { proj ->
             proj.copy(stickers = proj.stickers + sticker)
         }
-        playerManager?.loadProject(_currentProject.value!!)
     }
 
     fun deleteSticker(id: String) {
@@ -975,7 +1213,6 @@ class EditorViewModel(
         updateProject { proj ->
             proj.copy(effects = proj.effects + effect)
         }
-        playerManager?.loadProject(_currentProject.value!!)
     }
 
     fun deleteTimelineEffect(id: String) {
@@ -1021,7 +1258,23 @@ class EditorViewModel(
 
         exportJob = viewModelScope.launch {
             if (exportManager != null) {
+                // Mirror the renderer's live progress (including compatibility
+                // warnings) into the export sheet instead of showing a frozen
+                // 0% until the MP4 is finished.
+                val progressJob = launch {
+                    exportManager.progress.collect { renderProgress ->
+                        if (_exportState.value.isExporting) {
+                            _exportState.value = _exportState.value.copy(
+                                progress = renderProgress.progress.coerceIn(0f, 1f),
+                                stage = renderProgress.stage.ifBlank { _exportState.value.stage },
+                                warnings = renderProgress.warnings
+                            )
+                        }
+                    }
+                }
                 val result = exportManager.export(project, resolution, fps, _watermarkEnabled.value)
+                progressJob.cancel()
+                val renderWarnings = exportManager.progress.value.warnings
                 if (result != null) {
                     _exportState.value = _exportState.value.copy(
                         isExporting = false,
@@ -1029,12 +1282,14 @@ class EditorViewModel(
                         progress = 1.0f,
                         stage = "Export complete!",
                         videoPath = result.file.absolutePath,
-                        galleryUri = result.galleryUri?.toString() ?: ""
+                        galleryUri = result.galleryUri?.toString() ?: "",
+                        warnings = renderWarnings
                     )
                 } else {
                     _exportState.value = _exportState.value.copy(
                         isExporting = false,
-                        stage = exportManager.progress.value.error ?: "Export failed"
+                        stage = exportManager.progress.value.error ?: "Export failed",
+                        warnings = renderWarnings
                     )
                 }
             } else {
@@ -1078,31 +1333,6 @@ class EditorViewModel(
         _activeSheet.value = ActiveToolSheet.NONE
     }
 
-    /** Starts a background export using WorkManager (survives app close). */
-    fun startBackgroundExport(
-        resolution: String = _defaultResolution.value,
-        fps: Int = _defaultFps.value
-    ) {
-        val project = _currentProject.value ?: return
-        val context = _currentProject.value?.let { it }?.run { 
-            // We need a context - use the application context from the container
-            // This will be set via a new property
-        }
-        
-        // For now, show a message that background export is queued
-        _exportState.value = ExportUiState(
-            isExporting = true,
-            progress = 0f,
-            stage = "Queued for background export...",
-            resolution = resolution,
-            fps = fps
-        )
-        
-        // Use ExportScheduler to queue the work
-        // We need a Context - this will be passed from the UI layer
-        // For now, we'll schedule it when the UI calls with a context
-    }
-
     /** Starts a background export with explicit context (called from UI). */
     fun startBackgroundExportWithContext(
         context: Context,
@@ -1140,72 +1370,99 @@ class EditorViewModel(
         easing: EasingCurve = EasingCurve.EASE_IN_OUT
     ) {
         val currentPos = _currentPositionMs.value
-        updateProject { proj ->
-            val updatedClips = proj.clips.map { clip ->
-                if (clip.id == clipId) {
-                    val clipLocalMs = (currentPos - clip.startTimelineMs).coerceIn(0L, clip.durationMs)
-                    val existing = clip.keyframes.filterNot { it.property == property && kotlin.math.abs(it.timestampMs - clipLocalMs) < 100L }
-                    val newKf = Keyframe(timestampMs = clipLocalMs, property = property, value = value, easing = easing)
-                    clip.copy(keyframes = (existing + newKf).sortedBy { it.timestampMs })
-                } else clip
+        updateProject(coalesceKey = "keyframe:$clipId:$property") { proj ->
+            val clipLocalMs = proj.localTimeForClip(clipId, currentPos) ?: return@updateProject proj
+            proj.withUpdatedClip(clipId) { clip ->
+                val existing = clip.keyframes.filterNot {
+                    it.property == property &&
+                        kotlin.math.abs(it.timestampMs - clipLocalMs) < 100L
+                }
+                val newKf = Keyframe(
+                    timestampMs = clipLocalMs,
+                    property = property,
+                    value = value,
+                    easing = easing
+                )
+                clip.copy(keyframes = (existing + newKf).sortedBy { it.timestampMs })
             }
-            val updatedOverlayTracks = proj.overlayTracks.map { track ->
-                track.copy(clips = track.clips.map { clip ->
-                    if (clip.id == clipId) {
-                        val clipLocalMs = (currentPos - clip.startTimelineMs).coerceIn(0L, clip.durationMs)
-                        val existing = clip.keyframes.filterNot { it.property == property && kotlin.math.abs(it.timestampMs - clipLocalMs) < 100L }
-                        val newKf = Keyframe(timestampMs = clipLocalMs, property = property, value = value, easing = easing)
-                        clip.copy(keyframes = (existing + newKf).sortedBy { it.timestampMs })
-                    } else clip
-                })
-            }
-            proj.copy(clips = updatedClips, overlayTracks = updatedOverlayTracks)
         }
     }
 
     fun removeKeyframe(clipId: String, keyframeId: String) {
         updateProject { proj ->
-            val updatedClips = proj.clips.map { clip ->
-                if (clip.id == clipId) {
-                    clip.copy(keyframes = clip.keyframes.filterNot { it.id == keyframeId })
-                } else clip
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(keyframes = clip.keyframes.filterNot { it.id == keyframeId })
             }
-            val updatedOverlayTracks = proj.overlayTracks.map { track ->
-                track.copy(clips = track.clips.map { clip ->
-                    if (clip.id == clipId) {
-                        clip.copy(keyframes = clip.keyframes.filterNot { it.id == keyframeId })
-                    } else clip
-                })
-            }
-            proj.copy(clips = updatedClips, overlayTracks = updatedOverlayTracks)
         }
     }
 
+    /**
+     * Adds a PIP/overlay clip. The source duration is probed from the real
+     * media file instead of assuming four seconds, otherwise the overlay would
+     * be cut short (or stretched into black) in both preview and export.
+     */
     fun addOverlayClipFromUri(uriString: String, title: String) {
         val currentPos = _currentPositionMs.value
-        val newClip = MediaClip(
-            id = "pip_${UUID.randomUUID().toString().take(8)}",
-            title = title,
-            uriString = uriString,
-            startTimelineMs = currentPos,
-            durationMs = 4000L,
-            originalDurationMs = 4000L,
-            scale = 0.5f,
-            posX = 0.5f,
-            posY = 0.5f
-        )
-        updateProject { proj ->
-            val currentTracks = proj.overlayTracks.toMutableList()
-            if (currentTracks.isEmpty()) {
-                currentTracks.add(VideoTrack(name = "PIP Track 1", isMainTrack = false, clips = listOf(newClip)))
+        viewModelScope.launch {
+            val ctx = context
+            val probedMs = if (ctx != null) {
+                withContext(Dispatchers.IO) {
+                    MediaMetadata.durationMs(ctx, Uri.parse(uriString))
+                }
             } else {
-                val track = currentTracks.first()
-                currentTracks[0] = track.copy(clips = track.clips + newClip)
+                0L
             }
-            proj.copy(overlayTracks = currentTracks)
+            val durationMs = if (probedMs > 0L) probedMs else 4000L
+            val newClip = MediaClip(
+                id = "pip_${UUID.randomUUID().toString().take(8)}",
+                title = title,
+                uriString = uriString,
+                startTimelineMs = currentPos,
+                durationMs = durationMs,
+                originalDurationMs = durationMs,
+                scale = 0.5f,
+                posX = 0.5f,
+                posY = 0.5f
+            )
+            updateProject { proj ->
+                val currentTracks = proj.overlayTracks.toMutableList()
+                if (currentTracks.isEmpty()) {
+                    currentTracks.add(
+                        VideoTrack(
+                            name = "PIP Track 1",
+                            isMainTrack = false,
+                            clips = listOf(newClip)
+                        )
+                    )
+                } else {
+                    val track = currentTracks.first()
+                    currentTracks[0] = track.copy(clips = track.clips + newClip)
+                }
+                proj.copy(overlayTracks = currentTracks)
+            }
+            _selectedClipId.value = newClip.id
+            refreshPreviewNow()
         }
-        _selectedClipId.value = newClip.id
-        playerManager?.loadProject(_currentProject.value!!)
+    }
+
+    /** Updates the PIP transform used by the compositor and keyframe sheet. */
+    fun updateOverlayTransform(
+        clipId: String,
+        scale: Float? = null,
+        posX: Float? = null,
+        posY: Float? = null,
+        opacity: Float? = null
+    ) {
+        updateProject(coalesceKey = "pipTransform:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(
+                    scale = scale?.coerceIn(0.05f, 4f) ?: clip.scale,
+                    posX = posX?.coerceIn(0f, 1f) ?: clip.posX,
+                    posY = posY?.coerceIn(0f, 1f) ?: clip.posY,
+                    opacity = opacity?.coerceIn(0f, 1f) ?: clip.opacity
+                )
+            }
+        }
     }
 
     fun setClipBlendMode(clipId: String, mode: BlendMode) {

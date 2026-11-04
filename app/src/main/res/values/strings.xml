@@ -129,6 +129,11 @@
     <string name="export_starting">Preparing timeline...</string>
     <string name="export_encoding">Encoding MP4 (%1$s %2$s fps)...</string>
     <string name="export_background_hint">Keep editing — export in background</string>
+    <string name="export_notification_title">CatByte Export</string>
+    <string name="export_notification_preparing">Preparing export…</string>
+    <string name="export_notification_failed">Export failed: %1$s</string>
+    <string name="export_notification_tap_to_open">Export complete! Tap to open.</string>
+    <string name="export_already_running">An export is already running in the background</string>
     <string name="export_finished">Export complete!</string>
     <string name="export_failed">Export failed: %1$s</string>
     <string name="export_cancelled">Export cancelled</string>

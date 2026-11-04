@@ -1,43 +1,21 @@
 package com.example.data
 
 import android.content.Context
-import android.media.MediaCodecList
-import android.media.MediaExtractor
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import androidx.core.net.toUri
 import androidx.media3.common.C
-import androidx.media3.common.Effect
-import androidx.media3.common.MediaItem
-import androidx.media3.common.SpeedParameters
-import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.GainProcessor
 import androidx.media3.common.audio.SpeedProvider
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.effect.GlEffect
-import androidx.media3.effect.MatrixTransformation
-import androidx.media3.effect.OverlayEffect
-import androidx.media3.effect.Presentation
-import androidx.media3.effect.StaticOverlaySettings
-import androidx.media3.effect.TextureOverlay
 import androidx.media3.transformer.Composition
-import androidx.media3.transformer.EditedMediaItem
-import androidx.media3.transformer.EditedMediaItemSequence
-import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
-import com.example.data.export.ColorGradeEffect
 import com.example.data.export.CodecCapabilityChecker
-import com.example.data.export.ExportPresets
-import com.example.data.export.FilterMapper
-import com.example.data.export.OverlayRenderer
-import com.example.data.export.TimedBitmapOverlay
-import com.example.data.export.TransitionMapper
-import com.example.model.AudioClip
-import com.example.model.MediaClip
-import com.example.model.TextFontStyle
+import com.example.engine.AudioMath
+import com.example.engine.ExportPresets as EngineExportPresets
+import com.example.engine.ExportQuality
 import com.example.model.VideoProject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -51,7 +29,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.coroutines.resume
-import kotlin.math.abs
 
 /**
  * Renders a CatByte project into a real MP4 file using the Media3 Transformer.
@@ -70,7 +47,9 @@ class ExportManager(private val context: Context) {
         val outputPath: String? = null,
         val galleryUri: Uri? = null,
         val error: String? = null,
-        val isCancelled: Boolean = false
+        val isCancelled: Boolean = false,
+        /** Features that could not be rendered exactly (never silently dropped). */
+        val warnings: List<String> = emptyList()
     )
 
     data class ExportOutput(
@@ -97,7 +76,7 @@ class ExportManager(private val context: Context) {
         fps: Int,
         watermarkEnabled: Boolean = false
     ): ExportOutput? = withContext(Dispatchers.Main) {
-        val mediaClips = project.clips.filter { !it.uriString.isNullOrBlank() }
+        val mediaClips = project.allVideoClips.filter { !it.uriString.isNullOrBlank() }
         if (mediaClips.isEmpty()) {
             _progress.value = ExportProgress(error = "No video clips with media to export.")
             AppLog.error("ExportManager", "Export aborted: project has no media backed clips")
@@ -135,7 +114,7 @@ class ExportManager(private val context: Context) {
 
         // Storage precheck: estimate = bitrate x duration x 1.1, using the
         // resolved output size (never larger than what the user asked for).
-        val estimatedSize = estimateExportSize(target.width, target.height, project.totalDurationMs)
+        val estimatedSize = estimateExportSize(project, target.width, target.height, target.fps)
         val availableSpace = context.getExternalFilesDir(null)?.usableSpace ?: 0L
         if (availableSpace < estimatedSize) {
             _progress.value = ExportProgress(
@@ -155,13 +134,35 @@ class ExportManager(private val context: Context) {
         val outputDir = File(context.getExternalFilesDir(null), "exports").apply { mkdirs() }
         val outputFile = File(outputDir, "CatByte_${project.id}_${System.currentTimeMillis()}.mp4")
 
-        val composition = try {
-            buildComposition(project, mediaClips, fps, outWidth, outHeight, watermarkEnabled)
+        // Build the exact same render graph the preview uses. A failure here is
+        // surfaced to the user instead of silently exporting a plain, effects-
+        // free video.
+        val built = try {
+            ProjectCompositionFactory.build(
+                project = project,
+                width = outWidth,
+                height = outHeight,
+                fps = target.fps,
+                watermarkEnabled = watermarkEnabled
+            )
         } catch (error: Throwable) {
-            AppLog.error("ExportManager", "Failed to build composition, falling back to plain export", error)
-            buildPlainComposition(mediaClips)
+            AppLog.error("ExportManager", "Failed to build the project render graph", error)
+            _progress.value = ExportProgress(
+                error = "Could not build the render graph: ${error.message ?: error.javaClass.simpleName}"
+            )
+            return@withContext null
+        }
+        built.warnings.forEach { warning ->
+            AppLog.warn("ExportManager", warning)
+        }
+        if (built.warnings.isNotEmpty()) {
+            _progress.value = _progress.value.copy(
+                warnings = built.warnings,
+                stage = "Rendering with ${built.warnings.size} compatibility note(s)..."
+            )
         }
 
+        val composition = built.composition
         var run = runTransformer(composition, outputFile, target.mime)
         // If a pinned codec was rejected by the encoder, retry once with the
         // default codec path instead of failing the whole export.
@@ -186,11 +187,12 @@ class ExportManager(private val context: Context) {
         // Validate exported MP4 before reporting success
         val validation = validateExport(outputFile, project)
         if (!validation.isValid) {
-            _progress.value = ExportProgress(
+            _progress.value = _progress.value.copy(
                 progress = 0f,
                 stage = "Export validation failed",
                 error = validation.error ?: "Export validation failed",
-                isCancelled = false
+                isCancelled = false,
+                warnings = built.warnings
             )
             AppLog.error("ExportManager", "Export validation failed: ${validation.error}")
             return@withContext null
@@ -201,7 +203,8 @@ class ExportManager(private val context: Context) {
             stage = "Export complete!",
             isDone = true,
             outputPath = outputFile.absolutePath,
-            galleryUri = galleryUri
+            galleryUri = galleryUri,
+            warnings = built.warnings
         )
         AppLog.info(
             "ExportManager",
@@ -286,17 +289,29 @@ class ExportManager(private val context: Context) {
      * Estimates export file size: bitrate × duration × 1.1 safety margin.
      * Bitrate is chosen from the real output size (post capability downgrade).
      */
-    private fun estimateExportSize(width: Int, height: Int, durationMs: Long): Long {
-        val bitrateMbps = when {
-            width >= 3840 -> 45.0   // 4K
-            width >= 1920 -> 16.0   // 1080p
-            width >= 1280 -> 8.0    // 720p
-            else -> 5.0             // 480p
+    /**
+     * Estimates export size from the same bits-per-pixel ladder the export sheet
+     * uses, so the storage pre-check and the UI estimate cannot disagree.
+     */
+    private fun estimateExportSize(project: VideoProject, width: Int, height: Int, fps: Int): Long {
+        val safeFps = fps.coerceAtLeast(24)
+        val preset = if (project.aspectRatio.ratioWidth <= project.aspectRatio.ratioHeight) {
+            EngineExportPresets.portrait(
+                width = width,
+                height = height,
+                quality = ExportQuality.HIGH,
+                fps = safeFps
+            )
+        } else {
+            EngineExportPresets.landscape(
+                width = width,
+                height = height,
+                quality = ExportQuality.HIGH,
+                fps = safeFps
+            )
         }
-        val bitrateBps = bitrateMbps * 1_000_000L
-        val durationSeconds = durationMs / 1000.0
-        val estimatedBytes = (bitrateBps * durationSeconds * 1.1).toLong()
-        return estimatedBytes
+        // 1.1 safety margin covers container overhead and encoder variance.
+        return (EngineExportPresets.estimateBytes(preset, project.totalDurationMs) * 1.1).toLong()
     }
 
     /**
@@ -314,234 +329,6 @@ class ExportManager(private val context: Context) {
         return failure.errorCode == ExportException.ERROR_CODE_ENCODER_INIT_FAILED ||
             failure.errorCode == ExportException.ERROR_CODE_ENCODING_FAILED ||
             failure.errorCode == ExportException.ERROR_CODE_ENCODING_FORMAT_UNSUPPORTED
-    }
-
-    // ---------------------------------------------------------------------
-    // Composition building
-    // ---------------------------------------------------------------------
-
-    private fun buildComposition(
-        project: VideoProject,
-        mediaClips: List<MediaClip>,
-        fps: Int,
-        outWidth: Int,
-        outHeight: Int,
-        watermarkEnabled: Boolean
-    ): Composition {
-        val videoItems = mutableListOf<EditedMediaItem>()
-        var timelineUs = 0L
-        mediaClips.forEach { clip ->
-            val durationUs = effectiveDurationUs(clip)
-            val item = buildVideoItem(clip, fps, timelineUs, timelineUs + durationUs)
-            videoItems += item
-            timelineUs += durationUs
-        }
-
-        val sequences = mutableListOf<EditedMediaItemSequence>()
-        sequences += EditedMediaItemSequence.Builder(videoItems).build()
-
-        project.audioTracks.filter { !it.uriString.isNullOrBlank() }.forEach { audio ->
-            sequences += buildAudioSequence(audio)
-        }
-
-        val compositionEffects =
-            buildCompositionEffects(project, outWidth, outHeight, watermarkEnabled, timelineUs)
-
-        return Composition.Builder(sequences)
-            .setEffects(Effects(emptyList(), compositionEffects))
-            .build()
-    }
-
-    /** Fallback composition without any effects - used when effect creation fails. */
-    private fun buildPlainComposition(mediaClips: List<MediaClip>): Composition {
-        val items = mediaClips.map { clip ->
-            EditedMediaItem.Builder(MediaItem.fromUri(clip.uriString!!.toUri())).build()
-        }
-        return Composition.Builder(EditedMediaItemSequence.Builder(items).build()).build()
-    }
-
-    private fun effectiveDurationUs(clip: MediaClip): Long {
-        val sourceLength = sourceLengthMs(clip)
-        val speed = clip.speed.coerceAtLeast(0.1f)
-        return (sourceLength / speed * 1000L).toLong().coerceAtLeast(1000L)
-    }
-
-    private fun sourceLengthMs(clip: MediaClip): Long {
-        val start = clip.trimStartMs.coerceAtLeast(0L)
-        val end = if (clip.trimEndMs > clip.trimStartMs) clip.trimEndMs else clip.originalDurationMs
-        val length = (end - start).coerceAtLeast(300L)
-        return length.coerceAtMost(clip.originalDurationMs.coerceAtLeast(length))
-    }
-
-    private fun buildVideoItem(
-        clip: MediaClip,
-        fps: Int,
-        startUs: Long,
-        endUs: Long
-    ): EditedMediaItem {
-        val clipping = MediaItem.ClippingConfiguration.Builder()
-            .setStartPositionMs(clip.trimStartMs.coerceAtLeast(0L))
-            .apply {
-                if (clip.trimEndMs > clip.trimStartMs) {
-                    setEndPositionMs(clip.trimEndMs)
-                }
-            }
-            .build()
-
-        val mediaItem = MediaItem.Builder()
-            .setUri(clip.uriString!!.toUri())
-            .setClippingConfiguration(clipping)
-            .build()
-
-        val videoEffects = mutableListOf<Effect>()
-        videoEffects += buildColorEffect(clip)
-        videoEffects += buildTransformEffect(clip)
-        videoEffects += TransitionMapper.effectsFor(
-            transition = clip.transition,
-            clipStartUs = startUs,
-            clipEndUs = endUs,
-            transitionDurationMs = clip.transitionDurationMs
-        )
-
-        val audioProcessors = mutableListOf<AudioProcessor>()
-        if (clip.volume > 0f && clip.volume < 1f) {
-            audioProcessors += GainProcessor(ConstantGainProvider(clip.volume, 0L, 0L, 0L))
-        }
-
-        val builder = EditedMediaItem.Builder(mediaItem)
-            .setFrameRate(fps.coerceIn(15, 60))
-            .setEffects(Effects(audioProcessors, videoEffects))
-
-        if (abs(clip.speed - 1f) > 0.001f && clip.speed > 0.01f) {
-            builder.setSpeed(SpeedParameters(ConstantSpeedProvider(clip.speed), true))
-        }
-        return builder.build()
-    }
-
-    private fun buildColorEffect(clip: MediaClip): ColorGradeEffect {
-        val grade = FilterMapper.gradeFor(clip.filter)
-        val vignetteScale = 1f - clip.vignette.coerceIn(0f, 1f) * 0.28f
-        val contrast = (clip.contrast - 1f).coerceIn(-1f, 1f)
-        val saturation = (clip.saturation * grade.saturation).coerceIn(0f, 2f)
-        return ColorGradeEffect(
-            brightness = clip.brightness + grade.brightness,
-            contrast = contrast + grade.contrast,
-            saturation = saturation,
-            redGain = grade.redGain * vignetteScale,
-            greenGain = grade.greenGain * vignetteScale,
-            blueGain = grade.blueGain * vignetteScale
-        )
-    }
-
-    /** Rotation / mirroring / scaling of a clip. */
-    private fun buildTransformEffect(clip: MediaClip): MatrixTransformation =
-        object : MatrixTransformation {
-            override fun getMatrix(presentationTimeUs: Long): android.graphics.Matrix {
-                val matrix = android.graphics.Matrix()
-                val scaleX = if (clip.isMirrored) -clip.scale else clip.scale
-                matrix.setScale(scaleX, clip.scale, 0.5f, 0.5f)
-                if (clip.rotation != 0f) {
-                    matrix.postRotate(clip.rotation, 0.5f, 0.5f)
-                }
-                return matrix
-            }
-
-            override fun isNoOp(inputWidth: Int, inputHeight: Int): Boolean =
-                clip.rotation == 0f && !clip.isMirrored && clip.scale == 1f
-        }
-
-    private fun buildAudioSequence(audio: AudioClip): EditedMediaItemSequence {
-        val mediaItem = MediaItem.fromUri(audio.uriString!!.toUri())
-        val gain = if (audio.isMuted) 0f else audio.volume.coerceIn(0f, 2f)
-        val processor = GainProcessor(
-            ConstantGainProvider(
-                gain = gain,
-                fadeInMs = audio.fadeInMs,
-                fadeOutMs = audio.fadeOutMs,
-                durationMs = audio.durationMs
-            )
-        )
-        val item = EditedMediaItem.Builder(mediaItem)
-            .setRemoveVideo(true)
-            .setEffects(Effects(listOf(processor), emptyList()))
-            .build()
-
-        val builder = EditedMediaItemSequence.Builder(emptyList<EditedMediaItem>())
-        if (audio.startTimelineMs > 0) {
-            builder.addGap(audio.startTimelineMs * 1000L)
-        }
-        builder.addItem(item)
-        return builder.build()
-    }
-
-    private fun buildCompositionEffects(
-        project: VideoProject,
-        outWidth: Int,
-        outHeight: Int,
-        watermarkEnabled: Boolean,
-        timelineUs: Long
-    ): List<Effect> {
-        val effects = mutableListOf<Effect>()
-
-        effects += Presentation.createForWidthAndHeight(
-            outWidth,
-            outHeight,
-            Presentation.LAYOUT_SCALE_TO_FIT
-        )
-
-        val overlays = mutableListOf<TextureOverlay>()
-        project.textOverlays.forEach { text ->
-            val bitmap = OverlayRenderer.renderTextLayer(
-                frameWidth = outWidth,
-                frameHeight = outHeight,
-                text = text.text,
-                color = text.color,
-                fontStyle = text.fontStyle,
-                posX = text.posX,
-                posY = text.posY,
-                scale = text.scale,
-                withShadow = text.fontStyle == TextFontStyle.NEON_GLOW
-            ) ?: return@forEach
-            overlays += TimedBitmapOverlay(
-                bitmap = bitmap,
-                startUs = text.startTimelineMs * 1000L,
-                endUs = (text.startTimelineMs + text.durationMs) * 1000L,
-                overlaySettings = StaticOverlaySettings.Builder().setAlphaScale(1f).build()
-            )
-        }
-
-        project.stickers.forEach { sticker ->
-            val bitmap = OverlayRenderer.renderStickerLayer(
-                frameWidth = outWidth,
-                frameHeight = outHeight,
-                symbol = sticker.symbol,
-                posX = sticker.posX,
-                posY = sticker.posY,
-                scale = sticker.scale
-            ) ?: return@forEach
-            overlays += TimedBitmapOverlay(
-                bitmap = bitmap,
-                startUs = sticker.startTimelineMs * 1000L,
-                endUs = (sticker.startTimelineMs + sticker.durationMs) * 1000L,
-                overlaySettings = StaticOverlaySettings.Builder().setAlphaScale(1f).build()
-            )
-        }
-
-        if (watermarkEnabled) {
-            OverlayRenderer.renderWatermarkLayer(outWidth, outHeight)?.let { bitmap ->
-                overlays += TimedBitmapOverlay(
-                    bitmap = bitmap,
-                    startUs = 0L,
-                    endUs = timelineUs.coerceAtLeast(1L),
-                    overlaySettings = StaticOverlaySettings.Builder().setAlphaScale(0.75f).build()
-                )
-            }
-        }
-
-        if (overlays.isNotEmpty()) {
-            effects += OverlayEffect(overlays)
-        }
-        return effects
     }
 
     // ---------------------------------------------------------------------
@@ -642,18 +429,15 @@ class ConstantGainProvider(
 ) : GainProcessor.GainProvider {
 
     override fun getGainFactorAtSamplePosition(presentationTimeUs: Long, sampleRate: Int): Float {
-        val timeMs = presentationTimeUs / 1000L
-        var factor = gain.coerceIn(0f, 2f)
-        if (fadeInMs > 0 && timeMs < fadeInMs) {
-            factor *= (timeMs.toFloat() / fadeInMs).coerceIn(0f, 1f)
-        }
-        if (fadeOutMs > 0 && durationMs > 0) {
-            val remaining = durationMs - timeMs
-            if (remaining < fadeOutMs) {
-                factor *= (remaining.toFloat() / fadeOutMs).coerceIn(0f, 1f)
-            }
-        }
-        return factor
+        val base = gain.coerceIn(0f, 2f)
+        if (durationMs <= 0L) return base
+        // Shared with the preview mixer (AudioMath) so fades match exactly.
+        return base * AudioMath.fadeGain(
+            positionMs = presentationTimeUs / 1000L,
+            durationMs = durationMs,
+            fadeInMs = fadeInMs,
+            fadeOutMs = fadeOutMs
+        )
     }
 
     override fun isUnityUntil(presentationTimeUs: Long, sampleRate: Int): Long = Long.MIN_VALUE

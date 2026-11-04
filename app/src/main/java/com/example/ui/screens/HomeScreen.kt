@@ -101,6 +101,15 @@ import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.pencilHatching
 import kotlinx.coroutines.delay
 
+enum class QuickTool {
+    CAPTIONS,
+    CANVAS,
+    VELOCITY,
+    AUDIO,
+    EXTRACT_AUDIO,
+    KEYFRAMES
+}
+
 @Composable
 fun HomeScreen(
     projects: List<VideoProject>,
@@ -112,6 +121,7 @@ fun HomeScreen(
     onDuplicateProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
     onRestoreProject: (VideoProject) -> Unit = {}, // NEW: undo delete
+    onQuickTool: (QuickTool) -> Unit = {},
     onOpenSettings: () -> Unit
 ) {
     val colors = PencilTheme.colors
@@ -191,7 +201,7 @@ fun HomeScreen(
                         // Quick Tools Tiles
                         item {
                             Spacer(modifier = Modifier.height(18.dp))
-                            QuickToolsRow()
+                            QuickToolsRow(onQuickTool = onQuickTool)
                         }
 
                         // Search & Filter Bar
@@ -536,26 +546,36 @@ private fun HeroNewProjectSection(
 // Quick Tools
 // ==========================================
 
+private data class QuickToolItem(
+    val icon: ImageVector,
+    val label: String,
+    val tint: Color,
+    val tool: QuickTool
+)
+
 @Composable
-private fun QuickToolsRow() {
+private fun QuickToolsRow(onQuickTool: (QuickTool) -> Unit) {
     val colors = PencilTheme.colors
+    val tools = listOf(
+        QuickToolItem(Icons.Default.Subtitles, "Captions", colors.accentYellow, QuickTool.CAPTIONS),
+        QuickToolItem(Icons.Default.AutoAwesome, "Canvas", colors.accentPink, QuickTool.CANVAS),
+        QuickToolItem(Icons.Default.Speed, "Velocity", colors.accentCyan, QuickTool.VELOCITY),
+        QuickToolItem(Icons.Default.GraphicEq, "Audio", colors.accentGreen, QuickTool.AUDIO),
+        QuickToolItem(Icons.Default.VolumeUp, "Extract", colors.accentPurple, QuickTool.EXTRACT_AUDIO),
+        QuickToolItem(Icons.Default.VideoLibrary, "Keyframes", colors.accentRed, QuickTool.KEYFRAMES)
+    )
 
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        items(listOf(
-            Triple(Icons.Default.Subtitles, "Captions", colors.accentYellow),
-            Triple(Icons.Default.AutoAwesome, "Background", colors.accentPink),
-            Triple(Icons.Default.Speed, "Velocity", colors.accentCyan),
-            Triple(Icons.Default.GraphicEq, "Audio", colors.accentGreen),
-            Triple(Icons.Default.VolumeUp, "Extract", colors.accentPurple),
-            Triple(Icons.Default.VideoLibrary, "Auto Cut", colors.accentRed)
-        )) { (icon, name, tintColor) ->
+        items(tools) { (icon, name, tintColor, tool) ->
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .width(68.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable { onQuickTool(tool) }
             ) {
                 Box(
                     modifier = Modifier

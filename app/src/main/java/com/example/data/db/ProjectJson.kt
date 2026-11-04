@@ -2,6 +2,7 @@
 
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
+import com.example.model.BezierPoint
 import com.example.model.BlendMode
 import com.example.model.ClipAnimation
 import com.example.model.EasingCurve
@@ -13,6 +14,8 @@ import com.example.model.KeyframeProperty
 import com.example.model.MaskData
 import com.example.model.MaskType
 import com.example.model.MediaClip
+import com.example.model.SpeedCurve
+import com.example.model.SpeedCurvePreset
 import com.example.model.StickerOverlay
 import com.example.model.TextAnimationType
 import com.example.model.TextFontStyle
@@ -129,6 +132,7 @@ object ProjectJson {
         put("trimStartMs", clip.trimStartMs)
         put("trimEndMs", clip.trimEndMs)
         put("speed", clip.speed.toDouble())
+        put("speedCurve", speedCurveToJson(clip.speedCurve))
         put("volume", clip.volume.toDouble())
         put("filter", clip.filter.name)
         put("transition", clip.transition.name)
@@ -178,6 +182,8 @@ object ProjectJson {
         trimStartMs = json.optLong("trimStartMs"),
         trimEndMs = json.optLong("trimEndMs"),
         speed = json.optDouble("speed", 1.0).toFloat(),
+        speedCurve = json.optJSONObject("speedCurve")?.let { speedCurveFromJson(it) }
+            ?: SpeedCurve(),
         volume = json.optDouble("volume", 1.0).toFloat(),
         filter = parseEnum(json.optString("filter"), VideoFilter.NONE),
         transition = parseEnum(json.optString("transition"), TransitionType.NONE),
@@ -207,6 +213,40 @@ object ProjectJson {
         opacity = json.optDouble("opacity", 1.0).toFloat()
     )
 
+    private fun speedCurveToJson(curve: SpeedCurve): JSONObject = JSONObject().apply {
+        put("preset", curve.preset.name)
+        put(
+            "points",
+            JSONArray().also { array ->
+                curve.points.forEach { point ->
+                    array.put(
+                        JSONObject().apply {
+                            put("x", point.x.toDouble().coerceIn(0.0, 1.0))
+                            put("speedMultiplier", point.speedMultiplier.toDouble())
+                        }
+                    )
+                }
+            }
+        )
+    }
+
+    private fun speedCurveFromJson(json: JSONObject): SpeedCurve {
+        val points = json.optJSONArray("points").mapObjects { point ->
+            BezierPoint(
+                x = point.optDouble("x", 0.0).toFloat().coerceIn(0f, 1f),
+                speedMultiplier = point.optDouble("speedMultiplier", 1.0)
+                    .toFloat()
+                    .coerceIn(0.05f, 32f)
+            )
+        }.sortedBy { it.x }
+        return SpeedCurve(
+            preset = parseEnum(json.optString("preset"), SpeedCurvePreset.STANDARD),
+            points = points.ifEmpty {
+                listOf(BezierPoint(0f, 1f), BezierPoint(1f, 1f))
+            }
+        )
+    }
+
     // -----------------------------------------------------------------
     // Audio / text / stickers / effects
     // -----------------------------------------------------------------
@@ -218,6 +258,9 @@ object ProjectJson {
         put("uriString", audio.uriString ?: JSONObject.NULL)
         put("startTimelineMs", audio.startTimelineMs)
         put("durationMs", audio.durationMs)
+        put("trimStartMs", audio.trimStartMs)
+        put("trimEndMs", audio.trimEndMs)
+        put("speed", audio.speed.toDouble())
         put("volume", audio.volume.toDouble())
         put("isVoiceover", audio.isVoiceover)
         put("isMuted", audio.isMuted)
@@ -233,6 +276,9 @@ object ProjectJson {
         uriString = json.optStringOrNull("uriString"),
         startTimelineMs = json.optLong("startTimelineMs"),
         durationMs = json.optLong("durationMs", 6000L),
+        trimStartMs = json.optLong("trimStartMs"),
+        trimEndMs = json.optLong("trimEndMs"),
+        speed = json.optDouble("speed", 1.0).toFloat().coerceIn(0.1f, 16f),
         volume = json.optDouble("volume", 1.0).toFloat(),
         isVoiceover = json.optBoolean("isVoiceover", false),
         isMuted = json.optBoolean("isMuted", false),
