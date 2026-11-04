@@ -78,7 +78,11 @@ class ExportForegroundService : Service() {
 
         // Start foreground before any heavy work, with the Android-version
         // correct foreground service type (see startForegroundTyped).
-        val notification = buildNotificationBuilder(0, "Preparing export...", false).build()
+        val notification = buildNotificationBuilder(
+            0,
+            getString(R.string.export_notification_preparing),
+            false
+        ).build()
         startForegroundTyped(notification)
 
         exportJob = scope.launch {
@@ -110,14 +114,23 @@ class ExportForegroundService : Service() {
                 progressJob?.cancel()
 
                 if (result != null) {
-                    val builder = buildNotificationBuilder(100, "Export complete! Tap to open.", true)
+                    val builder = buildNotificationBuilder(
+                        100,
+                        getString(R.string.export_notification_tap_to_open),
+                        true
+                    )
                         .setContentIntent(createOpenIntent(result.file))
                         .setAutoCancel(true)
                     val finalNotif = builder.build()
                     notificationManager?.notify(NOTIFICATION_ID, finalNotif)
                     stopForeground(STOP_FOREGROUND_REMOVE)
                 } else {
-                    val builder = buildNotificationBuilder(0, "Export failed: ${exportManager?.progress?.value?.error ?: "Unknown error"}", true)
+                    val errorMsg = exportManager?.progress?.value?.error ?: "Unknown error"
+                    val builder = buildNotificationBuilder(
+                        0,
+                        getString(R.string.export_notification_failed, errorMsg),
+                        true
+                    )
                         .setAutoCancel(true)
                     val errorNotif = builder.build()
                     notificationManager?.notify(NOTIFICATION_ID, errorNotif)
@@ -125,7 +138,11 @@ class ExportForegroundService : Service() {
                 }
             } catch (e: Throwable) {
                 AppLog.error("ExportForegroundService", "Background export failed", e)
-                val builder = buildNotificationBuilder(0, "Export failed: ${e.message}", true)
+                val builder = buildNotificationBuilder(
+                    0,
+                    getString(R.string.export_notification_failed, e.message ?: "Unknown error"),
+                    true
+                )
                     .setAutoCancel(true)
                 val errorNotif = builder.build()
                 notificationManager?.notify(NOTIFICATION_ID, errorNotif)
@@ -171,7 +188,11 @@ class ExportForegroundService : Service() {
         exportJob?.cancel()
         progressJob?.cancel()
         exportManager?.cancel()
-        val builder = buildNotificationBuilder(0, "Export cancelled", true)
+        val builder = buildNotificationBuilder(
+            0,
+            getString(R.string.export_cancelled),
+            true
+        )
             .setAutoCancel(true)
         val errorNotif = builder.build()
         notificationManager?.notify(NOTIFICATION_ID, errorNotif)
@@ -182,7 +203,7 @@ class ExportForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "CatByte Export",
+                getString(R.string.export_notification_title),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Shows video export progress"
@@ -201,7 +222,7 @@ class ExportForegroundService : Service() {
     ): NotificationCompat.Builder {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_export)
-            .setContentTitle("CatByte Export")
+            .setContentTitle(getString(R.string.export_notification_title))
             .setContentText(text)
             .setProgress(100, progress, progress == 0)
             .setOngoing(!isComplete)

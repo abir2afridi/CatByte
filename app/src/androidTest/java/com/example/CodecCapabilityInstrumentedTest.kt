@@ -22,7 +22,7 @@ import org.junit.runner.RunWith
 class CodecCapabilityInstrumentedTest {
 
     @Test
-    fun `device reports at least one h264 encoder`() {
+    fun deviceReportsAtLeastOneH264Encoder() {
         val codecs = CodecCapabilityChecker.querySupportedCodecs(1920, 1080, 30)
         val mimes = codecs.map { it.mime }
         assertTrue(
@@ -32,7 +32,7 @@ class CodecCapabilityInstrumentedTest {
     }
 
     @Test
-    fun `hevc wins over avc when both are supported`() {
+    fun hevcWinsOverAvcWhenBothAreSupported() {
         val codecs = CodecCapabilityChecker.querySupportedCodecs(1920, 1080, 30)
         if (codecs.none { it.mime == MediaFormat.MIMETYPE_VIDEO_HEVC }) return // skip silently
         assertEquals(
@@ -42,7 +42,7 @@ class CodecCapabilityInstrumentedTest {
     }
 
     @Test
-    fun `resolve never downgrades without need`() {
+    fun resolveNeverDowngradesWithoutNeed() {
         val target = CodecCapabilityChecker.resolve(
             com.example.model.AspectRatioType.RATIO_16_9,
             "1080P",
@@ -55,7 +55,7 @@ class CodecCapabilityInstrumentedTest {
     }
 
     @Test
-    fun `small sizes always resolve to a codec`() {
+    fun smallSizesAlwaysResolveToACodec() {
         val target = CodecCapabilityChecker.resolve(
             com.example.model.AspectRatioType.RATIO_9_16,
             "480P",
@@ -68,7 +68,7 @@ class CodecCapabilityInstrumentedTest {
     }
 
     @Test
-    fun `frame rate downgrade ladder fires at extreme fps`() {
+    fun frameRateDowngradeLadderFiresAtExtremeFps() {
         // A never-marketable "600 fps" must not fail: the checker falls down to 30.
         val target = CodecCapabilityChecker.resolve(
             com.example.model.AspectRatioType.RATIO_1_1,

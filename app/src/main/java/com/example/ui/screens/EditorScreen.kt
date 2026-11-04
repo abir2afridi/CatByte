@@ -1,9 +1,13 @@
 package com.example.ui.screens
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.widget.Toast
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -12,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,6 +66,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,8 +75,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -79,6 +95,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.R
+import com.example.engine.Shortcuts
 import com.example.model.VideoProject
 import com.example.ui.components.AdjustmentsSheet
 import com.example.ui.components.AudioSheet
@@ -109,6 +126,7 @@ fun EditorScreen(
     onOpenSettings: () -> Unit
 ) {
     val colors = PencilTheme.colors
+    val context = androidx.compose.ui.platform.LocalContext.current
     val project by viewModel.currentProject.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val currentPositionMs by viewModel.currentPositionMs.collectAsState()
@@ -146,6 +164,37 @@ fun EditorScreen(
         viewModel.launchImportUris(uris)
     }
 
+    // Subtitle import picker (SRT / VTT)
+    val importCaptionsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val raw = readCaptionFile(context, uri)
+        if (raw == null) {
+            Toast.makeText(context, "Could not read the file (max 2 MB)", Toast.LENGTH_LONG).show()
+        } else {
+            val result = viewModel.importSubtitles(raw)
+            if (result.imported == 0) {
+                Toast.makeText(
+                    context,
+                    result.issues.firstOrNull() ?: "No valid timecodes found",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                val note = when {
+                    result.issues.isEmpty() -> ""
+                    result.issues.size == 1 -> " — ${result.issues.first()}"
+                    else -> " — ${result.issues.size} notes (overlapping cues?)"
+                }
+                Toast.makeText(
+                    context,
+                    "Imported ${result.imported} caption${if (result.imported == 1) "" else "s"}$note",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
     // Media Picker for adding Overlay PIP clips
     val addOverlayLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -157,6 +206,7 @@ fun EditorScreen(
 
     val currentClip = project?.allVideoClips?.find { it.id == selectedClipId }
     val currentText = project?.textOverlays?.find { it.id == selectedTextId }
+    val captionExportCount = project?.textOverlays?.count { it.text.isNotBlank() } ?: 0
 
     if (project == null) {
         Box(
@@ -168,12 +218,45 @@ fun EditorScreen(
         return
     }
 
+    // Tablets, Chromebooks and DeX: the editor takes focus on open so the
+    // Shortcuts table works without tapping the canvas first.
+    val shortcutFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        runCatching { shortcutFocus.requestFocus() }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
             .statusBarsPadding()
             .navigationBarsPadding()
+            .focusRequester(shortcutFocus)
+            .focusable()
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                val command = Shortcuts.resolve(
+                    key = event.key.toEditorKey(),
+                    ctrl = event.isCtrlPressed,
+                    shift = event.isShiftPressed,
+                    alt = event.isAltPressed,
+                ) ?: return@onPreviewKeyEvent false
+                when (command) {
+                    Shortcuts.Command.PLAY_PAUSE -> viewModel.togglePlayback()
+                    Shortcuts.Command.SPLIT -> viewModel.splitClipAtPlayhead()
+                    Shortcuts.Command.DELETE -> viewModel.deleteSelectedClip()
+                    Shortcuts.Command.UNDO -> viewModel.undo()
+                    Shortcuts.Command.REDO -> viewModel.redo()
+                    Shortcuts.Command.ZOOM_IN -> viewModel.setTimelineZoom(timelineZoom + 0.25f)
+                    Shortcuts.Command.ZOOM_OUT -> viewModel.setTimelineZoom(timelineZoom - 0.25f)
+                    Shortcuts.Command.PREV_FRAME ->
+                        viewModel.seekTo((currentPositionMs - FRAME_STEP_MS).coerceAtLeast(0L))
+                    Shortcuts.Command.NEXT_FRAME -> viewModel.seekTo(currentPositionMs + FRAME_STEP_MS)
+                    // No mute toggle exists in the editor yet, so let the key pass.
+                    Shortcuts.Command.TOGGLE_MUTE -> return@onPreviewKeyEvent false
+                }
+                true
+            }
     ) {
         // 1. Top Bar
         EditorTopBar(
@@ -189,7 +272,6 @@ fun EditorScreen(
         )
 
         // 2. Video Preview Canvas
-        val context = androidx.compose.ui.platform.LocalContext.current
         val playerManager = androidx.compose.runtime.remember(context) {
             (context.applicationContext as? com.example.CatByteApplication)
                 ?.container?.playerManager
@@ -303,6 +385,7 @@ fun EditorScreen(
                     activeTransitionClipId = clipId
                     viewModel.setActiveSheet(ActiveToolSheet.TRANSITIONS_PICKER)
                 },
+                onMoveClip = { from, to -> viewModel.moveClip(from, to) },
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -370,6 +453,17 @@ fun EditorScreen(
                             viewModel.deleteSelectedText()
                             viewModel.setActiveSheet(ActiveToolSheet.NONE)
                         },
+                        onImportCaptions = { importCaptionsLauncher.launch(arrayOf("*/*")) },
+                        onExportCaptions = {
+                            val content = viewModel.exportSubtitles(toVtt = false)
+                            if (content == null) {
+                                Toast.makeText(context, "No text overlays to export yet", Toast.LENGTH_LONG).show()
+                            } else {
+                                shareSubtitleExport(context, project!!.id, content)
+                            }
+                        },
+                        captionExportCount = captionExportCount,
+                        onAutoCaptions = { viewModel.addAutoCaptions() },
                         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
                     )
                 }
@@ -433,7 +527,11 @@ fun EditorScreen(
                         defaultResolution = project?.resolution ?: "1080P",
                         defaultFps = project?.fps ?: 30,
                         watermarkEnabled = watermarkEnabled,
-                        onStartExport = { res, fps, wm -> viewModel.startExport(res, fps) },
+                        currentAspectRatio = project?.aspectRatio ?: com.example.model.AspectRatioType.RATIO_16_9,
+                        projectLengthMs = project?.totalDurationMs ?: 60_000L,
+                        onSelectAspectRatio = { viewModel.setAspectRatio(it) },
+                        onToggleWatermark = { viewModel.toggleWatermark(it) },
+                        onStartExport = { res, fps, _ -> viewModel.startExport(res, fps) },
                         onCancelExport = { viewModel.cancelExport() },
                         onDismiss = { viewModel.dismissExport() },
                         onShareExport = { platform -> viewModel.shareExportMessage(platform) },
@@ -683,10 +781,11 @@ private fun EditorTopBar(
                 )
             }
 
-            val exportContentColor = if (colors.isLight) colors.surface else Color.Black
+            val exportBgColor = if (!colors.isPencilSketch) colors.accentCyan else colors.border
+            val exportContentColor = if (!colors.isPencilSketch) Color.Black else (if (colors.isLight) colors.surface else Color.Black)
             Button(
                 onClick = onExport,
-                colors = ButtonDefaults.buttonColors(containerColor = colors.border),
+                colors = ButtonDefaults.buttonColors(containerColor = exportBgColor),
                 shape = RoundedCornerShape(18.dp),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                 modifier = Modifier
@@ -947,4 +1046,63 @@ private fun BottomActionItem(
             fontWeight = FontWeight.SemiBold
         )
     }
+}
+/** Reads an SRT/VTT file into a string, or null when unreadable or too large (max 2 MB). */
+/** One frame at 30 fps, the step the arrow keys use. */
+private const val FRAME_STEP_MS = 33L
+
+/** Compose key codes -> the engine's platform-neutral shortcut keys. */
+private fun Key.toEditorKey(): Shortcuts.Key = when (this) {
+    Key.Spacebar -> Shortcuts.Key.SPACE
+    Key.S -> Shortcuts.Key.S
+    Key.Delete -> Shortcuts.Key.DELETE
+    Key.Backspace -> Shortcuts.Key.BACKSPACE
+    Key.Z -> Shortcuts.Key.Z
+    Key.Y -> Shortcuts.Key.Y
+    Key.Plus, Key.Equals -> Shortcuts.Key.PLUS
+    Key.Minus -> Shortcuts.Key.MINUS
+    Key.DirectionLeft -> Shortcuts.Key.LEFT
+    Key.DirectionRight -> Shortcuts.Key.RIGHT
+    Key.M -> Shortcuts.Key.M
+    Key.Escape -> Shortcuts.Key.ESCAPE
+    else -> Shortcuts.Key.UNKNOWN
+}
+
+private fun readCaptionFile(context: android.content.Context, uri: Uri): String? {
+    val maxBytes = 2 * 1024 * 1024
+    val buffer = ByteArray(maxBytes + 1)
+    var offset = 0
+    val stream = context.contentResolver.openInputStream(uri) ?: return null
+    stream.use { input ->
+        while (offset < buffer.size) {
+            val read = input.read(buffer, offset, buffer.size - offset)
+            if (read <= 0) break
+            offset += read
+        }
+    }
+    if (offset > maxBytes) return null
+    return String(buffer, 0, offset, Charsets.UTF_8)
+}
+
+/** Writes the SRT export into the cache and opens a share sheet for it. */
+private fun shareSubtitleExport(context: android.content.Context, projectId: String, content: String) {
+    val file = File(context.cacheDir, "CatByte_${projectId}_${System.currentTimeMillis()}.srt")
+    val written = runCatching { file.writeText(content, Charsets.UTF_8) }.isSuccess
+    if (!written) {
+        Toast.makeText(context, "Could not write the SRT file", Toast.LENGTH_LONG).show()
+        return
+    }
+    val uri = runCatching {
+        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    }.getOrElse {
+        Toast.makeText(context, "Could not share the SRT file", Toast.LENGTH_LONG).show()
+        return
+    }
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "application/x-subrip"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    runCatching { context.startActivity(Intent.createChooser(intent, "Export subtitles")) }
+        .onFailure { Toast.makeText(context, "No app can handle .srt files", Toast.LENGTH_LONG).show() }
 }

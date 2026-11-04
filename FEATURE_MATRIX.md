@@ -33,14 +33,14 @@
 | Centered/draggable playhead | 🔴 NOT STARTED | Plan requires fixed center playhead (CapCut-style) |
 | Pinch zoom | 🟢 VERIFIED | Works |
 | Frame-accurate seek | 🟡 IMPLEMENTED-NOT VERIFIED | ExoPlayer seek, frame accuracy not verified |
-| Magnetic main track | 🔴 NOT STARTED | |
+| Magnetic main track | 🟡 PARTIAL | Long-press drag reorders the main track; free magnetic insertion pending |
 | Free overlay tracks | 🟡 IMPLEMENTED-NOT VERIFIED | Overlay tracks exist but not "free" |
 | Snapping (playhead, clip edges, markers, beats) | 🔴 NOT STARTED | |
 | Trim handles | 🟢 VERIFIED | Drag edges to trim |
 | Split | 🟢 VERIFIED | Works |
 | Delete | 🟢 VERIFIED | Works |
 | Duplicate | 🟢 VERIFIED | Works |
-| Reorder | 🟡 IMPLEMENTED-NOT VERIFIED | Drag-reorder exists |
+| Reorder | 🟡 IMPLEMENTED-NOT VERIFIED | Long-press + drag; drop reorders the main track |
 | Ripple delete | 🔴 NOT STARTED | |
 | Multi-select | 🔴 NOT STARTED | |
 | Track mute/hide/lock | 🟢 VERIFIED | Works |
@@ -133,7 +133,7 @@
 | Adjustment layers and effect clips | 🔴 NOT STARTED | |
 | Effects library (≥30 original GLSL effects) | 🔴 NOT STARTED | Only 6 EffectType enums, no GLSL |
 | Text templates, animated captions (word-by-word, karaoke) | 🔴 NOT STARTED | |
-| SRT/VTT import & export, burned-in captions | 🔴 NOT STARTED | |
+| SRT/VTT import & export, burned-in captions | 🟡 PARTIAL | Import/export wired (.srt/.vtt → text overlays, SRT share sheet); burned in shared overlay |
 | Audio: noise reduction (RNNoise) | 🔴 NOT STARTED | Check license |
 | Audio: voice effects (pitch/formant/robot/echo/reverb) | 🔴 NOT STARTED | |
 | Audio: beat detection + beat markers | 🔴 NOT STARTED | |

@@ -15,57 +15,6 @@ import com.example.model.VideoProject
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
-/**
- * Canvas maths for the render graph.
- *
- * The project stores a resolution *label* ("1080P") plus an aspect ratio. Both
- * preview and export derive their surface size here so they cannot disagree.
- */
-object CanvasMath {
-
-    /** Short side of the output, in pixels. */
-    fun shortSidePx(resolution: String): Int {
-        val cleaned = resolution.uppercase().replace("P", "").replace(" ", "").trim()
-        return when (cleaned) {
-            "480", "480I" -> 480
-            "720" -> 720
-            "1080" -> 1080
-            "1440", "2K" -> 1440
-            "2160", "4K" -> 2160
-            "4320", "8K" -> 4320
-            else -> 1080
-        }
-    }
-
-    /** Even width/height for the given aspect ratio; codecs require even sides. */
-    fun canvasSize(aspect: AspectRatioType, resolution: String): Pair<Int, Int> {
-        val short = shortSidePx(resolution)
-        val ratioWidth = aspect.ratioWidth
-        val ratioHeight = aspect.ratioHeight
-        val long = (short.toDouble() * maxOf(ratioWidth, ratioHeight) / minOf(ratioWidth, ratioHeight))
-            .roundToInt()
-        val width: Int
-        val height: Int
-        when {
-            ratioWidth > ratioHeight -> {
-                width = long
-                height = short
-            }
-            ratioWidth < ratioHeight -> {
-                width = short
-                height = long
-            }
-            else -> {
-                width = short
-                height = short
-            }
-        }
-        return even(width) to even(height)
-    }
-
-    private fun even(value: Int): Int = if (value % 2 == 0) value else value + 1
-}
-
 /** One clip as the compositor sees it: no editor state, only render data. */
 data class LayerSpec(
     val clipId: String,
@@ -80,7 +29,7 @@ data class LayerSpec(
     val opacity: Float,
     val blend: BlendMode,
     val transform: TransformSpec,
-    val mask: MaskSpec?,
+    val mask: GraphMaskSpec?,
     val effects: List<EffectSpec>,
     val transitionIn: TransitionSpec?
 ) {
@@ -95,7 +44,9 @@ data class TransformSpec(
     val mirrored: Boolean = false
 )
 
-data class MaskSpec(
+typealias RenderGraphMask = com.example.engine.GraphMaskSpec
+
+data class GraphMaskSpec(
     val kind: MaskType,
     val posX: Float,
     val posY: Float,
@@ -272,7 +223,7 @@ object RenderGraphBuilder {
                 rotationDeg = clip.rotation,
                 mirrored = clip.isMirrored
             ),
-            mask = if (clip.mask.type == MaskType.NONE) null else MaskSpec(
+            mask = if (clip.mask.type == MaskType.NONE) null else GraphMaskSpec(
                 kind = clip.mask.type,
                 posX = clip.mask.posX,
                 posY = clip.mask.posY,

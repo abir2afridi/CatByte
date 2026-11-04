@@ -7,7 +7,5 @@
         <item name="android:windowSplashScreenAnimationDuration">200</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/splash_icon_background</item>
         <item name="android:windowSplashScreenBrandingImage">@drawable/img_app_icon</item>
-        <!-- Post-splash theme -->
-        <item name="android:windowSplashScreenBehavior">icon_preferred</item>
     </style>
 </resources>

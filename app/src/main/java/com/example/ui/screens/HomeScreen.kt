@@ -429,8 +429,12 @@ private fun HeroNewProjectSection(
                 .weight(1.8f)
                 .height(135.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(colors.surface)
-                .border(1.5.dp, colors.border, RoundedCornerShape(16.dp))
+                .background(if (!colors.isPencilSketch) colors.surfaceVariant else colors.surface)
+                .border(
+                    width = 1.5.dp,
+                    color = if (!colors.isPencilSketch) colors.accentCyan.copy(alpha = 0.5f) else colors.border,
+                    shape = RoundedCornerShape(16.dp)
+                )
                 .clickable { onNewProjectClick() }
                 .testTag("hero_new_project_button")
                 .padding(14.dp)
@@ -448,14 +452,14 @@ private fun HeroNewProjectSection(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(CircleShape)
-                            .background(colors.surfaceElevated)
-                            .border(1.6.dp, colors.border, CircleShape),
+                            .background(if (!colors.isPencilSketch) colors.accentCyan else colors.surfaceElevated)
+                            .border(1.6.dp, if (!colors.isPencilSketch) colors.accentCyan else colors.border, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "New Project",
-                            tint = colors.textPrimary,
+                            tint = if (!colors.isPencilSketch) Color.Black else colors.textPrimary,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -463,7 +467,7 @@ private fun HeroNewProjectSection(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(colors.surfaceVariant)
+                            .background(colors.surfaceElevated)
                             .border(1.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
                             .padding(horizontal = 7.dp, vertical = 3.dp)
                     ) {
@@ -499,7 +503,7 @@ private fun HeroNewProjectSection(
                 .height(135.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(colors.surfaceVariant)
-                .border(1.5.dp, colors.border, RoundedCornerShape(16.dp))
+                .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(16.dp))
                 .clickable { 
                     Toast.makeText(context, context.getString(R.string.camera_prompter_not_implemented), Toast.LENGTH_SHORT).show()
                 }
@@ -515,7 +519,7 @@ private fun HeroNewProjectSection(
                         .size(42.dp)
                         .clip(CircleShape)
                         .background(colors.surfaceElevated)
-                        .border(1.3.dp, colors.border, CircleShape),
+                        .border(1.3.dp, colors.borderSubtle, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(

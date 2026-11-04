@@ -57,14 +57,13 @@ object CodecCapabilityChecker {
     fun querySupportedCodecs(width: Int, height: Int, fps: Int): List<SupportedCodec> {
         if (width <= 0 || height <= 0 || fps <= 0) return emptyList()
         val found = mutableListOf<SupportedCodec>()
-        val seenMimes = mutableSetOf<String>()
         val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
         // codecInfos is null on the JVM unit test environment (android stubs
         // return defaults); treat that as "no encoders" instead of crashing.
         val codecInfos = runCatching { codecList.codecInfos }.getOrNull() ?: return emptyList()
-        for (info in codecInfos) {
-            for (mime in codecLadder) {
-                if (mime in seenMimes) continue
+        for (mime in codecLadder) {
+            var bestCodec: SupportedCodec? = null
+            for (info in codecInfos) {
                 val codec = runCatching { checkEncoder(info, mime, width, height, fps) }
                     .onFailure { cause ->
                         com.example.data.AppLog.warn(
@@ -74,12 +73,17 @@ object CodecCapabilityChecker {
                     }
                     .getOrNull()
                 if (codec != null) {
-                    found += codec
-                    seenMimes += mime
+                    if (codec.isHardware) {
+                        bestCodec = codec
+                        break
+                    } else if (bestCodec == null) {
+                        bestCodec = codec
+                    }
                 }
             }
-            // One match per codec keeps the list short and ordered by the ladder.
-            if (found.size == codecLadder.size) break
+            if (bestCodec != null) {
+                found += bestCodec
+            }
         }
         return found
     }

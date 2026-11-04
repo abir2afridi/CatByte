@@ -51,6 +51,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
@@ -333,12 +334,14 @@ fun SpeedSheet(
                             .background(if (isSelected) colors.accentCyan.copy(alpha = 0.25f) else colors.surfaceElevated)
                             .pencilHatching(
                                 color = if (isSelected) colors.accentCyan.copy(alpha = 0.15f) else Color.Transparent,
-                                spacing = 5.dp
+                                spacing = 5.dp,
+                                enabled = colors.isPencilSketch
                             )
                             .sketchPencilBorder(
                                 strokeWidth = if (isSelected) 1.6.dp else 1.dp,
                                 color = if (isSelected) colors.accentCyan else colors.borderSubtle,
-                                cornerRadius = 6.dp
+                                cornerRadius = 6.dp,
+                                isPencilStyle = colors.isPencilSketch
                             )
                             .clickable {
                                 speedVal = s
@@ -734,6 +737,9 @@ fun TextEditorSheet(
     onAddOrUpdateText: (text: String, fontStyle: TextFontStyle, color: Long, anim: TextAnimationType) -> Unit,
     onDeleteText: () -> Unit,
     onAutoCaptions: (() -> Unit)? = null,
+    onImportCaptions: (() -> Unit)? = null,
+    onExportCaptions: (() -> Unit)? = null,
+    captionExportCount: Int = 0,
     onClose: () -> Unit
 ) {
     var textInput by remember { mutableStateOf(textOverlay?.text ?: "Viral TikTok Text 🔥") }
@@ -805,6 +811,46 @@ fun TextEditorSheet(
                 unfocusedContainerColor = CapCutSurfaceElevated
             )
         )
+
+        if (onImportCaptions != null || onExportCaptions != null) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (onImportCaptions != null) {
+                    Button(
+                        onClick = { onImportCaptions.invoke() },
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.accentYellow),
+                        shape = RoundedCornerShape(6.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                        modifier = Modifier.weight(1f).height(34.dp)
+                    ) {
+                        Text("Import SRT / VTT 📥", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                }
+                if (onExportCaptions != null) {
+                    OutlinedButton(
+                        onClick = { onExportCaptions.invoke() },
+                        enabled = captionExportCount > 0,
+                        shape = RoundedCornerShape(6.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (captionExportCount > 0) CapCutCyan else CapCutBorder
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                        modifier = Modifier.weight(1f).height(34.dp)
+                    ) {
+                        Text(
+                            if (captionExportCount > 0) "Export SRT ($captionExportCount)" else "Export SRT",
+                            fontSize = 11.sp,
+                            color = if (captionExportCount > 0) CapCutCyan else CapCutTextSecondary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(10.dp))
         Text("Font Style", color = CapCutTextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
@@ -1026,12 +1072,14 @@ fun FiltersSheet(
                             .background(if (isSelected) colors.accentCyan.copy(alpha = 0.22f) else colors.surfaceElevated)
                             .pencilHatching(
                                 color = if (isSelected) colors.accentCyan.copy(alpha = 0.12f) else Color.Transparent,
-                                spacing = 5.dp
+                                spacing = 5.dp,
+                                enabled = colors.isPencilSketch
                             )
                             .sketchPencilBorder(
                                 strokeWidth = if (isSelected) 1.8.dp else 1.dp,
                                 color = if (isSelected) colors.accentCyan else colors.borderSubtle,
-                                cornerRadius = 8.dp
+                                cornerRadius = 8.dp,
+                                isPencilStyle = colors.isPencilSketch
                             )
                             .clickable { onSelectFilter(filter) }
                             .padding(8.dp)
@@ -1245,12 +1293,14 @@ fun CanvasRatioSheet(
                             .background(if (isSelected) colors.accentCyan.copy(alpha = 0.22f) else colors.surfaceElevated)
                             .pencilHatching(
                                 color = if (isSelected) colors.accentCyan.copy(alpha = 0.15f) else Color.Transparent,
-                                spacing = 5.dp
+                                spacing = 5.dp,
+                                enabled = colors.isPencilSketch
                             )
                             .sketchPencilBorder(
                                 strokeWidth = if (isSelected) 1.8.dp else 1.dp,
                                 color = if (isSelected) colors.accentCyan else colors.borderSubtle,
-                                cornerRadius = 8.dp
+                                cornerRadius = 8.dp,
+                                isPencilStyle = colors.isPencilSketch
                             )
                             .clickable { onSelectRatio(r) }
                             .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -1293,12 +1343,14 @@ fun CanvasRatioSheet(
                             .background(if (isSelected) colors.accentYellow.copy(alpha = 0.2f) else colors.surfaceElevated)
                             .pencilHatching(
                                 color = if (isSelected) colors.accentYellow.copy(alpha = 0.12f) else Color.Transparent,
-                                spacing = 6.dp
+                                spacing = 6.dp,
+                                enabled = colors.isPencilSketch
                             )
                             .sketchPencilBorder(
                                 strokeWidth = if (isSelected) 1.6.dp else 1.dp,
                                 color = if (isSelected) colors.accentYellow else colors.borderSubtle,
-                                cornerRadius = 8.dp
+                                cornerRadius = 8.dp,
+                                isPencilStyle = colors.isPencilSketch
                             )
                             .clickable { onSelectPaperStyle(style) }
                             .padding(horizontal = 10.dp, vertical = 7.dp)
@@ -1502,23 +1554,32 @@ fun ExportDialog(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
                 .background(CapCutSurface)
-                .sketchPencilBorder(strokeWidth = 2.dp, color = CapCutBorder, cornerRadius = 18.dp)
+                .sketchPencilBorder(strokeWidth = 2.dp, color = CapCutBorder, cornerRadius = 18.dp, isPencilStyle = colors.isPencilSketch)
                 .padding(20.dp)
                 .testTag("export_dialog")
         ) {
             if (exportState.isExporting) {
-                // Rendering Progress Mode with Sharpened Pencil Animation
+                // Rendering Progress Mode
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SharpenedPencilTip(
-                            modifier = Modifier.size(24.dp),
-                            leadColor = CapCutBorder,
-                            woodColor = CapCutYellow
-                        )
-                        Text("Drafting & Exporting Video...", color = CapCutTextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        if (colors.isPencilSketch) {
+                            SharpenedPencilTip(
+                                modifier = Modifier.size(24.dp),
+                                leadColor = CapCutBorder,
+                                woodColor = CapCutYellow
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = "Exporting",
+                                tint = CapCutCyan,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Text("Exporting Video...", color = CapCutTextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(exportState.stage, color = CapCutCyan, fontSize = 13.sp, fontWeight = FontWeight.Medium)
@@ -1745,8 +1806,8 @@ private fun ToolButton(
                 .size(44.dp)
                 .clip(CircleShape)
                 .background(colors.surfaceElevated)
-                .pencilHatching(color = accentColor.copy(alpha = 0.08f), spacing = 5.dp)
-                .sketchPencilBorder(strokeWidth = 1.3.dp, color = colors.border, cornerRadius = 22.dp),
+                .pencilHatching(color = accentColor.copy(alpha = 0.08f), spacing = 5.dp, enabled = colors.isPencilSketch)
+                .sketchPencilBorder(strokeWidth = 1.3.dp, color = colors.border, cornerRadius = 22.dp, isPencilStyle = colors.isPencilSketch),
             contentAlignment = Alignment.Center
         ) {
             Icon(imageVector = icon, contentDescription = label, tint = accentColor, modifier = Modifier.size(20.dp))

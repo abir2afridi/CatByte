@@ -135,7 +135,11 @@ object MediaMetadata {
             AppLog.debug(TAG, "Selected audio track index=$trackIndex, mime=${format.getString(MediaFormat.KEY_MIME)}")
 
             val mime = format.getString(MediaFormat.KEY_MIME) ?: return null
-            val durationUs = format.getLong(MediaFormat.KEY_DURATION, 0L)
+            val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION)) {
+                format.getLong(MediaFormat.KEY_DURATION)
+            } else {
+                0L
+            }
             if (durationUs <= 0L) {
                 AppLog.warn(TAG, "Invalid duration: $durationUs us for uri=$uri")
                 return null

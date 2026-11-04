@@ -10,7 +10,7 @@ export — all on the device, with no account and no cloud render.
 [Architecture](#architecture) · [Testing](#testing) · [Roadmap](#roadmap) ·
 [Documentation](#documentation)
 
-> **Honest status:** the export path is solid and 172 unit tests pass, but the
+> **Honest status:** the export path is solid and 256 unit tests pass, but the
 > "CapCut feel" still needs a real GL compositor, bundled Bangla fonts and
 > on-device models. What is done and what is not is tracked in
 > [`docs/M1-M4-ENGINE.md`](docs/M1-M4-ENGINE.md) and
@@ -28,7 +28,7 @@ export — all on the device, with no account and no cloud render.
 | **Languages** | English + Bengali UI (full key parity), Bangla digit formatting |
 | **APK** | ~23 MB debug build, no native libraries yet |
 | **Plan progress** | ~62% — export core complete, device verification pending (`STATUS.md`) |
-| **Tests** | 172 JVM unit tests, 0 failures — no instrumented/device run yet |
+| **Tests** | 256 JVM unit tests, 0 failures — no instrumented/device run yet |
 
 Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not built**
 
@@ -43,7 +43,7 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 | Multi-track timeline (video, overlay, audio, text, effects) | ✅ | Pinch zoom, trim, split, duplicate, track mute/lock/solo |
 | Snapping (playhead, clip edges, audio/text/effect bounds) | ✅ | Priority order lives in the engine, not in the UI |
 | Fixed center playhead | ✅ | Content scrolls under a stationary playhead during playback |
-| Drag-and-drop clip move | 🔴 | Clips are tap-to-select; magnetic insertion needs DnD |
+| Drag-and-drop clip move | 🟡 | Long-press + drag reorders the main track; free cross-track drag pending |
 | Keyframes (position, scale, rotation, opacity, volume) | ✅ | Sheet + interpolation + easing curves |
 | Speed: constant and bezier velocity curves | ✅ | Presets: montage, hero moment, bullet time, jump cut |
 | Masks (rectangle, circle, split, mirror, filmstrip) | 🟡 | Data + sheet exist; not burned into the pixels yet |
@@ -95,7 +95,7 @@ needed for the desktop prototype.
 # Install on a connected device/emulator
 ./gradlew :app:installDebug
 
-# Unit tests (172 tests)
+# Unit tests (256 tests)
 ./gradlew :app:testDebugUnitTest
 
 # Lint (available, not yet a build gate)
@@ -156,6 +156,7 @@ app/src/main/java/com/example/
 | `LutCube` | `.cube` parsing, trilinear sampling, chain baking |
 | `DecoderBudget` | Decoder pool priority/LRU plan, proxy policy |
 | `SubtitleIO` | SRT/VTT parse/write, retime, validate, word→cue |
+| `CaptionBridge` | Cues ↔ timeline text overlays (SRT/VTT import, subtitle style) |
 | `BanglaText` | Native digits, mark-safe line breaking, caption fit |
 | `AudioMath` | Fades, ducking, limiter, mix, RMS/LUFS, PCM16 |
 | `DeviceProfiles` | LOW/MID/HIGH tiers, thermal + battery degradation |
@@ -171,7 +172,7 @@ app/src/main/java/com/example/
 ./gradlew :app:testDebugUnitTest --rerun
 ```
 
-- **172 JVM unit tests, 0 failures**: timing, snapping, undo journal, render
+- **256 JVM unit tests, 0 failures**: timing, snapping, undo journal, render
   graph, transitions, LUTs, captions, audio maths, Bangla text, device policy,
   export math, JSON round-trip, editor workflow, localization parity.
 - **Not covered yet:** instrumented codec/export runs, Compose UI tests,
@@ -182,11 +183,13 @@ app/src/main/java/com/example/
 
 1. Run the instrumented export probe on a real device and record it in
    `TEST_REPORT.md`.
-2. Wire drag-and-drop clip moving with magnetic placement.
+2. Free drag of clips across tracks (main-track long-press drag-reorder is wired).
 3. Execute the shader library in a GL compositor shared by preview and export.
 4. Bundle Bangla OFL fonts and add golden-image shaping tests.
-5. Wire captions (SRT/VTT import, burned-in, Bangla auto-caption), audio mixer
-   (limiter/ducking/LUFS) and the export sheet presets.
+5. Finish captions and the export sheet (SRT/VTT import/export, readable
+   auto-caption cues and keyboard shortcuts are wired; karaoke highlighting, a
+   real speech model, platform-preset chips in the sheet and the audio mixer
+   remain).
 6. CameraX capture, then on-device cutout/reframe/tracking.
 
 Full breakdown and device-only work: [`docs/M1-M4-ENGINE.md`](docs/M1-M4-ENGINE.md).

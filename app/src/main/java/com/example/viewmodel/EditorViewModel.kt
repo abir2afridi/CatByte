@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.R
 import com.example.data.AppLog
 import com.example.data.AppLanguage
+import com.example.data.AutoCaptionManager
 import com.example.data.CacheManager
 import com.example.data.ClipTiming
 import com.example.data.ExportServiceScheduler
@@ -39,7 +40,9 @@ import com.example.model.VideoProject
 import com.example.model.VideoTrack
 import com.example.data.KeyframeInterpolator
 import com.example.data.db.ProjectJson
+import com.example.engine.CaptionBridge
 import com.example.engine.FileJournalStorage
+import com.example.engine.SubtitleIO
 import com.example.engine.UndoJournal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -1128,6 +1131,71 @@ class EditorViewModel(
     // ==========================================
     // Text & Subtitles
     // ==========================================
+
+    data class SubtitleImportResult(
+        val imported: Int,
+        val issues: List<String> = emptyList()
+    )
+
+    /** Refuses to parse caption files larger than 2 MB. */
+    private val MAX_SUBTITLE_BYTES = 2 * 1024 * 1024L
+
+    /**
+     * Parses an SRT/VTT file's contents and places every cue as a bottom-centred
+     * text overlay. Existing overlays are kept; the first imported cue is
+     * selected so the sheet opens on something real.
+     */
+    fun importSubtitles(raw: String): SubtitleImportResult {
+        val project = _currentProject.value ?: return SubtitleImportResult(0, listOf("No project is open"))
+        if (raw.length > MAX_SUBTITLE_BYTES) {
+            return SubtitleImportResult(0, listOf("File is too large (max 2 MB)"))
+        }
+        val cues = SubtitleIO.parse(raw)
+        if (cues.isEmpty()) {
+            return SubtitleImportResult(0, listOf("No valid timecodes found in the file"))
+        }
+        val issues = CaptionBridge.issues(cues, project.totalDurationMs)
+        val overlays = CaptionBridge.overlaysFromCues(cues)
+        updateProject { proj ->
+            proj.copy(textOverlays = proj.textOverlays + overlays)
+        }
+        // Select the first imported cue so the sheet opens on something real.
+        _selectedTextId.value = overlays.firstOrNull()?.id
+        return SubtitleImportResult(overlays.size, issues)
+    }
+
+    /**
+     * Serialises the timeline's text overlays as an SRT file, or a VTT file when
+     * [toVtt] is set. Returns null when there is nothing worth exporting.
+     */
+    fun exportSubtitles(toVtt: Boolean = false): String? {
+        val project = _currentProject.value ?: return null
+        val cues = CaptionBridge.cuesFromOverlays(project.textOverlays)
+        if (cues.isEmpty()) return null
+        return if (toVtt) SubtitleIO.toVtt(cues) else SubtitleIO.toSrt(cues)
+    }
+
+    /**
+     * Places offline sample captions on the timeline. Cues come from
+     * [AutoCaptionManager], so a three-second phrase becomes two or three short
+     * subtitle cards instead of one wall of text.
+     */
+    fun addAutoCaptions() {
+        val project = _currentProject.value ?: return
+        viewModelScope.launch {
+            val bengali = _appLanguage.value.tag?.startsWith("bn") == true
+            val overlays = AutoCaptionManager.generateCaptions(
+                durationMs = project.totalDurationMs,
+                language = if (bengali) "Bengali" else "English",
+            )
+            if (overlays.isEmpty()) return@launch
+            updateProject { proj ->
+                proj.copy(textOverlays = proj.textOverlays + overlays)
+            }
+            _selectedTextId.value = overlays.first().id
+            AppLog.info("EditorViewModel", "Added ${overlays.size} auto captions")
+        }
+    }
 
     fun addTextOverlay(
         text: String = "Double tap to edit",

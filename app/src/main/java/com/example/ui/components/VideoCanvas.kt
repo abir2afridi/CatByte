@@ -172,14 +172,14 @@ fun VideoCanvas(
             .background(colors.background),
         contentAlignment = Alignment.Center
     ) {
-        // Outer Canvas Frame with sketched border and drafting marks
+        // Outer Canvas Frame with sketched/clean border
         Box(
             modifier = Modifier
                 .padding(horizontal = 24.dp, vertical = 12.dp)
                 .aspectRatio(targetAspect)
                 .clip(RoundedCornerShape(14.dp))
                 .background(Color.Black)
-                .sketchPencilBorder(strokeWidth = 2.dp, color = colors.border, cornerRadius = 14.dp)
+                .sketchPencilBorder(strokeWidth = 2.dp, color = colors.border, cornerRadius = 14.dp, isPencilStyle = colors.isPencilSketch)
                 .clickable { onTogglePlay() }
                 .testTag("video_canvas_preview")
                 .width(720.dp),
@@ -195,25 +195,27 @@ fun VideoCanvas(
                 strokeWidth = 1.6.dp
             )
 
-            // Drafting Washi Tape mounting strips on top corners
-            WashiTapeCorner(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(x = (-4).dp, y = (-2).dp),
-                rotationDegrees = -15f,
-                widthDp = 44.dp,
-                heightDp = 14.dp,
-                tapeLabel = "PIN"
-            )
-            WashiTapeCorner(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = (-2).dp),
-                rotationDegrees = 15f,
-                widthDp = 44.dp,
-                heightDp = 14.dp,
-                tapeLabel = "DRAFT"
-            )
+            if (colors.isPencilSketch) {
+                // Drafting Washi Tape mounting strips on top corners for Pencil theme
+                WashiTapeCorner(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset(x = (-4).dp, y = (-2).dp),
+                    rotationDegrees = -15f,
+                    widthDp = 44.dp,
+                    heightDp = 14.dp,
+                    tapeLabel = "PIN"
+                )
+                WashiTapeCorner(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 4.dp, y = (-2).dp),
+                    rotationDegrees = 15f,
+                    widthDp = 44.dp,
+                    heightDp = 14.dp,
+                    tapeLabel = "DRAFT"
+                )
+            }
             if (compositionPreview && player != null) {
                 // One texture: the Media3 render graph already contains video,
                 // PIP overlays, text, stickers, effects and the watermark.

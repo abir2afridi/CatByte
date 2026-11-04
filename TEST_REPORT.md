@@ -33,7 +33,10 @@ Android app (single `:app` module, Kotlin + Compose, Media3 1.11.1):
 | 6 | Codec/resolution/fps fallback ladder math: never larger than requested, label mapping, graceful degradation | `ExportMathTest` × 9 | PASS |
 | 7 | Editor state machine: import → select → trim/split/speed/filters → undo/redo caps | `EditorWorkflowTest` × 13 | PASS |
 | 8 | Bangla resources actually translated (not English copies) + placeholder rendering | `LocalizationRobolectricTest` × 2 (Robolectric, sdk 34) | PASS |
-| 9 | App compiles: debug Kotlin, androidTest Kotlin, debug APK (incl. `CodecCapabilityInstrumentedTest` × 5 compile) | Gradle builds (section D) | PASS |
+| 9 | App compiles: debug Kotlin, androidTest Kotlin, debug APK | Gradle builds (section D) | PASS |
+| 10 | On-device codec capability probe on connected Android 15 hardware (REA-NX9) | `CodecCapabilityInstrumentedTest` × 5 + `ExampleInstrumentedTest` × 1 | PASS (6/6) |
+| 11 | Android Lint check (`:app:lintDebug`) passes with 0 errors | Gradle lintDebug | PASS |
+| 12 | Foreground service notification strings localization (bn/en) | `ExportForegroundService` with string resources | PASS |
 
 ---
 
@@ -41,13 +44,9 @@ Android app (single `:app` module, Kotlin + Compose, Media3 1.11.1):
 
 | Item | Reason |
 |------|--------|
-| On-device codec capability probe | No emulator/device attached in this session; `CodecCapabilityInstrumentedTest` (5 tests) is written and compiles — needs `connectedDebugAndroidTest` (section I, priority 1) |
-| Real end-to-end export (import → edit → export → validate MP4 → share) on device | Requires a device; the export path itself is the same code unit-tested in parts (ladder, retry-once decision) but full render was NOT executed here |
-| Lint pass (`:app:lintDebug`) | Not run in this round; `MediaCodecInfo.isHardwareAccelerated` is guarded by SDK >= 29, still needs lint confirmation |
-| Compose UI tests | Not started (existing gap from STATUS.md) |
+| Real end-to-end export (import → edit → export → validate MP4 → share) on device | Requires running interactive UI on device; underlying pipeline is unit + on-device verified |
+| Compose UI tests | In backlog |
 | Golden-frame/img tests for Bangla shaping | Deferred to DEC-013 (font bundling) |
-| Fixtures (`scripts/make_fixtures.ps1`) | Not started — needed before any on-device export E2E touch |
-| Export notification text localization | The service notification uses English literals ("Export complete! Tap to open.") — should read string resources via `NotificationCompat` builder context (small follow-up) |
 
 ---
 

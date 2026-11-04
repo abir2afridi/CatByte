@@ -38,11 +38,6 @@
         </activity>
 
         <service
-            android:name="androidx.work.impl.foreground.SystemForegroundService"
-            android:exported="false"
-            android:foregroundServiceType="mediaProcessing" />
-
-        <service
             android:name=".data.ExportForegroundService"
             android:exported="false"
             android:foregroundServiceType="mediaProcessing|dataSync" />

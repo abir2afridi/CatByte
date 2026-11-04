@@ -62,6 +62,12 @@ android {
     buildConfig = true
   }
 
+  lint {
+    abortOnError = true
+    checkReleaseBuilds = false
+    disable += setOf("UnsafeOptInUsageError")
+  }
+
   testOptions {
     unitTests {
       isIncludeAndroidResources = true

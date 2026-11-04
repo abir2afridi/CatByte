@@ -87,40 +87,53 @@ fun Modifier.paperNotebookBackground(
 }
 
 /**
- * Hand-drawn border for cards, buttons, and panels.
+ * Hand-drawn or modern clean border for cards, buttons, and panels.
  */
 fun Modifier.sketchPencilBorder(
     strokeWidth: Dp = 1.5.dp,
     color: Color = Color(0xFF202124),
     secondaryColor: Color = Color(0x59202124),
-    cornerRadius: Dp = 12.dp
+    cornerRadius: Dp = 12.dp,
+    isPencilStyle: Boolean = true
 ): Modifier = this.drawWithContent {
     drawContent()
 
     val primaryWidth = strokeWidth.toPx()
-    val secondaryWidth = (strokeWidth * 0.7f).toPx()
     val rPx = cornerRadius.toPx()
 
-    // 1. Primary border
-    drawRoundRect(
-        color = color,
-        topLeft = Offset(primaryWidth / 2f, primaryWidth / 2f),
-        size = Size(size.width - primaryWidth, size.height - primaryWidth),
-        cornerRadius = CornerRadius(rPx, rPx),
-        style = Stroke(width = primaryWidth)
-    )
+    if (!isPencilStyle) {
+        // Clean CapCut-style modern border
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(primaryWidth / 2f, primaryWidth / 2f),
+            size = Size(size.width - primaryWidth, size.height - primaryWidth),
+            cornerRadius = CornerRadius(rPx, rPx),
+            style = Stroke(width = primaryWidth)
+        )
+    } else {
+        val secondaryWidth = (strokeWidth * 0.7f).toPx()
 
-    // 2. Secondary trace line (slightly inset)
-    drawRoundRect(
-        color = secondaryColor,
-        topLeft = Offset(primaryWidth + 1f, primaryWidth + 1f),
-        size = Size(
-            (size.width - (primaryWidth * 2f) - 2f).coerceAtLeast(0f),
-            (size.height - (primaryWidth * 2f) - 2f).coerceAtLeast(0f)
-        ),
-        cornerRadius = CornerRadius((rPx - 2f).coerceAtLeast(0f), (rPx - 2f).coerceAtLeast(0f)),
-        style = Stroke(width = secondaryWidth)
-    )
+        // 1. Primary border
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(primaryWidth / 2f, primaryWidth / 2f),
+            size = Size(size.width - primaryWidth, size.height - primaryWidth),
+            cornerRadius = CornerRadius(rPx, rPx),
+            style = Stroke(width = primaryWidth)
+        )
+
+        // 2. Secondary trace line (slightly inset)
+        drawRoundRect(
+            color = secondaryColor,
+            topLeft = Offset(primaryWidth + 1f, primaryWidth + 1f),
+            size = Size(
+                (size.width - (primaryWidth * 2f) - 2f).coerceAtLeast(0f),
+                (size.height - (primaryWidth * 2f) - 2f).coerceAtLeast(0f)
+            ),
+            cornerRadius = CornerRadius((rPx - 2f).coerceAtLeast(0f), (rPx - 2f).coerceAtLeast(0f)),
+            style = Stroke(width = secondaryWidth)
+        )
+    }
 }
 
 /**
@@ -130,8 +143,11 @@ fun Modifier.sketchPencilBorder(
 fun Modifier.pencilHatching(
     color: Color = Color(0x1A202124),
     spacing: Dp = 8.dp,
-    strokeWidth: Dp = 1.2.dp
+    strokeWidth: Dp = 1.2.dp,
+    enabled: Boolean = true
 ): Modifier = this.drawBehind {
+    if (!enabled) return@drawBehind
+
     val step = spacing.toPx()
     val strokePx = strokeWidth.toPx()
     val w = size.width

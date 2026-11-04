@@ -4,8 +4,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -88,6 +90,7 @@ fun MultiTrackTimeline(
     onSelectText: (String) -> Unit,
     onAddMediaClick: () -> Unit,
     onTransitionClick: (String) -> Unit,
+    onMoveClip: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val colors = PencilTheme.colors
@@ -215,7 +218,8 @@ fun MultiTrackTimeline(
                             msToDp = msToDp,
                             onSelectClip = onSelectClip,
                             onTransitionClick = onTransitionClick,
-                            onAddMediaClick = onAddMediaClick
+                            onAddMediaClick = onAddMediaClick,
+                            onMoveClip = onMoveClip
                         )
 
                         Spacer(modifier = Modifier.height(5.dp))
@@ -261,46 +265,59 @@ fun MultiTrackTimeline(
                         }
                     }
 
-                    // 6. Sketched Sharpened Wooden Pencil Playhead
+                    // 6. Playhead Needle (Steel White Needle in CapCut Dark mode / Wooden Pencil in Pencil mode)
                     val playheadOffsetDp = (currentPositionMs * msToDp).dp
                     Box(
                         modifier = Modifier
                             .offset(x = playheadOffsetDp - 7.dp)
                             .fillMaxHeight()
                     ) {
-                        // Floating timestamp badge pinned to pencil
+                        // Floating timestamp badge
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .offset(y = (-18).dp)
                                 .clip(RoundedCornerShape(3.dp))
                                 .background(colors.surfaceElevated)
-                                .border(0.8.dp, colors.border, RoundedCornerShape(3.dp))
+                                .border(0.8.dp, if (!colors.isPencilSketch) colors.accentCyan else colors.border, RoundedCornerShape(3.dp))
                                 .padding(horizontal = 4.dp, vertical = 1.dp)
                         ) {
                             val sec = currentPositionMs / 1000f
                             Text(
                                 text = String.format("%.1fs", sec),
-                                color = colors.textPrimary,
+                                color = if (!colors.isPencilSketch) colors.accentCyan else colors.textPrimary,
                                 fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace
                             )
                         }
 
-                        // Vertical 2B graphite guide line extending through tracks
+                        // Vertical guide line extending through tracks
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .offset(y = 22.dp)
+                                .offset(y = 10.dp)
                                 .width(2.dp)
                                 .fillMaxHeight()
                                 .background(colors.playhead)
                         )
-                        // Top Sharpened Pencil Tip (Yellow pencil body, wood collar, 2B graphite lead point)
-                        SharpenedPencilTip(
-                            modifier = Modifier.align(Alignment.TopCenter)
-                        )
+
+                        if (!colors.isPencilSketch) {
+                            // CapCut Steel White Needle Top Cap
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .size(width = 10.dp, height = 14.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(colors.playhead)
+                                    .border(1.dp, colors.accentCyan, RoundedCornerShape(3.dp))
+                            )
+                        } else {
+                            // Top Sharpened Pencil Tip
+                            SharpenedPencilTip(
+                                modifier = Modifier.align(Alignment.TopCenter)
+                            )
+                        }
                     }
                 }
             }
@@ -467,9 +484,38 @@ private fun VideoClipsTrack(
     msToDp: Float,
     onSelectClip: (String) -> Unit,
     onTransitionClick: (String) -> Unit,
-    onAddMediaClick: () -> Unit
+    onAddMediaClick: () -> Unit,
+    onMoveClip: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> }
 ) {
     val colors = PencilTheme.colors
+    val density = LocalDensity.current
+    // Raw dp widths of the clips, in the exact order the Row renders them.
+    // The 26.dp transition buttons between clips are counted in the slot
+    // starts so the reorder maths matches what is on screen.
+    val clipWidthDps = clips.map { (it.durationMs * msToDp).coerceAtLeast(48f) }
+    val transitionDp = 26f
+
+    fun slotStart(index: Int): Float {
+        var acc = 0f
+        for (j in 0 until index) acc += clipWidthDps[j] + transitionDp
+        return acc
+    }
+
+    /** Final insertion index for a drop after dragging [from] by [dragDp]. */
+    fun targetIndex(from: Int, dragDp: Float): Int {
+        val center = slotStart(from) + dragDp + clipWidthDps[from] / 2f
+        var target = 0
+        clips.forEachIndexed { i, _ ->
+            if (i == from) return@forEachIndexed
+            if (slotStart(i) + clipWidthDps[i] / 2f < center) target += 1
+        }
+        return target.coerceIn(0, clips.lastIndex)
+    }
+
+    // Long-press + drag reorders the main track. Scroll gestures keep working
+    // because the drag only starts after a deliberate long press.
+    var draggedId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetPx by remember { mutableStateOf(0f) }
 
     Row(
         modifier = Modifier
@@ -480,25 +526,65 @@ private fun VideoClipsTrack(
         verticalAlignment = Alignment.CenterVertically
     ) {
         clips.forEachIndexed { index, clip ->
+            val fromIndex = index
             val isSelected = clip.id == selectedClipId
-            val clipWidthDp = (clip.durationMs * msToDp).dp.coerceAtLeast(48.dp)
+            val isDragging = draggedId == clip.id
+            val clipWidthDp = clipWidthDps[index].dp
 
             Box(
                 modifier = Modifier
                     .width(clipWidthDp)
                     .fillMaxHeight()
+                    .zIndex(if (isDragging) 20f else 0f)
+                    .graphicsLayer {
+                        translationX = if (isDragging) dragOffsetPx else 0f
+                        shadowElevation = if (isDragging) 14f else 0f
+                        scaleX = if (isDragging) 1.03f else 1f
+                        scaleY = if (isDragging) 1.03f else 1f
+                    }
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (isSelected) colors.clipSelected else colors.clipBg)
                     .pencilHatching(
                         color = if (isSelected) colors.accentCyan.copy(alpha = 0.18f) else colors.border.copy(alpha = 0.08f),
-                        spacing = 7.dp
+                        spacing = 7.dp,
+                        enabled = colors.isPencilSketch
                     )
                     .sketchPencilBorder(
-                        strokeWidth = if (isSelected) 2.2.dp else 1.4.dp,
-                        color = if (isSelected) colors.accentCyan else colors.border,
-                        cornerRadius = 8.dp
+                        strokeWidth = if (isSelected || isDragging) 2.2.dp else 1.2.dp,
+                        color = when {
+                            isDragging -> colors.accentYellow
+                            isSelected -> colors.accentCyan
+                            else -> colors.borderSubtle
+                        },
+                        cornerRadius = 8.dp,
+                        isPencilStyle = colors.isPencilSketch
                     )
                     .clickable { onSelectClip(clip.id) }
+                    .pointerInput(clip.id, clips.size, clipWidthDps) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                dragOffsetPx = 0f
+                                draggedId = clip.id
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                dragOffsetPx += dragAmount.x
+                            },
+                            onDragEnd = {
+                                val dragDp = dragOffsetPx / density.density
+                                val to = targetIndex(fromIndex, dragDp)
+                                if (draggedId == clip.id && to != fromIndex) {
+                                    onMoveClip(fromIndex, to)
+                                }
+                                draggedId = null
+                                dragOffsetPx = 0f
+                            },
+                            onDragCancel = {
+                                draggedId = null
+                                dragOffsetPx = 0f
+                            }
+                        )
+                    }
                     .padding(horizontal = 6.dp, vertical = 4.dp)
             ) {
                 // Waveform rendering

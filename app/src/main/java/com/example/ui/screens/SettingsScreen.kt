@@ -140,25 +140,25 @@ fun SettingsScreen(
                 iconTint = colors.accentPink
             ) {
                 ThemeSelectionCard(
-                    title = stringResource(R.string.pencil_light),
-                    description = stringResource(R.string.warm_cream_paper),
-                    isSelected = currentThemeMode == AppThemeMode.LIGHT,
-                    icon = Icons.Default.LightMode,
-                    previewColor = Color(0xFFF7F3E8),
-                    borderColor = Color(0xFF2C2B28),
-                    onClick = { onSelectTheme(AppThemeMode.LIGHT) }
+                    title = "CapCut Dark Studio",
+                    description = "Pro pitch dark video studio layout (Default)",
+                    isSelected = currentThemeMode == AppThemeMode.DARK,
+                    icon = Icons.Default.DarkMode,
+                    previewColor = Color(0xFF0A0A0E),
+                    borderColor = Color(0xFF00F2FE),
+                    onClick = { onSelectTheme(AppThemeMode.DARK) }
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 ThemeSelectionCard(
-                    title = stringResource(R.string.charcoal_dark),
-                    description = stringResource(R.string.dark_chalkboard),
-                    isSelected = currentThemeMode == AppThemeMode.DARK,
-                    icon = Icons.Default.DarkMode,
-                    previewColor = Color(0xFF141519),
-                    borderColor = Color(0xFF4C4E61),
-                    onClick = { onSelectTheme(AppThemeMode.DARK) }
+                    title = "Pencil & Paper Sketch",
+                    description = "Warm cream sketchbook paper theme (Optional)",
+                    isSelected = currentThemeMode == AppThemeMode.LIGHT,
+                    icon = Icons.Default.LightMode,
+                    previewColor = Color(0xFFF7F3E8),
+                    borderColor = Color(0xFF2C2B28),
+                    onClick = { onSelectTheme(AppThemeMode.LIGHT) }
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
