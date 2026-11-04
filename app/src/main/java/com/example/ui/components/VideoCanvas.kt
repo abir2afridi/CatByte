@@ -4,6 +4,13 @@ import android.view.SurfaceView
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -101,6 +108,11 @@ fun VideoCanvas(
     compositionPreview: Boolean = false,
     previewError: String? = null,
     previewWarnings: List<String> = emptyList(),
+    selectedClip: MediaClip? = null,
+    isTransformInteractive: Boolean = false,
+    onTransformClip: ((scaleMultiplier: Float, rotationDelta: Float, panDeltaX: Float, panDeltaY: Float) -> Unit)? = null,
+    isEyedropperActive: Boolean = false,
+    onSampleColorAt: ((normX: Float, normY: Float) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val colors = PencilTheme.colors
@@ -138,6 +150,8 @@ fun VideoCanvas(
     }
 
     // Pulse animation - only runs when playing (coroutine-based to avoid divide-by-zero crash)
+    var canvasSize by remember { mutableStateOf(IntSize(1, 1)) }
+    var reticlePos by remember { mutableStateOf(Offset(0.5f, 0.5f)) }
     val pulseAlphaState: androidx.compose.runtime.MutableState<Float> = remember { mutableStateOf(0.85f) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(isPlaying) {
@@ -180,7 +194,44 @@ fun VideoCanvas(
                 .clip(RoundedCornerShape(14.dp))
                 .background(Color.Black)
                 .sketchPencilBorder(strokeWidth = 2.dp, color = colors.border, cornerRadius = 14.dp, isPencilStyle = colors.isPencilSketch)
-                .clickable { onTogglePlay() }
+                .onSizeChanged { canvasSize = it }
+                .pointerInput(isEyedropperActive) {
+                    if (isEyedropperActive) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                val nx = (offset.x / canvasSize.width.toFloat()).coerceIn(0f, 1f)
+                                val ny = (offset.y / canvasSize.height.toFloat()).coerceIn(0f, 1f)
+                                reticlePos = Offset(nx, ny)
+                                onSampleColorAt?.invoke(nx, ny)
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                val nx = (change.position.x / canvasSize.width.toFloat()).coerceIn(0f, 1f)
+                                val ny = (change.position.y / canvasSize.height.toFloat()).coerceIn(0f, 1f)
+                                reticlePos = Offset(nx, ny)
+                                onSampleColorAt?.invoke(nx, ny)
+                            }
+                        )
+                    }
+                }
+                .pointerInput(isEyedropperActive, isTransformInteractive, selectedClip?.id) {
+                    if (isEyedropperActive) {
+                        detectTapGestures { offset ->
+                            val nx = (offset.x / canvasSize.width.toFloat()).coerceIn(0f, 1f)
+                            val ny = (offset.y / canvasSize.height.toFloat()).coerceIn(0f, 1f)
+                            reticlePos = Offset(nx, ny)
+                            onSampleColorAt?.invoke(nx, ny)
+                        }
+                    } else if (isTransformInteractive && selectedClip != null) {
+                        detectTransformGestures { _, pan, zoom, rotation ->
+                            val panDeltaX = pan.x / canvasSize.width.toFloat()
+                            val panDeltaY = pan.y / canvasSize.height.toFloat()
+                            onTransformClip?.invoke(zoom, rotation, panDeltaX, panDeltaY)
+                        }
+                    } else {
+                        detectTapGestures { onTogglePlay() }
+                    }
+                }
                 .testTag("video_canvas_preview")
                 .width(720.dp),
             contentAlignment = Alignment.Center
@@ -300,9 +351,9 @@ fun VideoCanvas(
                         fontSize = when (textOverlay.fontStyle) {
                             TextFontStyle.CAPCUT_BOLD -> 23.sp
                             TextFontStyle.NEON_GLOW -> 21.sp
-                            TextFontStyle.CINEMATIC_SERIF -> 20.sp
+                            TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> 20.sp
                             TextFontStyle.SUBTITLE -> 16.sp
-                            TextFontStyle.CLEAN_SANS -> 17.sp
+                            else -> 17.sp
                         },
                         fontWeight = when (textOverlay.fontStyle) {
                             TextFontStyle.CAPCUT_BOLD -> FontWeight.Black
@@ -310,7 +361,7 @@ fun VideoCanvas(
                             else -> FontWeight.Bold
                         },
                         fontFamily = when (textOverlay.fontStyle) {
-                            TextFontStyle.CINEMATIC_SERIF -> FontFamily.Serif
+                            TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> FontFamily.Serif
                             else -> FontFamily.SansSerif
                         },
                         textAlign = TextAlign.Center,
@@ -362,7 +413,162 @@ fun VideoCanvas(
             } // end fallback-only 2D layers
 
             // Centered Play/Pause HUD when paused - Sketched Paper & Graphite Button
-            if (!isPlaying) {
+            // CapCut-style Selection Bounding Box & Transform Handles
+            if (isTransformInteractive && selectedClip != null && !isEyedropperActive) {
+                val clipScale = selectedClip.scale
+                val clipRotation = selectedClip.rotation
+                val clipPosX = selectedClip.posX
+                val clipPosY = selectedClip.posY
+
+                Box(modifier = Modifier.fillMaxSize()) {
+                    val density = androidx.compose.ui.platform.LocalDensity.current
+                    val boxWidthDp = with(density) { (canvasSize.width * 0.80f * clipScale).toDp() }
+                    val boxHeightDp = with(density) { (canvasSize.height * 0.80f * clipScale).toDp() }
+
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .offset {
+                                val cx = clipPosX * canvasSize.width
+                                val cy = clipPosY * canvasSize.height
+                                val halfW = (canvasSize.width * 0.40f * clipScale)
+                                val halfH = (canvasSize.height * 0.40f * clipScale)
+                                IntOffset((cx - halfW).toInt(), (cy - halfH).toInt())
+                            }
+                            .size(boxWidthDp.coerceAtLeast(40.dp), boxHeightDp.coerceAtLeast(40.dp))
+                            .rotate(clipRotation)
+                            .border(1.5.dp, colors.accentCyan, RoundedCornerShape(4.dp))
+                    ) {
+                        listOf(
+                            Alignment.TopStart to IntOffset(-6, -6),
+                            Alignment.TopEnd to IntOffset(6, -6),
+                            Alignment.BottomStart to IntOffset(-6, 6),
+                            Alignment.BottomEnd to IntOffset(6, 6)
+                        ).forEach { (align, offs) ->
+                            Box(
+                                modifier = Modifier
+                                    .align(align)
+                                    .offset(offs.x.dp, offs.y.dp)
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                                    .border(2.dp, colors.accentCyan, CircleShape)
+                            )
+                        }
+
+                        // Top Rotation Handle
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .offset(y = (-20).dp)
+                                .size(16.dp)
+                                .clip(CircleShape)
+                                .background(colors.accentYellow)
+                                .border(1.5.dp, Color.White, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("⟳", fontSize = 10.sp, color = Color.Black, fontWeight = FontWeight.Black)
+                        }
+
+                        // Badge showing scale and rotation
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .offset(y = 24.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color.Black.copy(alpha = 0.8f))
+                                .border(0.8.dp, colors.accentCyan.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "${(clipScale * 100).toInt()}% • ${clipRotation.toInt()}°",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // CapCut-style Eyedropper Magnifier Reticle
+            if (isEyedropperActive) {
+                val pickedColorHex = selectedClip?.chromaKey?.keyColorHex ?: 0xFF00FF00L
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .offset {
+                                val rx = (reticlePos.x * canvasSize.width) - 26.dp.toPx()
+                                val ry = (reticlePos.y * canvasSize.height) - 26.dp.toPx()
+                                IntOffset(rx.toInt(), ry.toInt())
+                            }
+                            .size(52.dp)
+                    ) {
+                        // Outer ring with sampled color
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                                .background(Color.Transparent)
+                                .border(3.dp, Color(pickedColorHex), CircleShape)
+                        )
+                        // Inner circle border
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .align(Alignment.Center)
+                                .clip(CircleShape)
+                                .background(Color.Transparent)
+                                .border(1.5.dp, Color.White, CircleShape)
+                        )
+                        // Center dot with sampled color
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .align(Alignment.Center)
+                                .clip(CircleShape)
+                                .background(Color(pickedColorHex))
+                                .border(1.5.dp, Color.White, CircleShape)
+                        )
+                        // Crosshairs
+                        Box(
+                            modifier = Modifier
+                                .width(1.5.dp)
+                                .height(52.dp)
+                                .align(Alignment.Center)
+                                .background(Color.White.copy(alpha = 0.7f))
+                        )
+                        Box(
+                            modifier = Modifier
+                                .width(52.dp)
+                                .height(1.5.dp)
+                                .align(Alignment.Center)
+                                .background(Color.White.copy(alpha = 0.7f))
+                        )
+                    }
+
+                    // Bottom instruction pill
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 8.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.Black.copy(alpha = 0.85f))
+                            .border(1.dp, colors.accentCyan, RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "🎯 Tap or drag reticle to pick chroma key color",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            if (!isPlaying && !isTransformInteractive && !isEyedropperActive) {
                 Box(
                     modifier = Modifier
                         .size(58.dp)

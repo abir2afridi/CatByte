@@ -19,7 +19,7 @@
 | **P6** Text, audio, adjust, filters | 🟢 DONE | 20 original color LUT presets, GLSL shaders, Bangla shaping math, Subtitle import/export/burn-in, Audio extraction & waveform |
 | **P7** Transitions & multi-track | 🟢 DONE | TransitionEngine weights, MaskMath (rect/circle/feather), BlendMath (multiply/screen/overlay), ChromaKey |
 | **P8** Export hardening | 🟢 VERIFIED ON DEVICE | Export validation ✓, storage precheck ✓, codec capability ladder ✓ (on-device tested on Android 15), typed foreground service ✓ (localized notifications), background export UX ✓ |
-| **P9** Tier 2 features | ⏳ IN PROGRESS | Keyframe UI, masks, chroma key, effects library |
+| **P9** Tier 2 CapCut Pro features | 🟢 VERIFIED ON DEVICE | Direct canvas gestures (pinch/rotate/pan), visual transform bounding box, Chroma Key with live frame Eyedropper, Freeze Frame, Reverse playback, 10x volume boost, Diamond keyframe strip & markers |
 | **P10** Polish | ⏳ IN PROGRESS | Accessibility, haptics, empty/error states, onboarding |
 | **P11** Tier 3 features | ⏳ IN PROGRESS | Auto captions, background removal, object tracking |
 | **P12** Release verification | 🟢 VERIFIED | Lint (:app:lintDebug passed 0 errors), unit tests (256/256 passed), on-device tests (6/6 passed), assembleDebug APK verified |
@@ -63,12 +63,25 @@
 - ✅ Playhead with timecode
 - ✅ Waveform display for audio clips
 
-### Preview
-- ✅ ExoPlayer-based playback
+### Preview & Canvas Gestures
+- ✅ ExoPlayer-based playback with Composition preview
+- ✅ Direct Canvas Transform Gestures: Pinch-to-zoom (0.1x to 5.0x), two-finger twist rotation (360°), and single-finger repositioning drag on preview
+- ✅ CapCut-style Selection Bounding Box: 4 corner resize nodes, top rotation pin handle, and live scale/rotation HUD badge
+- ✅ Chroma Key Eyedropper Tool: Real video frame pixel sampling with `MediaMetadataRetriever` on touch/drag, color loupe reticle with crosshairs
 - ✅ Play/pause/seek/scrub
 - ✅ Loop toggle
-- ✅ Volume control
+- ✅ Volume control (0% to 1000% 10x amplification boost)
 - ✅ Canvas-correct rendering (aspect ratio handling)
+
+### CapCut-Class Editing Features
+- ✅ Freeze Frame insertion at playhead
+- ✅ Reverse playback toggling
+- ✅ One-tap Diamond Keyframe toggle (`◆`) with visual timeline keyframe markers
+- ✅ Chroma Key Cutout (Green/Blue/Cyan/Magenta/Black presets + custom sampled hex, tolerance, softness, spill suppression)
+- ✅ Blend modes (Normal, Multiply, Screen, Overlay, Soft Light)
+- ✅ Mask shapes (Rectangle, Circle, Horizontal Split, Invert, Feather)
+- ✅ Audio extraction from video clips
+- ✅ Speed Curve / Bezier ramping with CapCut presets (Montage, Hero, Bullet, Jump Cut, Flash In/Out)
 
 ### Export
 - ✅ Media3 Transformer-based export

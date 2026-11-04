@@ -1,4 +1,4 @@
-﻿package com.example.data.db
+package com.example.data.db
 
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
@@ -167,6 +167,14 @@ object ProjectJson {
         put("posX", clip.posX.toDouble())
         put("posY", clip.posY.toDouble())
         put("opacity", clip.opacity.toDouble())
+        put("isReversed", clip.isReversed)
+        put("chromaKey", JSONObject().apply {
+            put("isEnabled", clip.chromaKey.isEnabled)
+            put("keyColorHex", clip.chromaKey.keyColorHex)
+            put("tolerance", clip.chromaKey.tolerance.toDouble())
+            put("softness", clip.chromaKey.softness.toDouble())
+            put("spill", clip.chromaKey.spill.toDouble())
+        })
     }
 
     private fun clipFromJson(json: JSONObject): MediaClip = MediaClip(
@@ -210,7 +218,17 @@ object ProjectJson {
         scale = json.optDouble("scale", 1.0).toFloat(),
         posX = json.optDouble("posX", 0.5).toFloat(),
         posY = json.optDouble("posY", 0.5).toFloat(),
-        opacity = json.optDouble("opacity", 1.0).toFloat()
+        opacity = json.optDouble("opacity", 1.0).toFloat(),
+        isReversed = json.optBoolean("isReversed", false),
+        chromaKey = json.optJSONObject("chromaKey")?.let { cj ->
+            com.example.model.ChromaKeyData(
+                isEnabled = cj.optBoolean("isEnabled", false),
+                keyColorHex = cj.optLong("keyColorHex", 0xFF00FF00),
+                tolerance = cj.optDouble("tolerance", 0.25).toFloat(),
+                softness = cj.optDouble("softness", 0.20).toFloat(),
+                spill = cj.optDouble("spill", 0.30).toFloat()
+            )
+        } ?: com.example.model.ChromaKeyData()
     )
 
     private fun speedCurveToJson(curve: SpeedCurve): JSONObject = JSONObject().apply {

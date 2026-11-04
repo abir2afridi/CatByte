@@ -54,7 +54,10 @@ enum class TextAnimationType(val displayName: String) {
     POP_UP("Pop Up"),
     WAVE("Wave Bounce"),
     NEON_PULSE("Neon Pulse"),
-    FADE_IN("Fade In")
+    FADE_IN("Fade In"),
+    FADE_OUT("Fade Out"),
+    GLITCH("Glitch Text"),
+    BOUNCE_IN("Bounce In")
 }
 
 enum class TextFontStyle(val displayName: String) {
@@ -62,7 +65,12 @@ enum class TextFontStyle(val displayName: String) {
     CLEAN_SANS("Clean Sans"),
     CINEMATIC_SERIF("Cinematic Serif"),
     NEON_GLOW("Neon Glow"),
-    SUBTITLE("Clean Subtitle")
+    SUBTITLE("Clean Subtitle"),
+    BANGLA_NOTO_SANS("Noto Sans বাংলা"),
+    BANGLA_HIND_SILIGURI("Hind Siliguri বাংলা"),
+    BANGLA_TIRO("Tiro Serif বাংলা"),
+    BANGLA_SOLAIMAN_LIPI("SolaimanLipi বাংলা"),
+    BANGLA_KALPURUSH("Kalpurush বাংলা")
 }
 
 enum class EffectType(val displayName: String, val iconName: String) {
@@ -172,6 +180,14 @@ data class HslAdjustment(
     val luminance: Float = 0f   // -100f to +100f
 )
 
+data class ChromaKeyData(
+    val isEnabled: Boolean = false,
+    val keyColorHex: Long = 0xFF00FF00, // Green
+    val tolerance: Float = 0.25f,
+    val softness: Float = 0.20f,
+    val spill: Float = 0.30f
+)
+
 data class MediaClip(
     val id: String,
     val title: String,
@@ -210,7 +226,9 @@ data class MediaClip(
     val scale: Float = 1.0f,
     val posX: Float = 0.5f,
     val posY: Float = 0.5f,
-    val opacity: Float = 1.0f
+    val opacity: Float = 1.0f,
+    val isReversed: Boolean = false,
+    val chromaKey: ChromaKeyData = ChromaKeyData()
 )
 
 data class VideoTrack(

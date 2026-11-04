@@ -607,6 +607,51 @@ private fun VideoClipsTrack(
                     }
                 }
 
+                // Keyframe Diamond Markers on Clip (CapCut Style)
+                if (clip.keyframes.isNotEmpty()) {
+                    clip.keyframes.forEach { kf ->
+                        val kfOffsetMs = kf.timestampMs.coerceIn(0L, clip.durationMs)
+                        val kfXDp = (kfOffsetMs * msToDp).dp
+                        Box(
+                            modifier = Modifier
+                                .offset(x = (kfXDp - 4.dp).coerceAtLeast(0.dp), y = 4.dp)
+                                .size(8.dp)
+                                .graphicsLayer { rotationZ = 45f }
+                                .background(Color(0xFFFF3B30), RoundedCornerShape(1.dp))
+                                .border(1.dp, Color.White, RoundedCornerShape(1.dp))
+                        )
+                    }
+                }
+
+                // Badges Row (Reverse, Chroma Key)
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    if (clip.isReversed) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Color(0xFFFF2D55))
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            Text(text = "◀ REV", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                    if (clip.chromaKey.isEnabled) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Color(0xFF34C759))
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            Text(text = "🟢 KEY", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+
                 // Title & Info labels
                 Column(
                     modifier = Modifier.fillMaxSize(),
@@ -636,6 +681,25 @@ private fun VideoClipsTrack(
                                 color = colors.accentYellow,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Keyframe Diamond Markers Overlay (◆)
+                if (clip.keyframes.isNotEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        clip.keyframes.forEach { kf ->
+                            val kfRatio = if (clip.durationMs > 0) (kf.timestampMs.toFloat() / clip.durationMs).coerceIn(0f, 1f) else 0f
+                            val kfOffsetDp = (clipWidthDp.value * kfRatio).dp
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .offset(x = kfOffsetDp - 4.dp, y = (-2).dp)
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.accentPink)
+                                    .border(1.dp, Color.White, CircleShape)
                             )
                         }
                     }
@@ -743,6 +807,21 @@ private fun OverlayClipsTrack(
                     .padding(horizontal = 7.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
+                // Keyframe Diamonds on Overlay Clip
+                if (clip.keyframes.isNotEmpty()) {
+                    clip.keyframes.forEach { kf ->
+                        val kfOffsetMs = kf.timestampMs.coerceIn(0L, clip.durationMs)
+                        val kfXDp = (kfOffsetMs * msToDp).dp
+                        Box(
+                            modifier = Modifier
+                                .offset(x = (kfXDp - 4.dp).coerceAtLeast(0.dp), y = 4.dp)
+                                .size(8.dp)
+                                .graphicsLayer { rotationZ = 45f }
+                                .background(Color(0xFFFF3B30), RoundedCornerShape(1.dp))
+                                .border(1.dp, Color.White, RoundedCornerShape(1.dp))
+                        )
+                    }
+                }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)

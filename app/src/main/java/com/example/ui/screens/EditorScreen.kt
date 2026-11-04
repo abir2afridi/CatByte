@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import com.example.model.MediaClip
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -107,6 +108,8 @@ import com.example.ui.components.ExportDialog
 import com.example.ui.components.FiltersSheet
 import com.example.ui.components.KeyframeSheet
 import com.example.ui.components.MaskSheet
+import com.example.ui.components.ChromaKeySheet
+import com.example.ui.components.VolumeSheet
 import com.example.ui.components.MultiTrackTimeline
 import com.example.ui.components.SpeedSheet
 import com.example.ui.components.StickersSheet
@@ -205,6 +208,8 @@ fun EditorScreen(
     }
 
     val currentClip = project?.allVideoClips?.find { it.id == selectedClipId }
+    val isEyedropperActive by viewModel.isEyedropperActive.collectAsState()
+    val isTransformActive = activeSheet == ActiveToolSheet.EDIT_CLIP || activeSheet == ActiveToolSheet.KEYFRAME
     val currentText = project?.textOverlays?.find { it.id == selectedTextId }
     val captionExportCount = project?.textOverlays?.count { it.text.isNotBlank() } ?: 0
 
@@ -337,6 +342,15 @@ fun EditorScreen(
                     compositionPreview = compositionPreview,
                     previewError = previewError,
                     previewWarnings = previewWarnings,
+                    selectedClip = currentClip,
+                    isTransformInteractive = isTransformActive,
+                    onTransformClip = { zoom, rot, panX, panY ->
+                        viewModel.updateSelectedClipTransform(zoom, rot, panX, panY)
+                    },
+                    isEyedropperActive = isEyedropperActive,
+                    onSampleColorAt = { nx, ny ->
+                        viewModel.sampleChromaColorAt(context, nx, ny)
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -352,7 +366,10 @@ fun EditorScreen(
             onStepForward = { viewModel.stepForward() },
             onQuickSplit = { viewModel.splitClipAtPlayhead() },
             onToggleMagneticSnap = { viewModel.toggleMagneticSnap() },
-            onZoomChanged = { viewModel.setTimelineZoom(it) }
+            onZoomChanged = { viewModel.setTimelineZoom(it) },
+            selectedClip = currentClip,
+            currentPositionMs = currentPositionMs,
+            onToggleKeyframe = { viewModel.toggleKeyframeAtPlayhead() }
         )
 
         // 4. Multi-Track Timeline
@@ -410,7 +427,15 @@ fun EditorScreen(
                         onOpenKeyframe = { viewModel.setActiveSheet(ActiveToolSheet.KEYFRAME) },
                         onOpenBlendMode = { viewModel.setActiveSheet(ActiveToolSheet.BLEND_MODE) },
                         onOpenMask = { viewModel.setActiveSheet(ActiveToolSheet.MASK) },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onExtractAudio = { viewModel.extractAudioFromSelectedClip() },
+                        onFreeze = { viewModel.freezeFrameAtPlayhead() },
+                        onReverse = { viewModel.reverseSelectedClip() },
+                        onOpenVolume = { viewModel.setActiveSheet(ActiveToolSheet.VOLUME_BOOST) },
+                        onOpenChroma = { viewModel.setActiveSheet(ActiveToolSheet.CHROMA_KEY) },
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.SPEED -> {
@@ -418,7 +443,10 @@ fun EditorScreen(
                         currentSpeed = currentClip?.speed ?: 1.0f,
                         onSpeedSelected = { viewModel.setClipSpeed(it) },
                         onSelectSpeedCurve = { viewModel.setClipSpeedCurve(it) },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.AUDIO_LIBRARY, ActiveToolSheet.VOICE_RECORDER -> {
@@ -436,7 +464,10 @@ fun EditorScreen(
                             showTtsDialog = true
                             viewModel.setActiveSheet(ActiveToolSheet.NONE)
                         },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.TEXT_EDITOR -> {
@@ -464,7 +495,10 @@ fun EditorScreen(
                         },
                         captionExportCount = captionExportCount,
                         onAutoCaptions = { viewModel.addAutoCaptions() },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.EFFECTS_LIBRARY -> {
@@ -473,7 +507,10 @@ fun EditorScreen(
                             viewModel.addTimelineEffect(fx)
                             viewModel.setActiveSheet(ActiveToolSheet.NONE)
                         },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.FILTERS_LIBRARY -> {
@@ -482,7 +519,10 @@ fun EditorScreen(
                         onSelectFilter = { filter ->
                             viewModel.setClipFilter(filter)
                         },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.ADJUSTMENTS -> {
@@ -491,7 +531,10 @@ fun EditorScreen(
                         onUpdateAdjustments = { b, c, s, v ->
                             viewModel.updateClipAdjustments(b, c, s, v)
                         },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.CANVAS_RATIO -> {
@@ -500,7 +543,10 @@ fun EditorScreen(
                         currentPaperStyle = project!!.paperStyle,
                         onSelectRatio = { viewModel.setAspectRatio(it) },
                         onSelectPaperStyle = { viewModel.setPaperStyle(it) },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.STICKERS_PICKER -> {
@@ -509,7 +555,10 @@ fun EditorScreen(
                             viewModel.addSticker(emoji)
                             viewModel.setActiveSheet(ActiveToolSheet.NONE)
                         },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.TRANSITIONS_PICKER -> {
@@ -518,7 +567,10 @@ fun EditorScreen(
                         onSelectTransition = { trans ->
                             viewModel.setClipTransition(trans)
                         },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.EXPORT_MODAL -> {
@@ -551,7 +603,10 @@ fun EditorScreen(
                                 viewModel.removeKeyframe(selectedClipId!!, kfId)
                             }
                         },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.BLEND_MODE -> {
@@ -562,7 +617,10 @@ fun EditorScreen(
                                 viewModel.setClipBlendMode(selectedClipId!!, mode)
                             }
                         },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.MASK -> {
@@ -573,7 +631,38 @@ fun EditorScreen(
                                 viewModel.setClipMask(selectedClipId!!, mask)
                             }
                         },
-                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
+                    )
+                }
+                ActiveToolSheet.CHROMA_KEY -> {
+                    ChromaKeySheet(
+                        chromaData = currentClip?.chromaKey ?: com.example.model.ChromaKeyData(),
+                        isEyedropperActive = isEyedropperActive,
+                        onToggleEyedropper = { viewModel.setEyedropperActive(!isEyedropperActive) },
+                        onUpdateChroma = { data ->
+                            if (selectedClipId != null) {
+                                viewModel.setClipChromaKey(selectedClipId!!, data)
+                            }
+                        },
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
+                    )
+                }
+                ActiveToolSheet.VOLUME_BOOST -> {
+                    VolumeSheet(
+                        currentVolume = currentClip?.volume ?: 1.0f,
+                        onVolumeChange = { vol ->
+                            viewModel.setClipVolume(vol)
+                        },
+                        onClose = {
+                            viewModel.setEyedropperActive(false)
+                            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        }
                     )
                 }
                 ActiveToolSheet.NONE -> {}
@@ -825,7 +914,10 @@ private fun PlaybackControlsStrip(
     onQuickSplit: () -> Unit,
     onBeatSync: (() -> Unit)? = null,
     onToggleMagneticSnap: () -> Unit,
-    onZoomChanged: (Float) -> Unit
+    onZoomChanged: (Float) -> Unit,
+    selectedClip: MediaClip? = null,
+    currentPositionMs: Long = 0L,
+    onToggleKeyframe: () -> Unit = {}
 ) {
     val colors = PencilTheme.colors
 
@@ -876,6 +968,28 @@ private fun PlaybackControlsStrip(
                 tint = colors.textPrimary,
                 modifier = Modifier.size(20.dp)
             )
+        }
+
+        // CapCut Keyframe Diamond Button (◆)
+        if (selectedClip != null) {
+            val hasKeyframe = selectedClip.keyframes.any {
+                kotlin.math.abs((it.timestampMs - currentPositionMs).toDouble()) < 150.0
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (hasKeyframe) Color(0xFFFF3B30).copy(alpha = 0.2f) else colors.surfaceElevated)
+                    .border(1.2.dp, if (hasKeyframe) Color(0xFFFF3B30) else colors.accentCyan, RoundedCornerShape(8.dp))
+                    .clickable { onToggleKeyframe() }
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = if (hasKeyframe) "◆ -" else "◆ +",
+                    color = if (hasKeyframe) Color(0xFFFF3B30) else colors.accentCyan,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
         }
 
         // Quick Split Button

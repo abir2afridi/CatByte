@@ -504,10 +504,11 @@ object OverlayRenderer {
 
     private fun typefaceFor(style: TextFontStyle): Typeface = when (style) {
         TextFontStyle.CAPCUT_BOLD -> Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-        TextFontStyle.CLEAN_SANS -> Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-        TextFontStyle.CINEMATIC_SERIF -> Typeface.create(Typeface.SERIF, Typeface.NORMAL)
+        TextFontStyle.CLEAN_SANS, TextFontStyle.BANGLA_NOTO_SANS -> Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+        TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> Typeface.create(Typeface.SERIF, Typeface.NORMAL)
         TextFontStyle.NEON_GLOW -> Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD_ITALIC)
-        TextFontStyle.SUBTITLE -> Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        TextFontStyle.SUBTITLE, TextFontStyle.BANGLA_HIND_SILIGURI -> Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        else -> Typeface.DEFAULT
     }
 }
 

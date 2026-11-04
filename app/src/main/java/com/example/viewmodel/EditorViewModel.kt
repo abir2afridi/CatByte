@@ -73,7 +73,9 @@ enum class ActiveToolSheet {
     KEYFRAME,
     BLEND_MODE,
     MASK,
-    TTS_VOICEOVER
+    TTS_VOICEOVER,
+    CHROMA_KEY,
+    VOLUME_BOOST
 }
 
 data class ExportUiState(
@@ -119,6 +121,13 @@ class EditorViewModel(
 
     private val _activeSheet = MutableStateFlow(ActiveToolSheet.NONE)
     val activeSheet: StateFlow<ActiveToolSheet> = _activeSheet.asStateFlow()
+
+    private val _isEyedropperActive = MutableStateFlow(false)
+    val isEyedropperActive: StateFlow<Boolean> = _isEyedropperActive.asStateFlow()
+
+    fun setEyedropperActive(active: Boolean) {
+        _isEyedropperActive.value = active
+    }
 
     private val _timelineZoom = MutableStateFlow(1.0f)
     val timelineZoom: StateFlow<Float> = _timelineZoom.asStateFlow()
@@ -729,6 +738,182 @@ class EditorViewModel(
         duplicatedOverlayId?.let { _selectedClipId.value = it }
     }
 
+    /**
+     * Inserts a 3-second freeze frame at the current playhead position.
+     * Splits the active clip and creates a held frame with preserved styling.
+     */
+    fun freezeFrameAtPlayhead() {
+        val project = _currentProject.value ?: return
+        val playhead = _currentPositionMs.value
+        val clips = project.clips.toMutableList()
+
+        var accumulated = 0L
+        var targetIndex = -1
+        for (i in clips.indices) {
+            val clipEnd = accumulated + clips[i].durationMs
+            if (playhead in accumulated..clipEnd) {
+                targetIndex = i
+                break
+            }
+            accumulated = clipEnd
+        }
+
+        if (targetIndex != -1) {
+            val target = clips[targetIndex]
+            val splitOffsetMs = (playhead - accumulated).coerceIn(0L, target.durationMs)
+            val remainingMs = target.durationMs - splitOffsetMs
+
+            val firstHalf = target.copy(
+                id = UUID.randomUUID().toString(),
+                durationMs = splitOffsetMs.coerceAtLeast(100L),
+                trimEndMs = target.trimStartMs + splitOffsetMs,
+                title = target.title
+            )
+            val freezeClip = target.copy(
+                id = UUID.randomUUID().toString(),
+                durationMs = 3000L,
+                trimStartMs = target.trimStartMs + splitOffsetMs,
+                trimEndMs = target.trimStartMs + splitOffsetMs + 33L,
+                speed = 0.011f,
+                title = "${target.title} (Freeze)"
+            )
+            val secondHalf = target.copy(
+                id = UUID.randomUUID().toString(),
+                durationMs = remainingMs.coerceAtLeast(100L),
+                trimStartMs = target.trimStartMs + splitOffsetMs,
+                title = target.title
+            )
+
+            clips.removeAt(targetIndex)
+            if (remainingMs > 100L) {
+                clips.add(targetIndex, secondHalf)
+            }
+            clips.add(targetIndex, freezeClip)
+            if (splitOffsetMs > 100L) {
+                clips.add(targetIndex, firstHalf)
+            }
+
+            updateProject("freeze_${target.id}") { it.copy(clips = clips) }
+            _selectedClipId.value = freezeClip.id
+        }
+    }
+
+    /** Toggles reverse playback on the selected clip. */
+    fun reverseSelectedClip() {
+        val clipId = _selectedClipId.value ?: return
+        updateProject { proj ->
+            proj.copy(
+                clips = proj.clips.map { clip ->
+                    if (clip.id == clipId) {
+                        val rev = !clip.isReversed
+                        clip.copy(
+                            isReversed = rev,
+                            title = if (rev) "${clip.title} (Reverse)" else clip.title.replace(" (Reverse)", "")
+                        )
+                    } else clip
+                },
+                overlayTracks = proj.overlayTracks.map { track ->
+                    track.copy(
+                        clips = track.clips.map { clip ->
+                            if (clip.id == clipId) {
+                                val rev = !clip.isReversed
+                                clip.copy(
+                                    isReversed = rev,
+                                    title = if (rev) "${clip.title} (Reverse)" else clip.title.replace(" (Reverse)", "")
+                                )
+                            } else clip
+                        }
+                    )
+                }
+            )
+        }
+    }
+
+    /** Updates chroma key (green/blue screen removal) for a clip. */
+    fun setClipChromaKey(clipId: String, chromaData: com.example.model.ChromaKeyData) {
+        updateProject { proj ->
+            proj.copy(
+                clips = proj.clips.map { if (it.id == clipId) it.copy(chromaKey = chromaData) else it },
+                overlayTracks = proj.overlayTracks.map { track ->
+                    track.copy(clips = track.clips.map { if (it.id == clipId) it.copy(chromaKey = chromaData) else it })
+                }
+            )
+        }
+    }
+
+    /** Updates the selected clip's transform directly from canvas gestures. */
+    fun updateSelectedClipTransform(
+        scaleMultiplier: Float,
+        rotationDelta: Float,
+        panDeltaX: Float,
+        panDeltaY: Float
+    ) {
+        val clipId = _selectedClipId.value ?: return
+        updateProject(coalesceKey = "clipTransform:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                val newScale = (clip.scale * scaleMultiplier).coerceIn(0.1f, 5.0f)
+                val newRotation = (clip.rotation + rotationDelta) % 360f
+                val newPosX = (clip.posX + panDeltaX).coerceIn(-0.5f, 1.5f)
+                val newPosY = (clip.posY + panDeltaY).coerceIn(-0.5f, 1.5f)
+                clip.copy(
+                    scale = newScale,
+                    rotation = if (newRotation < 0f) newRotation + 360f else newRotation,
+                    posX = newPosX,
+                    posY = newPosY
+                )
+            }
+        }
+    }
+
+    /** Resets the selected clip's scale, position, and rotation to default. */
+    fun resetSelectedClipTransform() {
+        val clipId = _selectedClipId.value ?: return
+        updateProject { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(
+                    scale = 1.0f,
+                    rotation = 0f,
+                    posX = 0.5f,
+                    posY = 0.5f
+                )
+            }
+        }
+    }
+
+    /** Samples video frame pixel color at normalized coordinates for Chroma Key. */
+    fun sampleChromaColorAt(context: Context, normX: Float, normY: Float) {
+        val clipId = _selectedClipId.value ?: return
+        val clip = _currentProject.value?.allVideoClips?.find { it.id == clipId } ?: return
+        val uriStr = clip.uriString
+        if (uriStr != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val retriever = android.media.MediaMetadataRetriever()
+                    retriever.setDataSource(context, Uri.parse(uriStr))
+                    val timeUs = (_currentPositionMs.value * 1000L).coerceAtLeast(0L)
+                    val frameBitmap = retriever.getFrameAtTime(timeUs, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                        ?: retriever.frameAtTime
+                    if (frameBitmap != null) {
+                        val px = (normX.coerceIn(0f, 1f) * (frameBitmap.width - 1)).toInt()
+                        val py = (normY.coerceIn(0f, 1f) * (frameBitmap.height - 1)).toInt()
+                        val pixel = frameBitmap.getPixel(px, py)
+                        val colorHex = (pixel.toLong() and 0xFFFFFFFFL) or 0xFF000000L
+                        frameBitmap.recycle()
+                        retriever.release()
+                        withContext(Dispatchers.Main) {
+                            val curr = clip.chromaKey
+                            setClipChromaKey(clipId, curr.copy(isEnabled = true, keyColorHex = colorHex))
+                        }
+                    } else {
+                        retriever.release()
+                    }
+                } catch (e: Exception) {
+                    AppLog.error("EditorViewModel", "Failed to sample chroma color at $normX, $normY", e)
+                }
+            }
+        }
+    }
+
     /** Moves a clip to a new position in the timeline (drag-reorder). */
     fun moveClip(fromIndex: Int, toIndex: Int) {
         val project = _currentProject.value ?: return
@@ -928,7 +1113,7 @@ class EditorViewModel(
     fun setClipVolume(volume: Float) {
         val clipId = _selectedClipId.value ?: return
         updateProject(coalesceKey = "volume:$clipId") { proj ->
-            proj.withUpdatedClip(clipId) { clip -> clip.copy(volume = volume.coerceIn(0f, 2f)) }
+            proj.withUpdatedClip(clipId) { clip -> clip.copy(volume = volume.coerceIn(0f, 10f)) }
         }
     }
 
@@ -1461,6 +1646,30 @@ class EditorViewModel(
             proj.withUpdatedClip(clipId) { clip ->
                 clip.copy(keyframes = clip.keyframes.filterNot { it.id == keyframeId })
             }
+        }
+    }
+
+    /** Toggles a keyframe at the current playhead position on the selected clip. */
+    fun toggleKeyframeAtPlayhead() {
+        val clipId = _selectedClipId.value ?: return
+        val currentPos = _currentPositionMs.value
+        val project = _currentProject.value ?: return
+        val clipLocalMs = project.localTimeForClip(clipId, currentPos) ?: return
+
+        var existingKfId: String? = null
+        project.clips.find { it.id == clipId }?.let { clip ->
+            existingKfId = clip.keyframes.firstOrNull { kotlin.math.abs(it.timestampMs - clipLocalMs) < 150L }?.id
+        }
+        if (existingKfId == null) {
+            project.overlayTracks.flatMap { it.clips }.find { it.id == clipId }?.let { clip ->
+                existingKfId = clip.keyframes.firstOrNull { kotlin.math.abs(it.timestampMs - clipLocalMs) < 150L }?.id
+            }
+        }
+
+        if (existingKfId != null) {
+            removeKeyframe(clipId, existingKfId!!)
+        } else {
+            addKeyframe(clipId, KeyframeProperty.SCALE, 1.0f)
         }
     }
 
