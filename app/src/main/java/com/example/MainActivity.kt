@@ -12,12 +12,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -26,14 +21,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,6 +33,7 @@ import com.example.ui.screens.EditorScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.QuickTool
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.SplashScreen
 import com.example.ui.screens.SystemLogsScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.PencilTheme
@@ -52,8 +43,10 @@ import com.example.viewmodel.EditorViewModel
 import com.example.viewmodel.EditorViewModelFactory
 
 enum class AppScreen {
+    SPLASH,
     HOME,
     EDITOR,
+    SETTINGS,
     SETTINGS_LOGS
 }
 
@@ -126,10 +119,9 @@ fun CapCutApp(
     viewModel: EditorViewModel,
     onOpenSettings: () -> Unit
 ) {
-    var currentScreen by rememberSaveable { mutableStateOf(AppScreen.HOME) }
-    // Settings is shown as a modal popup over the current screen.
-    var showSettings by rememberSaveable { mutableStateOf(false) }
-    // Remember where to return to after closing the System Logs page.
+    var currentScreen by rememberSaveable { mutableStateOf(AppScreen.SPLASH) }
+    // Remember where to return to after closing Settings or System Logs page.
+    var settingsReturnScreen by rememberSaveable { mutableStateOf(AppScreen.HOME) }
     var logsReturnScreen by rememberSaveable { mutableStateOf(AppScreen.HOME) }
 
     val projects by viewModel.projects.collectAsStateWithLifecycle()
@@ -142,25 +134,23 @@ fun CapCutApp(
     val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
 
     val navigateToSettings: () -> Unit = {
-        showSettings = true
+        settingsReturnScreen = currentScreen
+        currentScreen = AppScreen.SETTINGS
         onOpenSettings()
     }
 
     val closeSettings: () -> Unit = {
-        showSettings = false
+        currentScreen = settingsReturnScreen
         viewModel.closeSettings()
     }
 
-    // The logs page is the only full-screen destination opened from Settings.
     val navigateToSystemLogs: () -> Unit = {
         logsReturnScreen = currentScreen
-        showSettings = false
         currentScreen = AppScreen.SETTINGS_LOGS
     }
 
     val closeSystemLogs: () -> Unit = {
         currentScreen = logsReturnScreen
-        showSettings = true
     }
 
     val appContext = androidx.compose.ui.platform.LocalContext.current
@@ -220,6 +210,13 @@ fun CapCutApp(
         label = "screen_transition"
     ) { screen ->
         when (screen) {
+            AppScreen.SPLASH -> {
+                SplashScreen(
+                    onSplashFinished = {
+                        currentScreen = AppScreen.HOME
+                    }
+                )
+            }
             AppScreen.HOME -> {
                 HomeScreen(
                     projects = projects,
@@ -268,60 +265,36 @@ fun CapCutApp(
                     onOpenSettings = { navigateToSettings() }
                 )
             }
+            AppScreen.SETTINGS -> {
+                BackHandler { closeSettings() }
+
+                SettingsScreen(
+                    currentThemeMode = appThemeMode,
+                    defaultResolution = defaultResolution,
+                    defaultFps = defaultFps,
+                    showPaperGrid = showPaperGrid,
+                    watermarkEnabled = watermarkEnabled,
+                    cacheSizeMb = cacheSizeMb,
+                    appLanguage = appLanguage,
+                    onSelectTheme = { viewModel.setAppThemeMode(it) },
+                    onSelectResolution = { viewModel.setDefaultResolution(it) },
+                    onSelectFps = { viewModel.setDefaultFps(it) },
+                    onTogglePaperGrid = { viewModel.togglePaperGrid(it) },
+                    onToggleWatermark = { viewModel.toggleWatermark(it) },
+                    onSelectLanguage = { viewModel.setAppLanguage(it) },
+                    onClearCache = { viewModel.clearCache() },
+                    onClearAllProjects = { viewModel.clearAllProjects() },
+                    onOpenSystemLogs = { navigateToSystemLogs() },
+                    isPopup = false,
+                    onBack = { closeSettings() }
+                )
+            }
             AppScreen.SETTINGS_LOGS -> {
-                // Back returns to the Settings popup that launched this page.
                 BackHandler { closeSystemLogs() }
 
                 SystemLogsScreen(
                     onBack = { closeSystemLogs() }
                 )
-            }
-        }
-    }
-
-    if (showSettings) {
-        Dialog(
-            onDismissRequest = { closeSettings() },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,
-                dismissOnBackPress = true,
-                dismissOnClickOutside = true,
-                decorFitsSystemWindows = false
-            )
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp, vertical = 44.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.94f)
-                        .clip(RoundedCornerShape(22.dp))
-                ) {
-                    SettingsScreen(
-                        currentThemeMode = appThemeMode,
-                        defaultResolution = defaultResolution,
-                        defaultFps = defaultFps,
-                        showPaperGrid = showPaperGrid,
-                        watermarkEnabled = watermarkEnabled,
-                        cacheSizeMb = cacheSizeMb,
-                        appLanguage = appLanguage,
-                        onSelectTheme = { viewModel.setAppThemeMode(it) },
-                        onSelectResolution = { viewModel.setDefaultResolution(it) },
-                        onSelectFps = { viewModel.setDefaultFps(it) },
-                        onTogglePaperGrid = { viewModel.togglePaperGrid(it) },
-                        onToggleWatermark = { viewModel.toggleWatermark(it) },
-                        onSelectLanguage = { viewModel.setAppLanguage(it) },
-                        onClearCache = { viewModel.clearCache() },
-                        onClearAllProjects = { viewModel.clearAllProjects() },
-                        onOpenSystemLogs = { navigateToSystemLogs() },
-                        isPopup = true,
-                        onBack = { closeSettings() }
-                    )
-                }
             }
         }
     }

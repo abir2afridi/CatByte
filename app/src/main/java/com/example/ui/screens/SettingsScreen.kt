@@ -23,8 +23,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForwardIos
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ContentCopy
@@ -136,14 +137,14 @@ fun SettingsScreen(
             // ---------------- Appearance & Theme ----------------
             SettingsSection(
                 title = stringResource(R.string.appearance_theme),
-                icon = Icons.Default.Brush,
+                icon = Icons.Outlined.Brush,
                 iconTint = colors.accentPink
             ) {
                 ThemeSelectionCard(
                     title = "CapCut Dark Studio",
                     description = "Pro pitch dark video studio layout (Default)",
                     isSelected = currentThemeMode == AppThemeMode.DARK,
-                    icon = Icons.Default.DarkMode,
+                    icon = Icons.Outlined.DarkMode,
                     previewColor = Color(0xFF0A0A0E),
                     borderColor = Color(0xFF00F2FE),
                     onClick = { onSelectTheme(AppThemeMode.DARK) }
@@ -155,7 +156,7 @@ fun SettingsScreen(
                     title = "Pencil & Paper Sketch",
                     description = "Warm cream sketchbook paper theme (Optional)",
                     isSelected = currentThemeMode == AppThemeMode.LIGHT,
-                    icon = Icons.Default.LightMode,
+                    icon = Icons.Outlined.LightMode,
                     previewColor = Color(0xFFF7F3E8),
                     borderColor = Color(0xFF2C2B28),
                     onClick = { onSelectTheme(AppThemeMode.LIGHT) }
@@ -167,7 +168,7 @@ fun SettingsScreen(
                     title = stringResource(R.string.follow_system),
                     description = stringResource(R.string.match_phone_setting),
                     isSelected = currentThemeMode == AppThemeMode.SYSTEM,
-                    icon = Icons.Default.Brush,
+                    icon = Icons.Outlined.Brush,
                     previewColor = Color.Gray,
                     borderColor = colors.border,
                     onClick = { onSelectTheme(AppThemeMode.SYSTEM) }
@@ -177,7 +178,7 @@ fun SettingsScreen(
             // ---------------- Sketchbook Canvas ----------------
             SettingsSection(
                 title = stringResource(R.string.sketchbook_canvas),
-                icon = Icons.Default.GridOn,
+                icon = Icons.Outlined.GridOn,
                 iconTint = colors.accentGreen
             ) {
                 SettingsToggleRow(
@@ -191,7 +192,7 @@ fun SettingsScreen(
             // ---------------- Default Export Quality ----------------
             SettingsSection(
                 title = stringResource(R.string.default_export_quality_caps),
-                icon = Icons.Default.Videocam,
+                icon = Icons.Outlined.Videocam,
                 iconTint = colors.accentCyan
             ) {
                 Text(stringResource(R.string.default_resolution), color = colors.textSecondary, fontSize = 11.sp)
@@ -260,7 +261,7 @@ fun SettingsScreen(
             // ---------------- Language ----------------
             SettingsSection(
                 title = stringResource(R.string.language),
-                icon = Icons.Default.Language,
+                icon = Icons.Outlined.Language,
                 iconTint = colors.accentPurple
             ) {
                 Row(
@@ -297,7 +298,7 @@ fun SettingsScreen(
             // ---------------- Watermark ----------------
             SettingsSection(
                 title = stringResource(R.string.watermark),
-                icon = Icons.Default.Brush,
+                icon = Icons.Outlined.Brush,
                 iconTint = colors.accentYellow
             ) {
                 SettingsToggleRow(
@@ -311,7 +312,7 @@ fun SettingsScreen(
             // ---------------- Storage & Cache ----------------
             SettingsSection(
                 title = stringResource(R.string.section_storage_drafts),
-                icon = Icons.Default.DeleteSweep,
+                icon = Icons.Outlined.DeleteSweep,
                 iconTint = colors.accentRed
             ) {
                 // Clear Cache Row
@@ -407,13 +408,13 @@ fun SettingsScreen(
             // ---------------- System Logs (Debug) ----------------
             SettingsSection(
                 title = stringResource(R.string.section_system_logs),
-                icon = Icons.Default.BugReport,
+                icon = Icons.Outlined.BugReport,
                 iconTint = colors.accentPink
             ) {
                 SettingsActionRow(
                     title = stringResource(R.string.view_system_logs),
                     description = stringResource(R.string.system_logs_description),
-                    icon = Icons.Default.Terminal,
+                    icon = Icons.Outlined.Terminal,
                     onClick = onOpenSystemLogs
                 )
             }
@@ -531,7 +532,7 @@ private fun SettingsTopBar(onBack: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Settings,
+                    imageVector = Icons.Outlined.Settings,
                     contentDescription = "Settings",
                     tint = colors.accentCyan,
                     modifier = Modifier.size(20.dp)
@@ -657,7 +658,7 @@ private fun SettingsActionRow(
             }
         }
         Icon(
-            imageVector = Icons.Default.ArrowForwardIos,
+            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
             contentDescription = "Navigate",
             tint = colors.textTertiary,
             modifier = Modifier.size(18.dp)

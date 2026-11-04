@@ -75,7 +75,9 @@ import coil.transform.CircleCropTransformation
 import com.example.R
 import com.example.data.KeyframeInterpolator
 import com.example.model.AspectRatioType
+import com.example.model.BlendMode
 import com.example.model.EffectType
+import com.example.model.MaskType
 import com.example.model.MediaClip
 import com.example.model.TextAnimationType
 import kotlinx.coroutines.delay
@@ -919,6 +921,54 @@ private fun RenderClipVisual(
                     )
                 }
             }
+        }
+
+        // Render Mask preview overlay
+        when (clip.mask.type) {
+            MaskType.RECTANGLE -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp)
+                        .border(2.dp, Color.Cyan, RoundedCornerShape(8.dp))
+                )
+            }
+            MaskType.CIRCLE -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, Color.Cyan, CircleShape)
+                )
+            }
+            MaskType.SPLIT -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f), Color.Transparent)
+                            )
+                        )
+                )
+            }
+            MaskType.MIRROR, MaskType.FILMSTRIP -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .border(1.dp, Color.Magenta.copy(alpha = 0.7f))
+                )
+            }
+            MaskType.NONE -> {}
+        }
+
+        if (clip.blendMode != BlendMode.NORMAL) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Blue.copy(alpha = 0.1f))
+            )
         }
     }
 }

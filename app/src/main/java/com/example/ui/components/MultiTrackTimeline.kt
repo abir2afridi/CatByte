@@ -4,8 +4,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.horizontalScroll
@@ -84,6 +86,7 @@ fun MultiTrackTimeline(
     selectedClipId: String?,
     selectedTextId: String?,
     zoom: Float,
+    onZoomChange: (Float) -> Unit = {},
     magneticSnap: Boolean = true,
     onSeek: (Long) -> Unit,
     onSelectClip: (String) -> Unit,
@@ -182,16 +185,36 @@ fun MultiTrackTimeline(
                     .onSizeChanged { viewportWidthDp = with(density) { it.width.toDp().value } }
                     .horizontalScroll(scrollState)
                     .pointerInput(totalMs, pxPerFrame, magneticSnap, snapCandidates, snapThresholdFrames, fps) {
-                        detectTapGestures { offset ->
-                            val rawFrame = (offset.x / pxPerFrame).roundToLong().coerceAtLeast(0L)
-                            val snapped = SnapEngine.snap(
-                                targetFrame = rawFrame,
-                                candidates = snapCandidates,
-                                thresholdFrames = snapThresholdFrames,
-                                enabled = magneticSnap
-                            )
-                            val targetMs = (snapped.frame * 1000L / fps).coerceIn(0L, totalMs)
-                            onSeek(targetMs)
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                val rawFrame = (offset.x / pxPerFrame).roundToLong().coerceAtLeast(0L)
+                                val snapped = SnapEngine.snap(
+                                    targetFrame = rawFrame,
+                                    candidates = snapCandidates,
+                                    thresholdFrames = snapThresholdFrames,
+                                    enabled = magneticSnap
+                                )
+                                val targetMs = (snapped.frame * 1000L / fps).coerceIn(0L, totalMs)
+                                onSeek(targetMs)
+                            },
+                            onDrag = { change, _ ->
+                                val offset = change.position
+                                val rawFrame = (offset.x / pxPerFrame).roundToLong().coerceAtLeast(0L)
+                                val snapped = SnapEngine.snap(
+                                    targetFrame = rawFrame,
+                                    candidates = snapCandidates,
+                                    thresholdFrames = snapThresholdFrames,
+                                    enabled = magneticSnap
+                                )
+                                val targetMs = (snapped.frame * 1000L / fps).coerceIn(0L, totalMs)
+                                onSeek(targetMs)
+                            }
+                        )
+                    }
+                    .pointerInput(zoom) {
+                        detectTransformGestures { _, _, zoomChange, _ ->
+                            val newZoom = (zoom * zoomChange).coerceIn(0.5f, 4.0f)
+                            onZoomChange(newZoom)
                         }
                     }
             ) {
@@ -269,54 +292,79 @@ fun MultiTrackTimeline(
                     val playheadOffsetDp = (currentPositionMs * msToDp).dp
                     Box(
                         modifier = Modifier
-                            .offset(x = playheadOffsetDp - 7.dp)
+                            .offset(x = playheadOffsetDp - 16.dp)
+                            .width(32.dp)
                             .fillMaxHeight()
+                            .pointerInput(totalMs, pxPerFrame, magneticSnap, snapCandidates, snapThresholdFrames, fps) {
+                                detectDragGestures(
+                                    onDrag = { change, _ ->
+                                        val currentX = playheadOffsetDp.toPx() + change.position.x - 16.dp.toPx()
+                                        val rawFrame = (currentX / pxPerFrame).roundToLong().coerceAtLeast(0L)
+                                        val snapped = SnapEngine.snap(
+                                            targetFrame = rawFrame,
+                                            candidates = snapCandidates,
+                                            thresholdFrames = snapThresholdFrames,
+                                            enabled = magneticSnap
+                                        )
+                                        val targetMs = (snapped.frame * 1000L / fps).coerceIn(0L, totalMs)
+                                        onSeek(targetMs)
+                                    }
+                                )
+                            }
                     ) {
-                        // Floating timestamp badge
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .offset(y = (-18).dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(colors.surfaceElevated)
-                                .border(0.8.dp, if (!colors.isPencilSketch) colors.accentCyan else colors.border, RoundedCornerShape(3.dp))
-                                .padding(horizontal = 4.dp, vertical = 1.dp)
-                        ) {
-                            val sec = currentPositionMs / 1000f
-                            Text(
-                                text = String.format("%.1fs", sec),
-                                color = if (!colors.isPencilSketch) colors.accentCyan else colors.textPrimary,
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-
-                        // Vertical guide line extending through tracks
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .offset(y = 10.dp)
-                                .width(2.dp)
+                                .offset(x = 9.dp)
+                                .width(14.dp)
                                 .fillMaxHeight()
-                                .background(colors.playhead)
-                        )
-
-                        if (!colors.isPencilSketch) {
-                            // CapCut Steel White Needle Top Cap
+                        ) {
+                            // Floating timestamp badge
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.TopCenter)
-                                    .size(width = 10.dp, height = 14.dp)
+                                    .offset(y = (-18).dp)
                                     .clip(RoundedCornerShape(3.dp))
+                                    .background(colors.surfaceElevated)
+                                    .border(0.8.dp, if (!colors.isPencilSketch) colors.accentCyan else colors.border, RoundedCornerShape(3.dp))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            ) {
+                                val sec = currentPositionMs / 1000f
+                                Text(
+                                    text = String.format("%.1fs", sec),
+                                    color = if (!colors.isPencilSketch) colors.accentCyan else colors.textPrimary,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+
+                            // Vertical guide line extending through tracks
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .offset(y = 10.dp)
+                                    .width(2.dp)
+                                    .fillMaxHeight()
                                     .background(colors.playhead)
-                                    .border(1.dp, colors.accentCyan, RoundedCornerShape(3.dp))
                             )
-                        } else {
-                            // Top Sharpened Pencil Tip
-                            SharpenedPencilTip(
-                                modifier = Modifier.align(Alignment.TopCenter)
-                            )
+
+                            if (!colors.isPencilSketch) {
+                                // CapCut Steel White Needle Top Cap
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopCenter)
+                                        .size(width = 10.dp, height = 14.dp)
+                                        .clip(RoundedCornerShape(3.dp))
+                                        .background(colors.playhead)
+                                        .border(1.dp, colors.accentCyan, RoundedCornerShape(3.dp))
+                                )
+                            } else {
+                                // Top Sharpened Pencil Tip
+                                SharpenedPencilTip(
+                                    modifier = Modifier.align(Alignment.TopCenter)
+                                )
+                            }
                         }
                     }
                 }
@@ -593,8 +641,10 @@ private fun VideoClipsTrack(
                     val spacing = 2.5.dp.toPx()
                     var currX = 0f
                     var i = 0
+                    val wf = clip.waveform
+                    val wfSize = wf.size
                     while (currX < size.width) {
-                        val factor = clip.waveform.getOrElse(i % clip.waveform.size) { 0.5f }
+                        val factor = if (wfSize > 0) wf[i % wfSize] else 0.5f
                         val barHeight = size.height * 0.42f * factor
                         drawLine(
                             color = if (isSelected) colors.border.copy(alpha = 0.55f) else colors.textTertiary.copy(alpha = 0.4f),

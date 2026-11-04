@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
@@ -1022,53 +1023,55 @@ private fun CapCutBottomNavigationBar(
 ) {
     val colors = PencilTheme.colors
 
-    NavigationBar(
-        containerColor = colors.surface,
-        tonalElevation = 8.dp,
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .border(width = 1.2.dp, color = colors.borderSubtle)
+            .background(colors.surface)
+            .border(width = 1.dp, color = colors.borderSubtle)
     ) {
-        NavigationBarItem(
-            selected = selectedIndex == 0,
-            onClick = { onSelect(0) },
-            icon = { Icon(Icons.Default.ContentCut, contentDescription = "Edit") },
-            label = { Text("Edit", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = colors.accentCyan,
-                selectedTextColor = colors.accentCyan,
-                unselectedIconColor = colors.textTertiary,
-                unselectedTextColor = colors.textTertiary,
-                indicatorColor = colors.surfaceElevated
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val items = listOf(
+                Triple(0, "Edit", Icons.Outlined.ContentCut),
+                Triple(1, "Inbox", Icons.Outlined.Notifications),
+                Triple(2, "Profile", Icons.Outlined.Person)
             )
-        )
-        NavigationBarItem(
-            selected = selectedIndex == 1,
-            onClick = { onSelect(1) },
-            icon = { Icon(Icons.Default.Notifications, contentDescription = "Inbox") },
-            label = { Text("Inbox", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = colors.accentCyan,
-                selectedTextColor = colors.accentCyan,
-                unselectedIconColor = colors.textTertiary,
-                unselectedTextColor = colors.textTertiary,
-                indicatorColor = colors.surfaceElevated
-            )
-        )
-        NavigationBarItem(
-            selected = selectedIndex == 2,
-            onClick = { onSelect(2) },
-            icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
-            label = { Text("Profile", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = colors.accentCyan,
-                selectedTextColor = colors.accentCyan,
-                unselectedIconColor = colors.textTertiary,
-                unselectedTextColor = colors.textTertiary,
-                indicatorColor = colors.surfaceElevated
-            )
-        )
+
+            items.forEach { (index, label, icon) ->
+                val isSelected = selectedIndex == index
+                val itemColor = if (isSelected) colors.accentCyan else colors.textTertiary
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onSelect(index) }
+                        .padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = label,
+                        tint = itemColor,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = label,
+                        color = itemColor,
+                        fontSize = 10.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
+            }
+        }
     }
 }
 
