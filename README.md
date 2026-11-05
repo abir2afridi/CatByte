@@ -10,7 +10,7 @@ export — all on the device, with no account and no cloud render.
 [Architecture](#architecture) · [Testing](#testing) · [Roadmap](#roadmap) ·
 [Documentation](#documentation)
 
-> **Honest status:** the export path is solid and 256 unit tests pass, but the
+> **Honest status:** the export path is solid and 268 unit tests pass, but the
 > "CapCut feel" still needs a real GL compositor, bundled Bangla fonts and
 > on-device models. What is done and what is not is tracked in
 > [`docs/M1-M4-ENGINE.md`](docs/M1-M4-ENGINE.md) and
@@ -28,7 +28,7 @@ export — all on the device, with no account and no cloud render.
 | **Languages** | English + Bengali UI (full key parity), Bangla digit formatting |
 | **APK** | ~23 MB debug build, no native libraries yet |
 | **Plan progress** | ~62% — export core complete, device verification pending (`STATUS.md`) |
-| **Tests** | 256 JVM unit tests, 0 failures — no instrumented/device run yet |
+| **Tests** | 268 JVM unit tests, 0 failures — no instrumented/device run yet |
 
 Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not built**
 
@@ -40,9 +40,9 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 | Projects: create, duplicate, delete + undo, pin, search | ✅ | Aspect presets 9:16, 16:9, 1:1, 4:5 |
 | Autosave | 🟡 | Saves on every change; debounce + journal pending |
 | Undo / redo | ✅ | Gesture coalescing; persisted atomically so a crash keeps history |
-| Multi-track timeline (video, overlay, audio, text, effects) | ✅ | Pinch zoom, trim, split, duplicate, track mute/lock/solo |
+| Multi-track timeline (video, overlay, audio, text, effects) | ✅ | Free pan, zoom, trim, split, duplicate, track mute/lock/solo |
 | Snapping (playhead, clip edges, audio/text/effect bounds) | ✅ | Priority order lives in the engine, not in the UI |
-| Fixed center playhead | ✅ | Content scrolls under a stationary playhead during playback |
+| Draggable playhead + free timeline pan | ✅ | Needle drags with edge auto-scroll; any timeline touch pauses playback; content centers under the playhead during playback |
 | Drag-and-drop clip move | 🟡 | Long-press + drag reorders the main track; free cross-track drag pending |
 | Keyframes (position, scale, rotation, opacity, volume) | ✅ | Sheet + interpolation + easing curves |
 | Speed: constant and bezier velocity curves | ✅ | Presets: montage, hero moment, bullet time, jump cut |
@@ -95,7 +95,7 @@ needed for the desktop prototype.
 # Install on a connected device/emulator
 ./gradlew :app:installDebug
 
-# Unit tests (256 tests)
+# Unit tests (268 tests)
 ./gradlew :app:testDebugUnitTest
 
 # Lint (available, not yet a build gate)
@@ -150,6 +150,8 @@ app/src/main/java/com/example/
 | `SnapEngine` | Magnet collection/priority, magnetic main-track placement |
 | `UndoJournal` | Atomic, bounded, gesture-coalescing undo/redo persistence |
 | `CenterPlayhead` | Fixed-playhead scroll maths, zoom anchoring |
+| `TimelineGeometry` | dp/ms conversions, drag-anchor maths, screen x, timeline constants |
+| `ClipSplit` | Frame-accurate split: source-offset resolution, keyframe partition/rebase, transition/animation rules |
 | `RenderGraph` | Single render description + canvas maths |
 | `TransitionEngine` | 17 transition kinds, two-frame weights, shaders |
 | `EffectShaders` | 35 GLSL ES 3.0 effect sources |
@@ -172,7 +174,7 @@ app/src/main/java/com/example/
 ./gradlew :app:testDebugUnitTest --rerun
 ```
 
-- **256 JVM unit tests, 0 failures**: timing, snapping, undo journal, render
+- **268 JVM unit tests, 0 failures**: timing, snapping, timeline geometry, undo journal, render
   graph, transitions, LUTs, captions, audio maths, Bangla text, device policy,
   export math, JSON round-trip, editor workflow, localization parity.
 - **Not covered yet:** instrumented codec/export runs, Compose UI tests,

@@ -9,6 +9,7 @@ import com.example.model.SpeedCurve
 import com.example.model.SpeedCurvePreset
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToLong
 
 /**
  * Single source of truth for clip timing.
@@ -36,6 +37,45 @@ object ClipTiming {
             original
         }
         return (end - start).coerceAtLeast(1L)
+    }
+
+    /**
+     * Source position that produces [outputMs] of timeline playback.
+     *
+     * Splitting a sped-up or trimmed clip must cut at the matching *source*
+     * frame, not at the raw timeline millisecond. Without this the two halves
+     * would replay overlapping source frames and the file would no longer line
+     * up with the preview.
+     */
+    fun sourceOffsetForOutputMs(clip: MediaClip, outputMs: Long): Long {
+        if (outputMs <= 0L) return 0L
+        val sourceMs = sourceLengthMs(clip)
+        if (outputMs >= clip.durationMs) return sourceMs
+
+        if (!hasSpeedCurve(clip)) {
+            val speed = clip.speed.coerceIn(MIN_SPEED, MAX_SPEED)
+            return (outputMs * speed.toDouble()).roundToLong().coerceIn(0L, sourceMs)
+        }
+
+        // Integrate the same curve the speed provider plays, then convert the
+        // requested output time back into a source timestamp.
+        val points = normalisedPoints(clip.speedCurve)
+        var source = 0L
+        var producedMs = 0.0
+        val stepMs = 20L
+        while (source < sourceMs) {
+            val next = min(source + stepMs, sourceMs)
+            val progress = source.toDouble() / sourceMs.toDouble()
+            val speed = interpolateSpeed(points, progress).coerceIn(MIN_SPEED, MAX_SPEED)
+            val stepOutputMs = (next - source) / speed.toDouble()
+            if (producedMs + stepOutputMs >= outputMs.toDouble()) {
+                val remaining = (outputMs - producedMs).coerceAtLeast(0.0)
+                return (source + remaining * speed).roundToLong().coerceIn(0L, sourceMs)
+            }
+            producedMs += stepOutputMs
+            source = next
+        }
+        return sourceMs
     }
 
     /** True when the clip should be evaluated using its velocity curve. */

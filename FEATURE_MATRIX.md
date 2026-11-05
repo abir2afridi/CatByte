@@ -29,15 +29,16 @@
 | Crash recovery | 🔴 NOT STARTED | |
 | Drafts | 🟡 IMPLEMENTED-NOT VERIFIED | Auto-saves to Room |
 | **Timeline** | | |
-| Ruler | 🟡 IMPLEMENTED-NOT VERIFIED | Basic ruler, adaptive tick density missing |
-| Centered/draggable playhead | 🔴 NOT STARTED | Plan requires fixed center playhead (CapCut-style) |
-| Pinch zoom | 🟢 VERIFIED | Works |
-| Frame-accurate seek | 🟡 IMPLEMENTED-NOT VERIFIED | ExoPlayer seek, frame accuracy not verified |
+| Ruler | 🟡 IMPLEMENTED-NOT VERIFIED | Tap/drag scrub with frame snapping, density-correct ticks; device check pending |
+| Centered/draggable playhead | 🟡 IMPLEMENTED-NOT VERIFIED | Needle drags from a stable anchor with edge auto-scroll; scroll drives it (CapCut feel); `TimelineGeometry` unit-tested |
+| Free pan + pause-on-touch | 🟡 IMPLEMENTED-NOT VERIFIED | Any timeline touch/pan pauses playback; follow-scroll only while playing and untouched |
+| Pinch zoom | 🟢 VERIFIED | Zoom +/- on the playback strip; pinch-on-timeline was removed in the pan/playhead gesture redesign |
+| Frame-accurate seek | 🟡 IMPLEMENTED-NOT VERIFIED | Ruler/playhead drags quantize to frames via `SnapEngine` |
 | Magnetic main track | 🟡 PARTIAL | Long-press drag reorders the main track; free magnetic insertion pending |
 | Free overlay tracks | 🟡 IMPLEMENTED-NOT VERIFIED | Overlay tracks exist but not "free" |
-| Snapping (playhead, clip edges, markers, beats) | 🔴 NOT STARTED | |
+| Snapping (playhead, clip edges, markers, beats) | 🟡 IMPLEMENTED-NOT VERIFIED | Timeline start + all clip/overlay/audio/text/effect edges wired into ruler + playhead drags; markers/beats unwired |
 | Trim handles | 🟢 VERIFIED | Drag edges to trim |
-| Split | 🟢 VERIFIED | Works |
+| Split | 🟡 IMPLEMENTED-NOT VERIFIED | Rewritten as frame-accurate `ClipSplit` (source-offset aware through trims/speed, keyframes partitioned + rebased, unit-tested); needs a device re-check |
 | Delete | 🟢 VERIFIED | Works |
 | Duplicate | 🟢 VERIFIED | Works |
 | Reorder | 🟡 IMPLEMENTED-NOT VERIFIED | Long-press + drag; drop reorders the main track |

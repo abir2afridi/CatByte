@@ -41,6 +41,7 @@ import com.example.model.VideoTrack
 import com.example.data.KeyframeInterpolator
 import com.example.data.db.ProjectJson
 import com.example.engine.CaptionBridge
+import com.example.engine.ClipSplit
 import com.example.engine.FileJournalStorage
 import com.example.engine.SubtitleIO
 import com.example.engine.UndoJournal
@@ -493,6 +494,10 @@ class EditorViewModel(
         playbackJob?.cancel()
         playbackJob = null
         playerManager?.pause()
+        // Snap to the frame the player actually stopped on; the 50 ms poll can
+        // be one frame behind, and a split must land on the visible frame.
+        playerManager?.syncPosition()
+        playerManager?.currentPositionMs?.value?.let { _currentPositionMs.value = it }
     }
 
     fun seekTo(positionMs: Long) {
@@ -642,47 +647,73 @@ class EditorViewModel(
         return null
     }
 
-    fun splitClipAtPlayhead() {
-        val project = _currentProject.value ?: return
+    /**
+     * Splits the clip under the playhead and keeps the playhead exactly on the
+     * cut. Returns false when the playhead is outside a clip or too close to an
+     * edge, so the UI can tell the user instead of silently doing nothing.
+     *
+     * A selected overlay is split first (it is on top of the main track); then
+     * the main-track clip under the playhead. Playback is paused before editing
+     * so the cut lands on the frame the user is looking at.
+     */
+    fun splitClipAtPlayhead(): Boolean {
+        val project = _currentProject.value ?: return false
+        if (_isPlaying.value) {
+            pausePlayback()
+            // Pull the player's exact position before cutting; the 50 ms sync
+            // loop may be one frame behind the paused frame.
+            playerManager?.syncPosition()
+            playerManager?.currentPositionMs?.value?.let { _currentPositionMs.value = it }
+        }
         val playhead = _currentPositionMs.value
-        val clips = project.clips.toMutableList()
+        val selectedId = _selectedClipId.value
+        val min = ClipSplit.MIN_SPLIT_MS
 
-        var accumulated = 0L
-        var targetIndex = -1
-        for (i in clips.indices) {
-            val clipEnd = accumulated + clips[i].durationMs
-            if (playhead > accumulated + 100L && playhead < clipEnd - 100L) {
-                targetIndex = i
-                break
+        // 1. A selected overlay clip under the playhead wins over the main track.
+        if (selectedId != null) {
+            project.overlayTracks.forEachIndexed { trackIndex, track ->
+                val clip = track.clips.firstOrNull { it.id == selectedId } ?: return@forEachIndexed
+                val localMs = playhead - clip.startTimelineMs
+                if (localMs < min || localMs > clip.durationMs - min) return@forEachIndexed
+
+                val split = ClipSplit.split(clip, localMs) { UUID.randomUUID().toString() }
+                    ?: return@forEachIndexed
+                val second = split.second.copy(
+                    startTimelineMs = clip.startTimelineMs + localMs
+                )
+                val newClips = track.clips.flatMap { existing ->
+                    if (existing.id == clip.id) listOf(split.first, second) else listOf(existing)
+                }
+                updateProject { current ->
+                    current.copy(
+                        overlayTracks = current.overlayTracks.mapIndexed { index, currentTrack ->
+                            if (index == trackIndex) currentTrack.copy(clips = newClips) else currentTrack
+                        }
+                    )
+                }
+                _selectedClipId.value = second.id
+                return true
             }
-            accumulated = clipEnd
         }
 
-        if (targetIndex != -1) {
-            val target = clips[targetIndex]
-            val splitOffsetMs = playhead - accumulated
-            val remainingMs = target.durationMs - splitOffsetMs
-
-            val firstHalf = target.copy(
-                id = UUID.randomUUID().toString(),
-                durationMs = splitOffsetMs,
-                trimEndMs = target.trimStartMs + splitOffsetMs,
-                title = "${target.title} (Part 1)"
-            )
-            val secondHalf = target.copy(
-                id = UUID.randomUUID().toString(),
-                durationMs = remainingMs,
-                trimStartMs = target.trimStartMs + splitOffsetMs,
-                title = "${target.title} (Part 2)"
-            )
-
-            clips.removeAt(targetIndex)
-            clips.add(targetIndex, secondHalf)
-            clips.add(targetIndex, firstHalf)
-
-            updateProject { it.copy(clips = clips) }
-            _selectedClipId.value = secondHalf.id
+        // 2. Main-track clip under the playhead (list order defines the time).
+        var cursorMs = 0L
+        project.clips.forEachIndexed { index, clip ->
+            val localMs = playhead - cursorMs
+            if (localMs in min..(clip.durationMs - min)) {
+                val split = ClipSplit.split(clip, localMs) { UUID.randomUUID().toString() }
+                    ?: return false
+                val clips = project.clips.toMutableList()
+                clips.removeAt(index)
+                clips.add(index, split.second)
+                clips.add(index, split.first)
+                updateProject { it.copy(clips = clips) }
+                _selectedClipId.value = split.second.id
+                return true
+            }
+            cursorMs += clip.durationMs
         }
+        return false
     }
 
     fun deleteSelectedClip() {

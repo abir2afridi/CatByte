@@ -1,4 +1,4 @@
-package com.example.ui.screens
+﻿package com.example.ui.screens
 
 import android.Manifest
 import android.content.Intent
@@ -102,6 +102,7 @@ import com.example.ui.components.AdjustmentsSheet
 import com.example.ui.components.AudioSheet
 import com.example.ui.components.BlendModeSheet
 import com.example.ui.components.CanvasRatioSheet
+import com.example.ui.components.PlaybackControlsStrip
 import com.example.ui.components.EditClipSheet
 import com.example.ui.components.EffectsSheet
 import com.example.ui.components.ExportDialog
@@ -186,8 +187,8 @@ fun EditorScreen(
             } else {
                 val note = when {
                     result.issues.isEmpty() -> ""
-                    result.issues.size == 1 -> " — ${result.issues.first()}"
-                    else -> " — ${result.issues.size} notes (overlapping cues?)"
+                    result.issues.size == 1 -> " â€” ${result.issues.first()}"
+                    else -> " â€” ${result.issues.size} notes (overlapping cues?)"
                 }
                 Toast.makeText(
                     context,
@@ -212,6 +213,18 @@ fun EditorScreen(
     val isTransformActive = activeSheet == ActiveToolSheet.EDIT_CLIP || activeSheet == ActiveToolSheet.KEYFRAME
     val currentText = project?.textOverlays?.find { it.id == selectedTextId }
     val captionExportCount = project?.textOverlays?.count { it.text.isNotBlank() } ?: 0
+
+    // One split path for the toolbar, keyboard shortcut and clip sheet, with
+    // feedback instead of a silent no-op when the playhead is on a clip edge.
+    val splitAtPlayhead: () -> Unit = {
+        if (!viewModel.splitClipAtPlayhead()) {
+            Toast.makeText(
+                context,
+                "Move the playhead inside a clip to split it",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
 
     if (project == null) {
         Box(
@@ -248,7 +261,7 @@ fun EditorScreen(
                 ) ?: return@onPreviewKeyEvent false
                 when (command) {
                     Shortcuts.Command.PLAY_PAUSE -> viewModel.togglePlayback()
-                    Shortcuts.Command.SPLIT -> viewModel.splitClipAtPlayhead()
+                    Shortcuts.Command.SPLIT -> splitAtPlayhead()
                     Shortcuts.Command.DELETE -> viewModel.deleteSelectedClip()
                     Shortcuts.Command.UNDO -> viewModel.undo()
                     Shortcuts.Command.REDO -> viewModel.redo()
@@ -364,7 +377,7 @@ fun EditorScreen(
             onTogglePlay = { viewModel.togglePlayback() },
             onStepBackward = { viewModel.stepBackward() },
             onStepForward = { viewModel.stepForward() },
-            onQuickSplit = { viewModel.splitClipAtPlayhead() },
+            onQuickSplit = splitAtPlayhead,
             onToggleMagneticSnap = { viewModel.toggleMagneticSnap() },
             onZoomChanged = { viewModel.setTimelineZoom(it) },
             selectedClip = currentClip,
@@ -403,6 +416,7 @@ fun EditorScreen(
                     viewModel.setActiveSheet(ActiveToolSheet.TRANSITIONS_PICKER)
                 },
                 onMoveClip = { from, to -> viewModel.moveClip(from, to) },
+                onUserInteraction = { viewModel.pausePlayback() },
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -417,7 +431,7 @@ fun EditorScreen(
                 ActiveToolSheet.EDIT_CLIP -> {
                     EditClipSheet(
                         clip = currentClip,
-                        onSplit = { viewModel.splitClipAtPlayhead() },
+                        onSplit = splitAtPlayhead,
                         onDelete = { viewModel.deleteSelectedClip() },
                         onDuplicate = { viewModel.duplicateSelectedClip() },
                         onRotate = { viewModel.rotateSelectedClip() },
@@ -670,7 +684,7 @@ fun EditorScreen(
         } else {
             // Bottom Action Toolbar
             CapCutBottomActionBar(
-                onSplit = { viewModel.splitClipAtPlayhead() },
+                onSplit = splitAtPlayhead,
                 onAudio = { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY) },
                 onText = { viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR) },
                 onOverlay = {
@@ -758,465 +772,3 @@ fun EditorScreen(
 // ==========================================
 // Top Bar
 // ==========================================
-
-@Composable
-private fun EditorTopBar(
-    project: VideoProject,
-    canUndo: Boolean,
-    canRedo: Boolean,
-    onBack: () -> Unit,
-    onUndo: () -> Unit,
-    onRedo: () -> Unit,
-    onOpenFormat: () -> Unit,
-    onExport: () -> Unit,
-    onOpenSettings: () -> Unit
-) {
-    val colors = PencilTheme.colors
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(colors.surface)
-            .border(1.2.dp, colors.borderSubtle)
-            .padding(horizontal = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.testTag("editor_back_button")) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = colors.textPrimary
-                )
-            }
-            Spacer(modifier = Modifier.width(4.dp))
-            // Ratio Tag Button
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(colors.surfaceElevated)
-                    .border(1.2.dp, colors.border, RoundedCornerShape(8.dp))
-                    .clickable { onOpenFormat() }
-                    .padding(horizontal = 9.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = project.aspectRatio.label,
-                    color = colors.textPrimary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        // Center Undo / Redo
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            IconButton(
-                onClick = onUndo,
-                enabled = canUndo,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(if (canUndo) colors.surfaceElevated else colors.surfaceElevated.copy(alpha = 0.45f))
-                    .border(1.2.dp, if (canUndo) colors.border else colors.borderSubtle.copy(alpha = 0.45f), CircleShape)
-                    .testTag("action_undo")
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Undo,
-                    contentDescription = "Undo",
-                    tint = if (canUndo) colors.textPrimary else colors.textTertiary.copy(alpha = 0.5f),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            IconButton(
-                onClick = onRedo,
-                enabled = canRedo,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(if (canRedo) colors.surfaceElevated else colors.surfaceElevated.copy(alpha = 0.45f))
-                    .border(1.2.dp, if (canRedo) colors.border else colors.borderSubtle.copy(alpha = 0.45f), CircleShape)
-                    .testTag("action_redo")
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Redo,
-                    contentDescription = "Redo",
-                    tint = if (canRedo) colors.textPrimary else colors.textTertiary.copy(alpha = 0.5f),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-
-        // Settings & Export Buttons
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Settings button
-            IconButton(
-                onClick = onOpenSettings,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(colors.surfaceElevated)
-                    .border(1.2.dp, colors.border, CircleShape)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = colors.textPrimary,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            val exportBgColor = if (!colors.isPencilSketch) colors.accentCyan else colors.border
-            val exportContentColor = if (!colors.isPencilSketch) Color.Black else (if (colors.isLight) colors.surface else Color.Black)
-            Button(
-                onClick = onExport,
-                colors = ButtonDefaults.buttonColors(containerColor = exportBgColor),
-                shape = RoundedCornerShape(18.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                modifier = Modifier
-                    .height(36.dp)
-                    .testTag("editor_export_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.FileUpload,
-                    contentDescription = "Export",
-                    tint = exportContentColor,
-                    modifier = Modifier.size(17.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Export",
-                    color = exportContentColor,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
-        }
-    }
-}
-
-// ==========================================
-// Playback Strip & Quick Split
-// ==========================================
-
-@Composable
-private fun PlaybackControlsStrip(
-    isPlaying: Boolean,
-    zoom: Float,
-    magneticSnap: Boolean,
-    onTogglePlay: () -> Unit,
-    onStepBackward: () -> Unit,
-    onStepForward: () -> Unit,
-    onQuickSplit: () -> Unit,
-    onBeatSync: (() -> Unit)? = null,
-    onToggleMagneticSnap: () -> Unit,
-    onZoomChanged: (Float) -> Unit,
-    selectedClip: MediaClip? = null,
-    currentPositionMs: Long = 0L,
-    onToggleKeyframe: () -> Unit = {}
-) {
-    val colors = PencilTheme.colors
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp)
-            .background(colors.surface)
-            .border(1.2.dp, colors.borderSubtle)
-            .padding(horizontal = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Step rewind
-        IconButton(onClick = onStepBackward, modifier = Modifier.size(36.dp)) {
-            Icon(
-                imageVector = Icons.Default.FastRewind,
-                contentDescription = "Step Back",
-                tint = colors.textPrimary,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-
-        // Center Play / Pause Button
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(colors.surfaceElevated)
-                .border(1.8.dp, colors.border, CircleShape)
-                .clickable { onTogglePlay() }
-                .testTag("editor_play_pause_button"),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = if (isPlaying) "Pause" else "Play",
-                tint = colors.textPrimary,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        // Step forward
-        IconButton(onClick = onStepForward, modifier = Modifier.size(36.dp)) {
-            Icon(
-                imageVector = Icons.Default.FastForward,
-                contentDescription = "Step Forward",
-                tint = colors.textPrimary,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-
-        // CapCut Keyframe Diamond Button (◆)
-        if (selectedClip != null) {
-            val hasKeyframe = selectedClip.keyframes.any {
-                kotlin.math.abs((it.timestampMs - currentPositionMs).toDouble()) < 150.0
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (hasKeyframe) Color(0xFFFF3B30).copy(alpha = 0.2f) else colors.surfaceElevated)
-                    .border(1.2.dp, if (hasKeyframe) Color(0xFFFF3B30) else colors.accentCyan, RoundedCornerShape(8.dp))
-                    .clickable { onToggleKeyframe() }
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = if (hasKeyframe) "◆ -" else "◆ +",
-                    color = if (hasKeyframe) Color(0xFFFF3B30) else colors.accentCyan,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
-        }
-
-        // Quick Split Button
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(colors.surfaceElevated)
-                .border(1.3.dp, colors.border, RoundedCornerShape(8.dp))
-                .clickable { onQuickSplit() }
-                .padding(horizontal = 10.dp, vertical = 6.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.ContentCut,
-                    contentDescription = "Quick Split",
-                    tint = colors.accentCyan,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Split", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-
-        // Beat Sync Button
-        if (onBeatSync != null) {
-            Spacer(modifier = Modifier.width(6.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(colors.surfaceElevated)
-                    .border(1.3.dp, colors.border, RoundedCornerShape(8.dp))
-                    .clickable { onBeatSync() }
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Audiotrack,
-                        contentDescription = "Beat Sync",
-                        tint = colors.accentPink,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Beat", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        // Magnetic Snap Toggle Button
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(if (magneticSnap) colors.surfaceElevated else colors.surface)
-                .border(
-                    width = 1.3.dp,
-                    color = if (magneticSnap) colors.border else colors.borderSubtle,
-                    shape = RoundedCornerShape(8.dp)
-                )
-                .clickable { onToggleMagneticSnap() }
-                .padding(horizontal = 8.dp, vertical = 5.dp)
-                .testTag("editor_toggle_snap")
-        ) {
-            Text(
-                text = if (magneticSnap) "🧲 SNAP" else "🧲 OFF",
-                color = if (magneticSnap) colors.textPrimary else colors.textTertiary,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        // Timeline Zoom (+ / -)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            IconButton(onClick = { onZoomChanged(zoom - 0.25f) }, modifier = Modifier.size(30.dp)) {
-                Icon(Icons.Default.ZoomOut, contentDescription = "Zoom Out", tint = colors.textTertiary, modifier = Modifier.size(17.dp))
-            }
-            Text(
-                text = "${String.format("%.1f", zoom)}x",
-                color = colors.textSecondary,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium
-            )
-            IconButton(onClick = { onZoomChanged(zoom + 0.25f) }, modifier = Modifier.size(30.dp)) {
-                Icon(Icons.Default.ZoomIn, contentDescription = "Zoom In", tint = colors.textTertiary, modifier = Modifier.size(17.dp))
-            }
-        }
-    }
-}
-
-// ==========================================
-// Bottom Action Bar
-// ==========================================
-
-@Composable
-private fun CapCutBottomActionBar(
-    onSplit: () -> Unit,
-    onAudio: () -> Unit,
-    onText: () -> Unit,
-    onOverlay: () -> Unit,
-    onEffects: () -> Unit,
-    onFilters: () -> Unit,
-    onFormat: () -> Unit,
-    onAdjust: () -> Unit,
-    onStickers: () -> Unit
-) {
-    val colors = PencilTheme.colors
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(68.dp)
-            .background(colors.surface)
-            .border(1.2.dp, colors.borderSubtle)
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        BottomActionItem(Icons.Default.ContentCut, "Edit", colors.textPrimary, onSplit)
-        BottomActionItem(Icons.Default.Audiotrack, "Audio", colors.accentPurple, onAudio)
-        BottomActionItem(Icons.Default.TextFields, "Text", colors.accentYellow, onText)
-        BottomActionItem(Icons.Default.Layers, "Overlay", colors.textPrimary, onOverlay)
-        BottomActionItem(Icons.Default.AutoAwesome, "Effects", colors.accentGreen, onEffects)
-        BottomActionItem(Icons.Default.Filter, "Filters", colors.accentCyan, onFilters)
-        BottomActionItem(Icons.Default.AspectRatio, "Format", colors.textPrimary, onFormat)
-        BottomActionItem(Icons.Default.Tune, "Adjust", colors.accentCyan, onAdjust)
-        BottomActionItem(Icons.Default.Mood, "Stickers", colors.accentPink, onStickers)
-    }
-}
-
-@Composable
-private fun BottomActionItem(
-    icon: ImageVector,
-    label: String,
-    tintColor: Color,
-    onClick: () -> Unit
-) {
-    val colors = PencilTheme.colors
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clickable { onClick() }
-            .padding(horizontal = 6.dp, vertical = 4.dp)
-            .testTag("bottom_action_${label.lowercase()}")
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(colors.surfaceElevated)
-                .border(1.3.dp, colors.border, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = tintColor,
-                modifier = Modifier.size(19.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            color = colors.textPrimary,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-/** Reads an SRT/VTT file into a string, or null when unreadable or too large (max 2 MB). */
-/** One frame at 30 fps, the step the arrow keys use. */
-private const val FRAME_STEP_MS = 33L
-
-/** Compose key codes -> the engine's platform-neutral shortcut keys. */
-private fun Key.toEditorKey(): Shortcuts.Key = when (this) {
-    Key.Spacebar -> Shortcuts.Key.SPACE
-    Key.S -> Shortcuts.Key.S
-    Key.Delete -> Shortcuts.Key.DELETE
-    Key.Backspace -> Shortcuts.Key.BACKSPACE
-    Key.Z -> Shortcuts.Key.Z
-    Key.Y -> Shortcuts.Key.Y
-    Key.Plus, Key.Equals -> Shortcuts.Key.PLUS
-    Key.Minus -> Shortcuts.Key.MINUS
-    Key.DirectionLeft -> Shortcuts.Key.LEFT
-    Key.DirectionRight -> Shortcuts.Key.RIGHT
-    Key.M -> Shortcuts.Key.M
-    Key.Escape -> Shortcuts.Key.ESCAPE
-    else -> Shortcuts.Key.UNKNOWN
-}
-
-private fun readCaptionFile(context: android.content.Context, uri: Uri): String? {
-    val maxBytes = 2 * 1024 * 1024
-    val buffer = ByteArray(maxBytes + 1)
-    var offset = 0
-    val stream = context.contentResolver.openInputStream(uri) ?: return null
-    stream.use { input ->
-        while (offset < buffer.size) {
-            val read = input.read(buffer, offset, buffer.size - offset)
-            if (read <= 0) break
-            offset += read
-        }
-    }
-    if (offset > maxBytes) return null
-    return String(buffer, 0, offset, Charsets.UTF_8)
-}
-
-/** Writes the SRT export into the cache and opens a share sheet for it. */
-private fun shareSubtitleExport(context: android.content.Context, projectId: String, content: String) {
-    val file = File(context.cacheDir, "CatByte_${projectId}_${System.currentTimeMillis()}.srt")
-    val written = runCatching { file.writeText(content, Charsets.UTF_8) }.isSuccess
-    if (!written) {
-        Toast.makeText(context, "Could not write the SRT file", Toast.LENGTH_LONG).show()
-        return
-    }
-    val uri = runCatching {
-        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-    }.getOrElse {
-        Toast.makeText(context, "Could not share the SRT file", Toast.LENGTH_LONG).show()
-        return
-    }
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "application/x-subrip"
-        putExtra(Intent.EXTRA_STREAM, uri)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    runCatching { context.startActivity(Intent.createChooser(intent, "Export subtitles")) }
-        .onFailure { Toast.makeText(context, "No app can handle .srt files", Toast.LENGTH_LONG).show() }
-}

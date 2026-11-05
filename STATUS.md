@@ -14,7 +14,7 @@
 | **P1** Vertical slice | ✅ DONE | Import one video → decode → ExoPlayer preview → text overlay → export MP4 → validated playable output |
 | **P2** Model, commands, persistence | 🟢 DONE | Command/undo system (UndoJournal persistent coalescing + EditorViewModel), Timebase, keyframe interpolation |
 | **P3** Shell & import | 🟢 DONE | Theme, navigation, home, picker, proxies policy, shortcuts |
-| **P4** Timeline & preview | 🟢 DONE | CapCut-style center playhead math, multi-track timeline, pinch-to-zoom, preview sync, magnetic snapping |
+| **P4** Timeline & preview | 🟢 DONE | Draggable playhead with edge auto-scroll, free timeline pan, touch-pauses-playback, ruler scrub, multi-track timeline, zoom, preview sync, magnetic snapping |
 | **P5** Clip & canvas tools | 🟢 DONE | Canvas transforms, CropMath, SpeedCurve/Bezier ramping, freeze/reverse, audio extraction |
 | **P6** Text, audio, adjust, filters | 🟢 DONE | 20 original color LUT presets, GLSL shaders, Bangla shaping math, Subtitle import/export/burn-in, Audio extraction & waveform |
 | **P7** Transitions & multi-track | 🟢 DONE | TransitionEngine weights, MaskMath (rect/circle/feather), BlendMath (multiply/screen/overlay), ChromaKey |
@@ -22,7 +22,7 @@
 | **P9** Tier 2 CapCut Pro features | 🟢 VERIFIED ON DEVICE | Direct canvas gestures (pinch/rotate/pan), visual transform bounding box, Chroma Key with live frame Eyedropper, Freeze Frame, Reverse playback, 10x volume boost, Diamond keyframe strip & markers |
 | **P10** Polish | ⏳ IN PROGRESS | Accessibility, haptics, empty/error states, onboarding |
 | **P11** Tier 3 features | ⏳ IN PROGRESS | Auto captions, background removal, object tracking |
-| **P12** Release verification | 🟢 VERIFIED | Lint (:app:lintDebug passed 0 errors), unit tests (256/256 passed), on-device tests (6/6 passed), assembleDebug APK verified |
+| **P12** Release verification | 🟢 VERIFIED | Lint (:app:lintDebug passed 0 errors), unit tests (268/268 passed), on-device tests (6/6 passed), assembleDebug APK verified |
 
 ---
 
@@ -56,9 +56,14 @@
 
 ### Timeline
 - ✅ Multi-track timeline (main + overlay tracks)
+- ✅ Free timeline pan (`horizontalScroll`); any touch/pan pauses playback so the track never fights a moving video
+- ✅ Draggable playhead needle with stable drag anchor, edge auto-scroll and timecode badge
+- ✅ Ruler tap/drag scrubbing with frame snapping; density-correct tick drawing
+- ✅ Follow-scroll centers the playhead only while playing and untouched
 - ✅ Pinch zoom, scroll
 - ✅ Clip trim handles (drag edges)
 - ✅ Split, duplicate, delete, reorder clips
+- ✅ **Frame-accurate split** (`ClipSplit`): converts the timeline offset back to a source offset through trims/speed curves, partitions + rebases keyframes, keeps the outgoing transition on the second half and the entrance animation on the first; toasts instead of silently doing nothing at clip edges
 - ✅ Track mute/hide/lock/solo
 - ✅ Playhead with timecode
 - ✅ Waveform display for audio clips
@@ -117,15 +122,15 @@
 ### Domain Model (P2 - CRITICAL)
 - ❌ **Command/Undo system**: Plan requires all edits as `Command`s with `apply`/`invert`. Currently direct mutation.
 - ❌ **TimeUs value class**: Plan requires microseconds. Currently using `Long` milliseconds.
-- ❌ **Keyframe interpolation/splitting**: Basic keyframes exist, no interpolation/splitting logic.
+- ❌ **Keyframe interpolation**: Interpolation/easing exist (`KeyframeInterpolator`); splitting now partitions + rebases keyframes (`ClipSplit`), but mid-clip keyframe editing on the split halves is basic.
 - ❌ **Transition clamping**: Plan requires transition duration ≤ min(adjacent clip durations) / 2. Not enforced.
 - ❌ **Project JSON formatVersion + migration chain**: Missing.
 
 ### Timeline & Preview (P4 - CRITICAL)
-- ❌ **Fixed center playhead (CapCut-style)**: Content scrolls with playhead, not fixed center.
+- ✅ **Draggable playhead + free pan**: needle drags with a stable anchor (accumulated deltas), edge auto-scroll, ruler scrub; any timeline touch pauses playback; content centers under the playhead during playback (`TimelineGeometry`, unit-tested).
 - ❌ **60fps scroll guarantee**: No LRU bitmap pool, no multi-resolution waveform pyramids.
 - 🟡 **Magnetic main track + free overlay tracks**: long-press drag reorders the main track; free overlay-track drag pending.
-- ❌ **Snapping (playhead, clip edges, markers, beats)**: Not implemented.
+- ✅ **Snapping (timeline start, clip edges, overlay/audio/text/effect bounds)**: engine-owned priority (`SnapEngine`) wired into ruler + playhead drags; markers/beats still unwired.
 - ❌ **Decoder pool with priority/eviction**: Not implemented.
 
 ### Clip Tools (P5 - CRITICAL)

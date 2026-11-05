@@ -11,7 +11,7 @@ The P1/P2/P3 roadmap from `README.md` splits into two halves:
 
 This document covers the first half: the modules added to `com.example.engine`,
 the wiring that now reaches the editor UI, and the work that still needs a GPU
-surface, a camera or model files. Total suite is **256 tests, 0 failures**.
+surface, a camera or model files. Total suite is **268 tests, 0 failures**.
 
 ## What was added
 
@@ -118,3 +118,62 @@ import path, the share-sheet export and the burned-in render never disagree.
   were removed instead of shipping two ladders that can drift.
 
 Total suite after this addendum: **256 tests, 0 failures**.
+
+## Addendum — timeline gestures, frame-accurate split, feature-file split (2026-11-06)
+
+### Two new engine modules
+
+| Module | Tests | Covers |
+|---|---|---|
+| `TimelineGeometry` | `TimelineGeometryTest` (6) | The one dp/ms conversion (`DP_PER_SECOND = 65`, zoom clamp), content width/padding, drag-anchor maths (`positionMsAfterDrag`), screen-x from scroll offset, snap/hit constants (`SNAP_THRESHOLD_DP`, `PLAYHEAD_HIT_HALF_DP`) |
+| `ClipSplit` | `ClipSplitTest` (6) | `MIN_SPLIT_MS = 100` edge guard, source-offset resolution through trims + constant speed, keyframe partition + rebase, outgoing transition stays on the second half, entrance animation stays on the first |
+
+`ClipTiming.sourceOffsetForOutputMs` joins `ClipTiming`: it converts a timeline
+offset back into a *source* timestamp, integrating the velocity curve at 20 ms
+steps when one is active. Splitting a 2× clip at output 1000 ms therefore cuts
+at source 3000 ms, not at 1000 ms — the two halves replay exactly the frames
+the preview showed.
+
+### Timeline interaction redesign (the three real bugs)
+
+1. **Free pan restored** — the old code wrapped the whole timeline in
+   `detectDragGestures` + `detectTransformGestures`, which consumed every drag
+   and starved `horizontalScroll`. Those detectors are gone; the viewport pans
+   freely and gestures now live where they belong:
+   - ruler: tap + drag scrub (consumes only inside the ruler),
+   - main track: tap selects, long-press drag reorders,
+   - playhead needle: drag seeks.
+2. **Playhead drag fixed** — the needle previously recomputed its position from
+   its own moving screen position, so the cursor stuck and jumped. Deltas are
+   now accumulated from a fixed `dragAnchorMs` and converted through
+   `TimelineGeometry.positionMsAfterDrag`. The needle renders *outside* the
+   scroll container (positioned from `scrollState.value`), drags get edge
+   auto-scroll (`dispatchRawDelta`, 48 dp edge / 24 dp step) and snapping via
+   `SnapEngine` (never to itself). Scroll reads moved inside the needle so
+   scroll-driven recomposition stays scoped to it.
+3. **Playback no longer fights the timeline** — any press on the viewport
+   (`PointerEventPass.Initial`) and any scroll drag pauses playback; the
+   follow-scroll effect only runs while playing *and* untouched. Splitting
+   pauses first and re-syncs the exact player position
+   (`PlayerManager.syncPosition()` now also runs inside `pausePlayback()`), so
+   the cut lands on the frame the user is looking at.
+
+`splitClipAtPlayhead()` returns `Boolean` now: a selected overlay splits first,
+then the main-track clip; a playhead outside a splittable clip toasts
+"Move the playhead inside a clip to split it" instead of doing nothing.
+
+### Feature-file split
+
+`CapCutToolSheets.kt` (2,459 lines, 17 sheets) is gone, replaced by one file per
+tool: `EditClipSheet`, `SpeedSheet`, `SpeedCurveEditorSheet`, `AudioSheet`,
+`TextEditorSheet`, `EffectsSheet`, `FiltersSheet`, `AdjustmentsSheet`,
+`CanvasRatioSheet`, `StickersSheet`, `TransitionsPickerSheet`, `BlendModeSheet`,
+`MaskSheet`, `KeyframeSheet`, `ChromaKeySheet`, `VolumeSheet`. The timeline
+split into `TimelinePlayhead`, `TimelineRuler`, `TimelineVideoTrack`,
+`TimelineOverlayTrack`, `TimelineAudioTrack`, `TimelineTextTrack`,
+`TimelineEffectsTrack`, `TimelineTrackHeader` + the `MultiTrackTimeline`
+coordinator, and `EditorScreen` shed `EditorTopBar`, `CapCutBottomActionBar`,
+`EditorKeys`, `PlaybackControlsStrip` and `CaptionActions` (1,017 → 774 lines).
+Every extracted composable is `internal`; only `EditorScreen` stays public.
+
+Total suite after this addendum: **268 tests, 0 failures**.
