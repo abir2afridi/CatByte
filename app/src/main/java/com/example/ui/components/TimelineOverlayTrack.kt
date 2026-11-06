@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -36,16 +37,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.example.engine.ClipTrimHandle
+import com.example.engine.TimelineGeometry
 import com.example.model.MediaClip
 import com.example.ui.theme.PencilTheme
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 /**
  * Picture-in-picture / overlay track. Clips are positioned by timeline start.
  *
- * Long-press then drag moves a clip along the overlay track; the drop is
- * snapped and clamped by `EditorViewModel.moveOverlayClip`. A normal horizontal
- * drag is left for the timeline pan, exactly like the main track.
+ * Long-press then drag moves a clip along its track; the drop is snapped and
+ * clamped by `EditorViewModel.moveOverlayClip`. Dragging far enough up or down
+ * (a full row) reports a [trackShift] so the clip can change track. A normal
+ * horizontal drag is left for the timeline pan, and locked tracks refuse moves.
  */
 @Composable
 fun TimelineOverlayTrack(
@@ -53,18 +58,25 @@ fun TimelineOverlayTrack(
     selectedClipId: String?,
     msToDp: Float,
     onSelectClip: (String) -> Unit,
-    onMoveClip: (clipId: String, newStartMs: Long) -> Unit = { _, _ -> }
+    onMoveClip: (clipId: String, newStartMs: Long, trackShift: Int) -> Unit = { _, _, _ -> },
+    onTrimClip: (clipId: String, edge: ClipTrimHandle.Edge, deltaMs: Long) -> Unit = { _, _, _ -> },
+    fps: Int = 30,
+    isLocked: Boolean = false,
+    trackIndex: Int = 0,
+    trackCount: Int = 1
 ) {
     val colors = PencilTheme.colors
     val density = LocalDensity.current
+    val rowHeightPx = TimelineGeometry.OVERLAY_TRACK_HEIGHT_DP * density.density
 
     var draggedId by remember { mutableStateOf<String?>(null) }
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
+    var lastDragYPx by remember { mutableFloatStateOf(0f) }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(46.dp)
+            .height(TimelineGeometry.OVERLAY_TRACK_HEIGHT_DP.dp)
             .background(colors.timelineTrack)
             .padding(vertical = 2.dp)
     ) {
@@ -92,15 +104,18 @@ fun TimelineOverlayTrack(
                         shape = RoundedCornerShape(6.dp)
                     )
                     .clickable { onSelectClip(clip.id) }
-                    .pointerInput(clip.id, msToDp) {
+                    .pointerInput(clip.id, msToDp, trackCount, isLocked) {
+                        if (isLocked) return@pointerInput
                         detectDragGesturesAfterLongPress(
                             onDragStart = {
                                 draggedId = clip.id
                                 dragOffsetPx = 0f
+                                lastDragYPx = 0f
                             },
                             onDrag = { change, dragAmount ->
                                 change.consume()
                                 dragOffsetPx += dragAmount.x
+                                lastDragYPx = change.position.y
                             },
                             onDragEnd = {
                                 val deltaDp = dragOffsetPx / density.density
@@ -110,9 +125,12 @@ fun TimelineOverlayTrack(
                                     0L
                                 }
                                 if (draggedId == clip.id && deltaMs != 0L) {
+                                    val shift = (lastDragYPx / rowHeightPx).roundToInt()
+                                    val target = (trackIndex + shift).coerceIn(0, trackCount - 1)
                                     onMoveClip(
                                         clip.id,
-                                        (clip.startTimelineMs + deltaMs).coerceAtLeast(0L)
+                                        (clip.startTimelineMs + deltaMs).coerceAtLeast(0L),
+                                        target - trackIndex
                                     )
                                 }
                                 draggedId = null
@@ -141,6 +159,7 @@ fun TimelineOverlayTrack(
                         )
                     }
                 }
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
@@ -159,7 +178,81 @@ fun TimelineOverlayTrack(
                         maxLines = 1
                     )
                 }
+
+                if (isSelected && !isLocked) {
+                    TimelineTrimHandle(
+                        edge = ClipTrimHandle.Edge.START,
+                        color = colors.handle,
+                        modifier = Modifier.align(Alignment.CenterStart),
+                        onCommit = { deltaPx ->
+                            val deltaDp = deltaPx / density.density
+                            val deltaMs = if (msToDp > 0f) {
+                                (deltaDp / msToDp).roundToLong()
+                            } else {
+                                0L
+                            }
+                            if (deltaMs != 0L) onTrimClip(clip.id, ClipTrimHandle.Edge.START, deltaMs)
+                        }
+                    )
+                    TimelineTrimHandle(
+                        edge = ClipTrimHandle.Edge.END,
+                        color = colors.handle,
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        onCommit = { deltaPx ->
+                            val deltaDp = deltaPx / density.density
+                            val deltaMs = if (msToDp > 0f) {
+                                (deltaDp / msToDp).roundToLong()
+                            } else {
+                                0L
+                            }
+                            if (deltaMs != 0L) onTrimClip(clip.id, ClipTrimHandle.Edge.END, deltaMs)
+                        }
+                    )
+                }
             }
         }
     }
+}
+
+/** Inline edge handle: drag horizontally and commit the delta on release. */
+@Composable
+internal fun TimelineTrimHandle(
+    edge: ClipTrimHandle.Edge,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+    onCommit: (Float) -> Unit
+) {
+    var accumulated by remember { mutableFloatStateOf(0f) }
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .width(10.dp)
+            .background(
+                color,
+                RoundedCornerShape(
+                    topStart = if (edge == ClipTrimHandle.Edge.START) 6.dp else 0.dp,
+                    bottomStart = if (edge == ClipTrimHandle.Edge.START) 6.dp else 0.dp,
+                    topEnd = if (edge == ClipTrimHandle.Edge.END) 6.dp else 0.dp,
+                    bottomEnd = if (edge == ClipTrimHandle.Edge.END) 6.dp else 0.dp
+                )
+            )
+            .pointerInput(edge) {
+                detectDragGestures(
+                    onDragStart = {
+                        accumulated = 0f
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        accumulated += dragAmount.x
+                    },
+                    onDragEnd = {
+                        onCommit(accumulated)
+                        accumulated = 0f
+                    },
+                    onDragCancel = {
+                        accumulated = 0f
+                    }
+                )
+            }
+    )
 }

@@ -164,6 +164,28 @@ object BeatGrid {
             .sorted()
             .toList()
     }
+
+    /**
+     * Beat offsets inside one clip that are safe to cut at.
+     *
+     * A cut needs room on both sides ([ClipSplit.MIN_SPLIT_MS]) and a clip has a
+     * finite number of useful segments, so a dense beat list aborts instead of
+     * shredding the clip into slivers.
+     */
+    fun cutOffsets(
+        durationMs: Long,
+        beatOffsetsMs: List<Long>,
+        maxSegments: Long = 12L,
+        minSegmentMs: Long = ClipSplit.MIN_SPLIT_MS,
+    ): List<Long> {
+        if (durationMs <= minSegmentMs * 2L || beatOffsetsMs.isEmpty()) return emptyList()
+        val useful = beatOffsetsMs
+            .filter { it > minSegmentMs && it < durationMs - minSegmentMs }
+            .distinct()
+            .sorted()
+        if (useful.size > maxSegments) return emptyList()
+        return useful
+    }
 }
 
 object SubjectTrack {

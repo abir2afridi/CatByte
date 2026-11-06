@@ -4,9 +4,10 @@
 **Scope:** P8 export hardening round (codec capability ladder, typed foreground service, background export UX, Bangla localization parity, test infrastructure).
 **Format:** Per `docs+\plan.md` §13 (FINAL REPORT structure: A–I).
 
-> **Latest snapshot (2026-11-06):** 278/278 JVM/Robolectric tests pass across 29
-> suites, including 4 Robolectric Compose gesture tests (`TimelineGestureTest`)
-> and 3 beat-mapping tests. Debug APK is 26.19 MB. CI
+> **Latest snapshot (2026-11-06):** 294/294 JVM/Robolectric tests pass across 31
+> suites, including 4 Robolectric Compose gesture tests (`TimelineGestureTest`),
+> a track-header control test (`TimelineTrackControlsTest`) and inline trim /
+> beat-mapping maths. Debug APK is 26.22 MB. CI
 > (`.github/workflows/ci.yml`) runs lint, unit tests and `assembleDebug`. The
 > numbers in sections D–E below are the historical 2026-11-01 P8 snapshot;
 > section E notes the new gesture suite.

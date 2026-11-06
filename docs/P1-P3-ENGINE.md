@@ -11,7 +11,7 @@ The P1/P2/P3 roadmap from `README.md` splits into two halves:
 
 This document covers the first half: the modules added to `com.example.engine`,
 the wiring that now reaches the editor UI, and the work that still needs a GPU
-surface, a camera or model files. Total suite is **278 tests, 0 failures**.
+surface, a camera or model files. Total suite is **294 tests, 0 failures**.
 
 ## What was added
 
@@ -203,6 +203,47 @@ caller. This pass wired them into the editor and added gesture-level tests.
 Total suite after this addendum: **278 tests, 0 failures** (29 suites).
 CI (`.github/workflows/ci.yml`) now runs lint, unit tests and `assembleDebug`
 without `--offline`, so a fresh runner can resolve dependencies.
+
+Still environment-blocked: no device/emulator for instrumented runs, no EGL/GLES
+surface for the GL compositor, no Bangla font binaries or ASR model.
+
+## Addendum — real multi-track timeline, inline trim, track controls (2026-11-06, evening)
+
+### Model
+- `VideoTrack` gained `isMuted`, `isLocked`, `isSolo`; `MediaClip` gained `isMuted`;
+  `VideoProject` gained main-track `isMainTrackMuted/isLocked/isSolo` plus
+  `TimelineTrackIds.MAIN`, `trackIdForClip`, `isTrackLocked*` helpers.
+- `ProjectJson` persists every new field, so a saved project reopens with the
+  same track state (round-trip test covers it).
+
+### Engine
+| Module | Covers |
+|---|---|
+| `ClipTrimHandle` | Inline edge trims: frame-quantised source trim for constant-speed clips; velocity curves are refused (the Edit Clip sheet owns them); minimum duration clamp. |
+| `TimelineGeometry.OVERLAY_TRACK_HEIGHT_DP` | The one row height used for cross-track drop maths. |
+| `BeatGrid.cutOffsets` | Which local beats are safe to cut at: both edges need `ClipSplit.MIN_SPLIT_MS`, dense beat lists abort instead of shredding a clip. |
+
+### UI
+- The timeline is genuinely multi-track now: ruler → main video row → **one row per overlay track** → audio → text → FX. The old flattened `flatMap` overlay row is gone.
+- The fixed left gutter (`TimelineTrackHeaders`) is one real row per track: mute, lock, solo for main/overlay, mute-all for audio. Buttons call back into the project, not a local `remember`.
+- Inline trim handles: the selected clip gets draggable start/end handles; the delta converts to milliseconds and `EditorViewModel.trimSelectedClipEdge` applies `ClipTrimHandle`.
+- Overlay long-press drag now reports a **track shift** (one overlay row = one track change), which `EditorViewModel.moveClipToTrack` resolves in the target track.
+- The ruler draws detected beats as ticks, and a snap guide line appears while scrubbing.
+
+### Audio routing
+- `ProjectCompositionFactory.videoVoiceGain` resolves the real gain: clip mute, track mute and video-track solo (main + overlay) all collapse to one decision, so preview and export cannot disagree.
+
+### Auto-cut
+- `autoCutToBeat()` reuses the detected/mapped beats and then cuts through `ClipSplit` instead of hand-rolled `trimStartMs` arithmetic, so speed, keyframes and transition ownership survive.
+
+### Tests
+- `ClipTrimHandleTest` (7): end/start handle, frame quantisation, 2× speed source distance, minimum clamp, no-op, velocity-curve refusal.
+- `PolicyPresetAutoEditTest` +2: `BeatGrid.cutOffsets` edge/inside filtering and dense-beat abort.
+- `EditorWorkflowTest` +5: track mute/lock/solo persistence, locked-track guards, cross-track move, inline trim end result, locked-main split refusal.
+- `ProjectJsonTest` +1: track flags and clip mute survive the JSON round trip.
+- `TimelineTrackControlsTest` (new, Robolectric Compose): mute/lock/solo header taps report the right control.
+
+Total suite after this addendum: **294 tests, 0 failures** (31 suites). Debug APK rebuilt (26.22 MB).
 
 Still environment-blocked: no device/emulator for instrumented runs, no EGL/GLES
 surface for the GL compositor, no Bangla font binaries or ASR model.

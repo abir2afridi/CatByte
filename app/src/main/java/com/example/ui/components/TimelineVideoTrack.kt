@@ -44,11 +44,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.example.engine.ClipTrimHandle
 import com.example.model.MediaClip
 import com.example.model.TransitionType
 import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.pencilHatching
 import com.example.ui.theme.sketchPencilBorder
+import kotlin.math.roundToLong
 
 /**
  * Main video track. Tapping selects a clip; long-press then drag reorders it.
@@ -64,7 +66,10 @@ fun TimelineVideoTrack(
     onSelectClip: (String) -> Unit,
     onTransitionClick: (String) -> Unit,
     onAddMediaClick: () -> Unit,
-    onMoveClip: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> }
+    onMoveClip: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> },
+    onTrimClip: (clipId: String, edge: ClipTrimHandle.Edge, deltaMs: Long) -> Unit = { _, _, _ -> },
+    fps: Int = 30,
+    isLocked: Boolean = false
 ) {
     val colors = PencilTheme.colors
     val density = LocalDensity.current
@@ -136,7 +141,8 @@ fun TimelineVideoTrack(
                         isPencilStyle = colors.isPencilSketch
                     )
                     .clickable { onSelectClip(clip.id) }
-                    .pointerInput(clip.id, clips.size, clipWidthDps) {
+                    .pointerInput(clip.id, clips.size, clipWidthDps, isLocked) {
+                        if (isLocked) return@pointerInput
                         detectDragGesturesAfterLongPress(
                             onDragStart = {
                                 dragOffsetPx = 0f
@@ -296,26 +302,34 @@ fun TimelineVideoTrack(
                     }
                 }
 
-                if (isSelected) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .width(5.dp)
-                            .fillMaxHeight()
-                            .background(
-                                colors.handle,
-                                RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp)
+                if (isSelected && !isLocked) {
+                    TimelineTrimHandle(
+                        edge = ClipTrimHandle.Edge.START,
+                        color = colors.handle,
+                        modifier = Modifier.align(Alignment.CenterStart),
+                        onCommit = { deltaPx ->
+                            val deltaDp = deltaPx / density.density
+                            val deltaMs = (deltaDp / msToDp).roundToLong()
+                            if (deltaMs != 0L) onTrimClip(
+                                clip.id,
+                                ClipTrimHandle.Edge.START,
+                                deltaMs
                             )
+                        }
                     )
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .width(5.dp)
-                            .fillMaxHeight()
-                            .background(
-                                colors.handle,
-                                RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)
+                    TimelineTrimHandle(
+                        edge = ClipTrimHandle.Edge.END,
+                        color = colors.handle,
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        onCommit = { deltaPx ->
+                            val deltaDp = deltaPx / density.density
+                            val deltaMs = (deltaDp / msToDp).roundToLong()
+                            if (deltaMs != 0L) onTrimClip(
+                                clip.id,
+                                ClipTrimHandle.Edge.END,
+                                deltaMs
                             )
+                        }
                     )
                 }
             }

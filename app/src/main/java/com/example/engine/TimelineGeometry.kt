@@ -27,6 +27,9 @@ object TimelineGeometry {
     /** Half of the playhead's touch target. */
     const val PLAYHEAD_HIT_HALF_DP = 22f
 
+    /** Height of one overlay track row; drag maths uses it for cross-track drops. */
+    const val OVERLAY_TRACK_HEIGHT_DP = 46f
+
     private const val MIN_ZOOM = 0.25f
     private const val MAX_ZOOM = 8f
 

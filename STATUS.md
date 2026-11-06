@@ -14,7 +14,7 @@
 | **P1** Vertical slice | ✅ DONE | Import one video → decode → ExoPlayer preview → text overlay → export MP4 → validated playable output |
 | **P2** Model, commands, persistence | 🟢 DONE | Command/undo layer (persistent `UndoJournal` + `EditorViewModel`), `Timebase`, keyframe interpolation |
 | **P3** Shell & import | 🟢 DONE | Theme, navigation, home, picker, proxy policy, shortcuts |
-| **P4** Timeline & preview | 🟢 DONE | Draggable playhead with edge auto-scroll, free pan, pinch zoom, touch-pauses-playback, ruler scrub, multi-track timeline, preview sync, clip/beat magnetic snapping, ripple delete, overlay drag |
+| **P4** Timeline & preview | 🟢 DONE | Draggable playhead with edge auto-scroll, free pan, pinch zoom, touch-pauses-playback, ruler scrub, multi-track timeline, preview sync, clip/beat magnetic snapping, ripple delete, inline trim handles, per-track mute/lock/solo, cross-track overlay moves |
 | **P5** Clip & canvas tools | 🟢 DONE | Canvas transforms, `CropMath`, `SpeedCurve`/Bezier ramping, freeze/reverse, audio extraction |
 | **P6** Text, audio, adjust, filters | 🟢 DONE | 20 original colour LUT presets, GLSL sources, Bangla shaping maths, subtitle import/export/burn-in, audio extraction + waveform |
 | **P7** Transitions & multi-track | 🟢 DONE | `TransitionEngine` weights, `MaskMath` (rect/circle/feather), `BlendMath` (multiply/screen/overlay), `ChromaKey` |
@@ -22,7 +22,7 @@
 | **P9** Tier 2 CapCut Pro features | 🟢 VERIFIED ON DEVICE | Direct canvas gestures (pinch/rotate/pan), transform bounding box, chroma-key eyedropper, freeze frame, reverse playback, 10× volume boost, keyframe markers |
 | **P10** Polish | ⏳ IN PROGRESS | Accessibility, haptics, empty/error states, onboarding |
 | **P11** Tier 3 features | ⏳ IN PROGRESS | Auto captions, background removal, object tracking |
-| **P12** Release verification | 🟢 VERIFIED | Previous device run: lint 0 errors, 6/6 instrumented. Current suite: **278/278 JVM/Robolectric tests**, debug APK built |
+| **P12** Release verification | 🟢 VERIFIED | Previous device run: lint 0 errors, 6/6 instrumented. Current suite: **294/294 JVM/Robolectric tests**, debug APK built |
 
 ---
 
@@ -54,19 +54,22 @@
 - ✅ Welcome dialog (no auto-created "Untitled Project")
 
 ### Timeline
-- ✅ Multi-track timeline (main + overlay + audio + text + effects)
+- ✅ Multi-track timeline: main video row + one row per overlay track (audio, text, FX rows separate)
+- ✅ Per-track mute / lock / solo for main + overlay tracks: persisted, applied to composition gain, locked tracks refuse moves/trims/deletes
+- ✅ Inline trim handles on the selected clip: `ClipTrimHandle` updates source trims (frame-quantised, speed-aware; velocity curves fall back to the Edit Clip sheet)
+- ✅ Frame-accurate split (`ClipSplit`): source-offset aware through trims/speed, keyframes partitioned + rebased, transition/animation ownership preserved
+- ✅ Ripple delete (main) / lift delete (overlay), main-track reorder, overlay move + cross-track move (`moveClipToTrack`)
+- ✅ Beat ticks on the ruler and a snap guide while scrubbing
 - ✅ Free pan via `horizontalScroll`; any touch/pan pauses playback
 - ✅ Draggable playhead needle with stable drag anchor, edge auto-scroll and timecode badge
 - ✅ Ruler tap/drag scrubbing with frame snapping, density-correct ticks and edge auto-scroll
 - ✅ Follow-scroll centres the playhead only while playing and untouched
 - ✅ Two-finger pinch zoom (0.5×–3.0×) plus zoom +/- on the playback strip
-- ✅ Split, duplicate, ripple delete (main) / lift delete (overlay), main-track reorder
-- ✅ Overlay clips long-press-drag along their track; drop uses `SnapEngine.magneticStart` and project-bounds clamp
-- ✅ Frame-accurate split (`ClipSplit`): source-offset aware through trims/speed, keyframes partitioned + rebased, transition/animation ownership preserved
-- 🟡 Per-clip audio mute (`AudioClip.isMuted`) is wired to composition gain; track-level mute/lock/solo and the header button are not wired
+- ✅ Overlay clips long-press-drag along their track; drop uses `SnapEngine.magneticStart` and project-bounds clamp, and a vertical drag reports a track shift
+- ✅ Per-clip audio mute (`AudioClip.isMuted`) and an "All audio" mute toggle in the Audio header
 - ✅ Waveform display for audio clips
 - ✅ Magnetic snapping: timeline start, clip/overlay/audio/text/effect bounds, playhead; detected beats are lowest-priority magnets
-- ✅ Trim through the Edit Clip sheet (`updateClipTrim`); inline timeline edge handles are not built
+- 🟡 Beat marker row: ticks and the snap guide are drawn, but a dedicated editable beat grid is pending
 
 ### Preview & Canvas Gestures
 - ✅ ExoPlayer playback with composition preview
@@ -117,11 +120,9 @@
 
 ### Timeline & Preview
 - ❌ **60 fps scroll guarantee**: no LRU bitmap pool or multi-resolution waveform pyramids
-- ❌ **Visible beat markers**: beats feed snapping and auto-cut, but the timeline does not draw a beat row yet
-- ❌ **Cross-track clip drag**: main-track reorder and overlay start-time drag are wired; moving a clip between tracks is not
+- 🟡 **Editable beat grid**: beat ticks and snap guide are drawn; a row you can drag/edit per beat is pending
 - ❌ **Markers with labels/colours, jump-to-marker, marker-based snapping**
 - ❌ **Decoder pool with priority/eviction**
-- 🟡 **Inline trim handles**: trim works through the Edit Clip sheet, not by dragging clip edges on the timeline
 
 ### Clip Tools
 - ❌ **Alignment guides with snap haptics**
@@ -164,7 +165,7 @@
 - ❌ **Golden-frame rendering tests**
 - ❌ **Soak/fuzz tests** (random edits, 30-min playback, 10 exports)
 - ❌ **Local check scripts** (`scripts/check.sh` / `check.ps1`)
-- ✅ **Unit tests**: 278/278 across 29 suites, including 4 Robolectric Compose gesture tests
+- ✅ **Unit tests**: 294/294 across 31 suites, including 5 Robolectric Compose UI tests
 - ✅ **CI**: `.github/workflows/ci.yml` runs lint, unit tests and `assembleDebug` on pushes/PRs
 - ✅ **TEST_REPORT.md**: exists with the P8 device round and current snapshot
 
@@ -177,17 +178,15 @@
 3. **Bangla text not verified** — no bundled fonts and no golden-image shaping tests.
 4. **No ASR model** — auto-caption timing/cue logic is real, but word recognition needs model binaries and a size/licence decision.
 5. **HDR/10-bit output** — requires renderer work beyond Media3's current path.
-6. **Cross-track drag** — free placement between overlay tracks is still a compose gesture task.
-7. **Inline trim handles** — trimming currently goes through the Edit Clip sheet.
-8. **No local check script** — CI covers the gate, but `scripts/check.ps1` is still missing.
+6. **No local check script** — CI covers the gate, but `scripts/check.ps1` is still missing.
 
 ---
 
 ## Next 5 Tasks (Priority Order)
 
 1. **On-device E2E export run**: execute a full synthetic fixture export on a connected device and record it in `TEST_REPORT.md`.
-2. **Beat marker row + snap indicator**: draw detected beats on the ruler/timeline and highlight the active magnet during drags.
-3. **Cross-track clip drag**: long-press a clip and drop it onto another track, reusing `TimelineEdits` for placement.
+2. **Editable beat grid + markers**: turn the drawn beat ticks into an editable row and add named/coloured markers with jump + snap.
+3. **Cross-track overlay polish**: snap the drop to the target track's occupied ranges and preview the track highlight while dragging (placement itself is wired).
 4. **Custom GL compositor**: execute `MaskMath`, `BlendMath`, `ChromaKey` and `EffectShaders` in one GL pipeline shared by preview and export.
 5. **Release verification**: signed release build, size report and one device smoke pass.
 
@@ -225,13 +224,13 @@
 ./gradlew :app:compileDebugKotlin
 # Result: BUILD SUCCESSFUL (2026-11-06; only pre-existing deprecation warnings)
 
-# Assemble debug APK
+# Assemble debug APK + instrumented test compile
 ./gradlew :app:assembleDebug
-# Result: BUILD SUCCESSFUL - app-debug.apk 26.19 MB (24.98 MiB)
+# Result: BUILD SUCCESSFUL - app-debug.apk 26.22 MB (2026-11-06)
 
 # Run unit tests
 ./gradlew :app:testDebugUnitTest
-# Result: BUILD SUCCESSFUL - 278 tests, 0 failed, 0 skipped, 29 suites
+# Result: BUILD SUCCESSFUL - 294 tests, 0 failed, 0 skipped, 31 suites
 # (XML results under app/build/test-results/testDebugUnitTest/)
 
 # Compose gesture tests (Robolectric)

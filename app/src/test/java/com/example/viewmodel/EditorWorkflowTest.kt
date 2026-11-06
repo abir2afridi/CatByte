@@ -1,11 +1,13 @@
 package com.example.viewmodel
 
+import com.example.engine.ClipTrimHandle
 import com.example.model.AspectRatioType
 import com.example.data.ProjectRepository
 import com.example.model.MediaClip
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
+import com.example.model.TimelineTrackIds
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -293,5 +295,192 @@ class EditorWorkflowTest {
             viewModel.currentProject.value!!.overlayTracks.first().clips
                 .first { it.id == "ov1" }.startTimelineMs
         )
+    }
+
+    @Test
+    fun `track mute lock solo persist into the project`() {
+        val project = VideoProject(
+            id = "p4",
+            title = "Track controls",
+            clips = listOf(
+                MediaClip(id = "main", title = "Main", durationMs = 3_000L, originalDurationMs = 3_000L)
+            ),
+            overlayTracks = listOf(
+                VideoTrack(
+                    id = "track_a",
+                    name = "OV A",
+                    isMainTrack = false,
+                    clips = listOf(
+                        MediaClip(
+                            id = "ov_a",
+                            title = "OV A",
+                            startTimelineMs = 0L,
+                            durationMs = 1_000L,
+                            originalDurationMs = 1_000L
+                        )
+                    )
+                ),
+                VideoTrack(
+                    id = "track_b",
+                    name = "OV B",
+                    isMainTrack = false,
+                    clips = emptyList()
+                )
+            )
+        )
+        val viewModel = newViewModel()
+        viewModel.openProject(project)
+
+        viewModel.setTrackMuted(TimelineTrackIds.MAIN, true)
+        viewModel.setTrackLocked("track_a", true)
+        viewModel.setTrackSolo("track_b", true)
+
+        val updated = viewModel.currentProject.value!!
+        assertTrue(updated.isMainTrackMuted)
+        assertTrue(updated.overlayTracks.first { it.id == "track_a" }.isLocked)
+        assertTrue(updated.overlayTracks.first { it.id == "track_b" }.isSolo)
+        assertFalse(updated.overlayTracks.first { it.id == "track_a" }.isSolo)
+        assertFalse(updated.isMainTrackSolo)
+
+        viewModel.setClipMuted("main", true)
+        assertTrue(viewModel.currentProject.value!!.clips.first().isMuted)
+    }
+
+    @Test
+    fun `locked tracks refuse moves deletes and trims`() {
+        val viewModel = newViewModel()
+        val project = VideoProject(
+            id = "p5",
+            title = "Locked",
+            clips = listOf(
+                MediaClip(
+                    id = "a", title = "A", durationMs = 2_000L, originalDurationMs = 2_000L,
+                    trimEndMs = 0L
+                ),
+                MediaClip(
+                    id = "b", title = "B", durationMs = 2_000L, originalDurationMs = 2_000L
+                )
+            ),
+            overlayTracks = listOf(
+                VideoTrack(
+                    id = "track_a",
+                    name = "OV",
+                    isMainTrack = false,
+                    isLocked = true,
+                    clips = listOf(
+                        MediaClip(
+                            id = "ov_1",
+                            title = "OV",
+                            startTimelineMs = 0L,
+                            durationMs = 1_000L,
+                            originalDurationMs = 1_000L
+                        )
+                    )
+                )
+            ),
+            isMainTrackLocked = true
+        )
+        viewModel.openProject(project)
+
+        viewModel.selectClip("a")
+        viewModel.moveClip(0, 1)
+        assertEquals(listOf("a", "b"), viewModel.currentProject.value!!.clips.map { it.id })
+
+        viewModel.deleteSelectedClip()
+        assertEquals(2, viewModel.currentProject.value!!.clips.size)
+
+        viewModel.trimSelectedClipEdge(ClipTrimHandle.Edge.END, 1_000L, 30)
+        assertEquals(2_000L, viewModel.currentProject.value!!.clips.first().durationMs)
+
+        viewModel.selectClip("ov_1")
+        viewModel.moveOverlayClip("ov_1", 2_000L)
+        assertEquals(
+            0L,
+            viewModel.currentProject.value!!.overlayTracks.first().clips.first().startTimelineMs
+        )
+    }
+
+    @Test
+    fun `overlay clip can move to another track`() {
+        val project = VideoProject(
+            id = "p6",
+            title = "Cross track",
+            clips = listOf(
+                MediaClip(id = "main", title = "Main", durationMs = 4_000L, originalDurationMs = 4_000L)
+            ),
+            overlayTracks = listOf(
+                VideoTrack(
+                    id = "track_a",
+                    name = "OV A",
+                    isMainTrack = false,
+                    clips = listOf(
+                        MediaClip(
+                            id = "ov_1",
+                            title = "Pip",
+                            startTimelineMs = 0L,
+                            durationMs = 2_000L,
+                            originalDurationMs = 2_000L
+                        )
+                    )
+                ),
+                VideoTrack(id = "track_b", name = "OV B", isMainTrack = false, clips = emptyList())
+            )
+        )
+        val viewModel = newViewModel()
+        viewModel.openProject(project)
+
+        viewModel.moveClipToTrack("ov_1", "track_b", 1_000L)
+
+        val updated = viewModel.currentProject.value!!.overlayTracks
+        assertTrue(updated.first { it.id == "track_a" }.clips.isEmpty())
+        val moved = updated.first { it.id == "track_b" }.clips.first()
+        assertEquals("ov_1", moved.id)
+        assertEquals(1_000L, moved.startTimelineMs)
+    }
+
+    @Test
+    fun `locked main track refuses the split cut`() {
+        val viewModel = newViewModel()
+        val project = VideoProject(
+            id = "p8",
+            title = "Locked split",
+            clips = listOf(
+                MediaClip(
+                    id = "clip", title = "Clip",
+                    durationMs = 3_000L, originalDurationMs = 3_000L
+                )
+            ),
+            isMainTrackLocked = true
+        )
+        viewModel.openProject(project)
+        viewModel.seekTo(1_500L)
+
+        assertFalse(viewModel.splitClipAtPlayhead())
+        assertEquals(1, viewModel.currentProject.value!!.clips.size)
+    }
+
+    @Test
+    fun `inline trim handle moves the source trim and duration`() {        val viewModel = newViewModel()
+        val project = VideoProject(
+            id = "p7",
+            title = "Trim handle",
+            clips = listOf(
+                MediaClip(
+                    id = "clip",
+                    title = "Clip",
+                    durationMs = 3_000L,
+                    originalDurationMs = 5_000L,
+                    trimStartMs = 0L,
+                    trimEndMs = 0L
+                )
+            )
+        )
+        viewModel.openProject(project)
+        viewModel.selectClip("clip")
+        viewModel.trimSelectedClipEdge(ClipTrimHandle.Edge.END, 1_000L, 30)
+
+        val clip = viewModel.currentProject.value!!.clips.first()
+        assertEquals(3_990L, clip.durationMs)
+        assertEquals(3_990L, clip.trimEndMs)
     }
 }

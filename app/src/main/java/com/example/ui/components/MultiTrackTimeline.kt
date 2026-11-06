@@ -2,9 +2,16 @@ package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +32,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -33,9 +41,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.engine.CenterPlayhead
+import com.example.engine.ClipTrimHandle
 import com.example.engine.SnapCandidate
 import com.example.engine.SnapEngine
 import com.example.engine.TimelineGeometry
+import com.example.model.TimelineTrackIds
 import com.example.model.VideoProject
 import com.example.ui.theme.PencilTheme
 import kotlin.math.abs
@@ -74,7 +84,13 @@ fun MultiTrackTimeline(
     onTransitionClick: (String) -> Unit,
     onMoveClip: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> },
     onMoveOverlayClip: (clipId: String, newStartMs: Long) -> Unit = { _, _ -> },
+    onMoveOverlayClipToTrack: (clipId: String, targetTrackId: String, newStartMs: Long) -> Unit = { _, _, _ -> },
     onZoomChange: (Float) -> Unit = {},
+    onTrimClip: (edge: ClipTrimHandle.Edge, deltaMs: Long) -> Unit = { _, _ -> },
+    onTrackMute: (trackId: String, muted: Boolean) -> Unit = { _, _ -> },
+    onTrackLock: (trackId: String, locked: Boolean) -> Unit = { _, _ -> },
+    onTrackSolo: (trackId: String, solo: Boolean) -> Unit = { _, _ -> },
+    onSetAllAudioMuted: (Boolean) -> Unit = {},
     beats: List<Long> = emptyList(),
     onUserInteraction: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -86,7 +102,6 @@ fun MultiTrackTimeline(
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
 
-    var isTrackMuted by remember { mutableStateOf(false) }
     var viewportWidthPx by remember { mutableStateOf(0) }
     var isScrubbing by remember { mutableStateOf(false) }
 
@@ -198,10 +213,89 @@ fun MultiTrackTimeline(
             .testTag("multi_track_timeline")
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
-            TimelineTrackHeader(
-                isTrackMuted = isTrackMuted,
-                onMuteClick = { isTrackMuted = !isTrackMuted }
-            )
+            Column(modifier = Modifier.width(54.dp).fillMaxHeight()) {
+                val allAudioMuted = project.audioTracks.isNotEmpty() &&
+                    project.audioTracks.all { it.isMuted }
+                val headerRows = buildList {
+                    add(
+                        TimelineHeaderRow(
+                            title = "Time",
+                            heightDp = 31.dp,
+                            icon = Icons.Default.Schedule
+                        )
+                    )
+                    add(
+                        TimelineHeaderRow(
+                            title = "Main",
+                            heightDp = 67.dp,
+                            isMuted = project.isMainTrackMuted,
+                            isLocked = project.isMainTrackLocked,
+                            isSolo = project.isMainTrackSolo,
+                            canMute = true,
+                            canLock = true,
+                            canSolo = true,
+                            onMute = {
+                                onTrackMute(TimelineTrackIds.MAIN, !project.isMainTrackMuted)
+                            },
+                            onLock = {
+                                onTrackLock(TimelineTrackIds.MAIN, !project.isMainTrackLocked)
+                            },
+                            onSolo = {
+                                onTrackSolo(TimelineTrackIds.MAIN, !project.isMainTrackSolo)
+                            }
+                        )
+                    )
+                    project.overlayTracks.forEachIndexed { index, track ->
+                        add(
+                            TimelineHeaderRow(
+                                title = "OV ${index + 1}",
+                                heightDp = 51.dp,
+                                isMuted = track.isMuted,
+                                isLocked = track.isLocked,
+                                isSolo = track.isSolo,
+                                canMute = true,
+                                canLock = true,
+                                canSolo = true,
+                                icon = Icons.Default.VideoLibrary,
+                                onMute = { onTrackMute(track.id, !track.isMuted) },
+                                onLock = { onTrackLock(track.id, !track.isLocked) },
+                                onSolo = { onTrackSolo(track.id, !track.isSolo) }
+                            )
+                        )
+                    }
+                    if (project.audioTracks.isNotEmpty()) {
+                        add(
+                            TimelineHeaderRow(
+                                title = "Audio",
+                                heightDp = 39.dp,
+                                isMuted = allAudioMuted,
+                                canMute = true,
+                                icon = Icons.Default.Headset,
+                                onMute = { onSetAllAudioMuted(!allAudioMuted) }
+                            )
+                        )
+                    }
+                    if (project.textOverlays.isNotEmpty()) {
+                        add(
+                            TimelineHeaderRow(
+                                title = "Text",
+                                heightDp = 37.dp,
+                                icon = Icons.Default.TextFields
+                            )
+                        )
+                    }
+                    if (project.effects.isNotEmpty()) {
+                        add(
+                            TimelineHeaderRow(
+                                title = "FX",
+                                heightDp = 30.dp,
+                                icon = Icons.Default.AutoAwesome
+                            )
+                        )
+                    }
+                }
+                TimelineTrackHeaders(rows = headerRows)
+            }
 
             // Viewport: the content scrolls, the playhead stays in screen space.
             // No clipToBounds here: the scroll container already clips its own
@@ -273,6 +367,7 @@ fun MultiTrackTimeline(
                                 snapCandidates = snapCandidates,
                                 snapThresholdFrames = snapThresholdFrames,
                                 scrollState = scrollState,
+                                beats = beats,
                                 onSeek = onSeek,
                                 onScrubStart = beginScrub,
                                 onScrubEnd = endScrub
@@ -287,19 +382,41 @@ fun MultiTrackTimeline(
                                 onSelectClip = onSelectClip,
                                 onTransitionClick = onTransitionClick,
                                 onAddMediaClick = onAddMediaClick,
-                                onMoveClip = onMoveClip
+                                onMoveClip = onMoveClip,
+                                onTrimClip = { _, edge, deltaMs -> onTrimClip(edge, deltaMs) },
+                                fps = fps,
+                                isLocked = project.isMainTrackLocked
                             )
 
                             Spacer(modifier = Modifier.height(5.dp))
 
-                            val overlayClips = project.overlayTracks.flatMap { it.clips }
-                            if (overlayClips.isNotEmpty()) {
+                            project.overlayTracks.forEachIndexed { trackIndex, track ->
                                 TimelineOverlayTrack(
-                                    clips = overlayClips,
+                                    clips = track.clips,
                                     selectedClipId = selectedClipId,
                                     msToDp = msToDp,
                                     onSelectClip = onSelectClip,
-                                    onMoveClip = onMoveOverlayClip
+                                    onMoveClip = { clipId, startMs, trackShift ->
+                                        if (trackShift == 0) {
+                                            onMoveOverlayClip(clipId, startMs)
+                                        } else {
+                                            val targetIndex =
+                                                (trackIndex + trackShift).coerceIn(
+                                                    0,
+                                                    project.overlayTracks.lastIndex
+                                                )
+                                            onMoveOverlayClipToTrack(
+                                                clipId,
+                                                project.overlayTracks[targetIndex].id,
+                                                startMs
+                                            )
+                                        }
+                                    },
+                                    onTrimClip = { _, edge, deltaMs -> onTrimClip(edge, deltaMs) },
+                                    fps = fps,
+                                    isLocked = track.isLocked,
+                                    trackIndex = trackIndex,
+                                    trackCount = project.overlayTracks.size
                                 )
                                 Spacer(modifier = Modifier.height(5.dp))
                             }
@@ -346,6 +463,30 @@ fun MultiTrackTimeline(
                     onScrubEnd = endScrub,
                     modifier = Modifier.align(Alignment.TopStart)
                 )
+
+                // Snap guide: shows the magnet the ruler/needle snapped to while
+                // the user is scrubbing. It is drawn in screen space, like the
+                // needle, so it stays visible while the content scrolls.
+                Canvas(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .fillMaxSize()
+                ) {
+                    if (!magneticSnap || !isScrubbing) return@Canvas
+                    val x = TimelineGeometry.screenXDp(
+                        positionMs = currentPositionMs,
+                        zoom = zoom,
+                        scrollPx = scrollState.value,
+                        density = density.density
+                    ) * density.density
+                    if (x < 0f || x > size.width) return@Canvas
+                    drawLine(
+                        color = colors.accentYellow,
+                        start = androidx.compose.ui.geometry.Offset(x, 0f),
+                        end = androidx.compose.ui.geometry.Offset(x, size.height),
+                        strokeWidth = 1.6f * density.density
+                    )
+                }
             }
         }
     }

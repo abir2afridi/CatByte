@@ -192,7 +192,7 @@ object ProjectCompositionFactory {
                     mainBuilder.addGap(planned.layer.durationUs)
                 }
             } else {
-                mainBuilder.addItem(buildVideoItem(planned, fps, warnings))
+                mainBuilder.addItem(buildVideoItem(project, planned, fps, warnings))
             }
             cursorUs = planned.layer.timelineOutUs
         }
@@ -216,7 +216,7 @@ object ProjectCompositionFactory {
             if (planned.layer.timelineInUs > 0L) {
                 builder.addGap(planned.layer.timelineInUs)
             }
-            builder.addItem(buildVideoItem(planned, fps, warnings))
+            builder.addItem(buildVideoItem(project, planned, fps, warnings))
             val inputIndex = sequences.size
             sequences += builder.build()
             overlayInputs[inputIndex] = planned.clip
@@ -258,7 +258,34 @@ object ProjectCompositionFactory {
     // Video items
     // ------------------------------------------------------------------
 
+    // Video items
+    // ------------------------------------------------------------------
+
+    /**
+     * Audio gain of a video clip, honouring clip mute, track mute and video
+     * track solo. Music clips (separate `AudioClip`s) own their own mute flag;
+     * this only covers the audio that comes out of picture tracks.
+     */
+    private fun videoVoiceGain(project: VideoProject, clip: MediaClip, isOverlay: Boolean): Float {
+        if (clip.isMuted) return 0f
+        val anyVideoSolo = project.isMainTrackSolo || project.overlayTracks.any { it.isSolo }
+        val gain = if (isOverlay) {
+            val track = project.overlayTracks.firstOrNull { it.clips.any { c -> c.id == clip.id } }
+            val muted = track?.isMuted ?: false
+            val solo = track?.isSolo ?: false
+            if (muted || (anyVideoSolo && !solo)) 0f else clip.volume
+        } else {
+            if (project.isMainTrackMuted || (anyVideoSolo && !project.isMainTrackSolo)) {
+                0f
+            } else {
+                clip.volume
+            }
+        }
+        return gain.coerceIn(0f, 2f)
+    }
+
     private fun buildVideoItem(
+        project: VideoProject,
         planned: PlannedClip,
         fps: Int,
         warnings: MutableSet<String>
@@ -299,8 +326,8 @@ object ProjectCompositionFactory {
         }
 
         val audioProcessors = mutableListOf<AudioProcessor>()
-        if (!isOverlay || clip.volume != 1f) {
-            val gain = clip.volume.coerceIn(0f, 2f)
+        val gain = videoVoiceGain(project, clip, isOverlay)
+        if (!isOverlay || gain != 1f) {
             if (abs(gain - 1f) > 0.001f) {
                 audioProcessors += GainProcessor(
                     ConstantGainProvider(gain, 0L, 0L, layer.durationUs / 1000L)

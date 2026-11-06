@@ -34,6 +34,7 @@ import com.example.model.StickerOverlay
 import com.example.model.TextAnimationType
 import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
+import com.example.model.TimelineTrackIds
 import com.example.model.TimelineEffect
 import com.example.model.TransitionType
 import com.example.model.VideoFilter
@@ -44,6 +45,7 @@ import com.example.data.db.ProjectJson
 import com.example.engine.BeatGrid
 import com.example.engine.CaptionBridge
 import com.example.engine.ClipSplit
+import com.example.engine.ClipTrimHandle
 import com.example.engine.FileJournalStorage
 import com.example.engine.SnapEngine
 import com.example.engine.SubtitleIO
@@ -743,6 +745,12 @@ class EditorViewModel(
         val selectedId = _selectedClipId.value
         val min = ClipSplit.MIN_SPLIT_MS
 
+        // Locked tracks refuse the cut. A selected overlay splits even when the
+        // main track is locked, and vice versa.
+        if (selectedId != null && project.isTrackLockedForClip(selectedId)) return false
+        val selectedIsMain = selectedId != null && project.clips.any { it.id == selectedId }
+        if (project.isMainTrackLocked && (selectedId == null || selectedIsMain)) return false
+
         // 1. A selected overlay clip under the playhead wins over the main track.
         if (selectedId != null) {
             project.overlayTracks.forEachIndexed { trackIndex, track ->
@@ -798,6 +806,7 @@ class EditorViewModel(
     fun deleteSelectedClip() {
         val clipId = _selectedClipId.value ?: return
         updateProject { proj ->
+            if (proj.isTrackLockedForClip(clipId)) return@updateProject proj
             val mainSpans = proj.clips.map {
                 TimelineEdits.ClipSpan(it.id, it.startTimelineMs, it.durationMs)
             }
@@ -1043,6 +1052,7 @@ class EditorViewModel(
     /** Moves a clip to a new position in the timeline (drag-reorder). */
     fun moveClip(fromIndex: Int, toIndex: Int) {
         val project = _currentProject.value ?: return
+        if (project.isMainTrackLocked) return
         val clips = project.clips.toMutableList()
         if (fromIndex !in clips.indices || toIndex !in clips.indices) return
         val clip = clips.removeAt(fromIndex)
@@ -1057,6 +1067,7 @@ class EditorViewModel(
      */
     fun moveOverlayClip(clipId: String, desiredStartMs: Long) {
         updateProject { proj ->
+            if (proj.isTrackLockedForClip(clipId)) return@updateProject proj
             val trackIndex = proj.overlayTracks.indexOfFirst { track ->
                 track.clips.any { it.id == clipId }
             }
@@ -1081,6 +1092,150 @@ class EditorViewModel(
                     if (index == trackIndex) updatedTrack else current
                 }
             )
+        }
+    }
+
+    /**
+     * Moves a clip to another overlay track at the requested start time.
+     *
+     * Cross-track drops are the CapCut "free overlay" model: the target track is
+     * chosen by the vertical part of the drag, then [SnapEngine] resolves the
+     * exact start inside that track. Locked source/target tracks refuse the move.
+     */
+    fun moveClipToTrack(clipId: String, targetTrackId: String, desiredStartMs: Long) {
+        updateProject { proj ->
+            if (proj.isTrackLocked(targetTrackId) || proj.trackIdForClip(clipId) == targetTrackId) {
+                return@updateProject proj
+            }
+            if (proj.isTrackLockedForClip(clipId)) return@updateProject proj
+            val sourceIndex = proj.overlayTracks.indexOfFirst { track ->
+                track.clips.any { it.id == clipId }
+            }
+            val targetIndex = proj.overlayTracks.indexOfFirst { it.id == targetTrackId }
+            if (sourceIndex == -1 || targetIndex == -1) return@updateProject proj
+
+            val clip = proj.overlayTracks[sourceIndex].clips.first { it.id == clipId }
+            val occupied = SnapEngine.occupiedRanges(
+                proj.overlayTracks[targetIndex].clips.map { it.startTimelineMs to it.durationMs }
+            )
+            val snapped = SnapEngine.magneticStart(desiredStartMs, clip.durationMs, occupied)
+            val maxStart = (proj.totalDurationMs - clip.durationMs).coerceAtLeast(0L)
+            val start = snapped.coerceIn(0L, maxStart)
+            val moved = clip.copy(startTimelineMs = start)
+
+            proj.copy(
+                overlayTracks = proj.overlayTracks.mapIndexed { index, track ->
+                    when (index) {
+                        sourceIndex -> track.copy(clips = track.clips.filterNot { it.id == clipId })
+                        targetIndex -> track.copy(clips = track.clips + moved)
+                        else -> track
+                    }
+                }
+            )
+        }
+    }
+
+    /** Track-level mute. Passes [TimelineTrackIds.MAIN] for the main video track. */
+    fun setTrackMuted(trackId: String, muted: Boolean) {
+        updateProject { proj ->
+            if (trackId == TimelineTrackIds.MAIN) {
+                return@updateProject proj.copy(isMainTrackMuted = muted)
+            }
+            proj.copy(
+                overlayTracks = proj.overlayTracks.map { track ->
+                    if (track.id == trackId) track.copy(isMuted = muted) else track
+                }
+            )
+        }
+    }
+
+    fun setTrackLocked(trackId: String, locked: Boolean) {
+        updateProject { proj ->
+            if (trackId == TimelineTrackIds.MAIN) {
+                return@updateProject proj.copy(isMainTrackLocked = locked)
+            }
+            proj.copy(
+                overlayTracks = proj.overlayTracks.map { track ->
+                    if (track.id == trackId) track.copy(isLocked = locked) else track
+                }
+            )
+        }
+    }
+
+    /** Solo silences every other video track's audio, like an audio desk. */
+    fun setTrackSolo(trackId: String, solo: Boolean) {
+        updateProject { proj ->
+            if (trackId == TimelineTrackIds.MAIN) {
+                return@updateProject proj.copy(isMainTrackSolo = solo)
+            }
+            val cleared = if (solo) proj.copy(
+                isMainTrackSolo = false,
+                overlayTracks = proj.overlayTracks.map { it.copy(isSolo = false) }
+            ) else {
+                proj
+            }
+            if (solo) {
+                cleared.copy(
+                    overlayTracks = cleared.overlayTracks.map { track ->
+                        if (track.id == trackId) track.copy(isSolo = true) else track
+                    }
+                )
+            } else {
+                cleared
+            }
+        }
+    }
+
+    /** Mutes or unmutes a single clip (audio gain only; the video stays visible). */
+    fun setClipMuted(clipId: String, muted: Boolean) {
+        updateProject { proj ->
+            proj.copy(
+                clips = proj.clips.map {                    if (it.id == clipId) it.copy(isMuted = muted) else it
+                },
+                overlayTracks = proj.overlayTracks.map { track ->
+                    track.copy(
+                        clips = track.clips.map {
+                            if (it.id == clipId) it.copy(isMuted = muted) else it
+                        }
+                    )
+                }
+            )
+        }
+    }
+
+    /** Mutes or unmutes every audio clip at once (the "Audio" row header). */
+    fun setAllAudioMuted(muted: Boolean) {
+        val project = _currentProject.value ?: return
+        if (project.audioTracks.isEmpty()) return
+        updateProject { proj ->
+            proj.copy(audioTracks = proj.audioTracks.map { it.copy(isMuted = muted) })
+        }
+    }
+
+    /**
+     * Trims the selected clip from an inline timeline handle.
+     *
+     * [ClipTrimHandle] owns the source maths; this only applies the result, so the
+     * sheet trim and the handles can never disagree. Locked tracks refuse it.
+     */
+    fun trimSelectedClipEdge(edge: ClipTrimHandle.Edge, outputDeltaMs: Long, fps: Int) {
+        val clipId = _selectedClipId.value ?: return
+        updateProject(
+            coalesceKey = "trim:$clipId:$edge"
+        ) { proj ->
+            if (proj.isTrackLockedForClip(clipId)) return@updateProject proj
+            val clip = (proj.clips + proj.overlayTracks.flatMap { it.clips })
+                .firstOrNull { it.id == clipId }
+                ?: return@updateProject proj
+            val result = ClipTrimHandle.trim(clip, edge, outputDeltaMs, fps)
+                ?: return@updateProject proj
+            proj.withUpdatedClip(clipId) { updated ->
+                updated.copy(
+                    trimStartMs = result.trimStartMs,
+                    trimEndMs = result.trimEndMs,
+                    durationMs = result.durationMs
+                )
+            }
         }
     }
 
@@ -1165,6 +1320,7 @@ class EditorViewModel(
     /** Updates the trim of the selected clip. Streams collapse into one undo. */
     fun updateClipTrim(trimStartMs: Long, trimEndMs: Long) {
         val clipId = _selectedClipId.value ?: return
+        if (_currentProject.value?.isTrackLockedForClip(clipId) == true) return
         updateProject(coalesceKey = "trim:$clipId") { proj ->
             proj.withUpdatedClip(clipId) { clip ->
                 val newTrimStart = trimStartMs.coerceIn(
@@ -1936,14 +2092,27 @@ class EditorViewModel(
      * Beat-sync: splits clips at detected musical beats (energy onset detection
      * with a BPM-based synthetic fallback).
      */
+    /**
+     * Cuts every main-track clip at the musical beats of the audio bed.
+     *
+     * Beats come from the same detection path the timeline magnets use; the
+     * split itself goes through [ClipSplit] so trims, speed, keyframes and
+     * transition ownership survive the cut.
+     */
     fun autoCutToBeat(beatsPerMinute: Int = 120) {
         val proj = _currentProject.value ?: return
         val ctx = context ?: return
+        if (proj.isMainTrackLocked) return
         viewModelScope.launch {
-            val firstUri = proj.clips.firstOrNull { !it.uriString.isNullOrBlank() }?.uriString
-            val beats = com.example.data.BeatDetector.detectBeats(
-                ctx, firstUri, proj.totalDurationMs, beatsPerMinute
-            )
+            val beats = if (_snapBeats.value.isNotEmpty()) {
+                _snapBeats.value
+            } else {
+                val firstUri = proj.audioTracks.firstOrNull { !it.uriString.isNullOrBlank() }?.uriString
+                    ?: proj.clips.firstOrNull { !it.uriString.isNullOrBlank() }?.uriString
+                com.example.data.BeatDetector.detectBeats(
+                    ctx, firstUri, proj.totalDurationMs, beatsPerMinute
+                )
+            }
             if (beats.isEmpty()) return@launch
 
             updateProject { current ->
@@ -1951,38 +2120,27 @@ class EditorViewModel(
                 var acc = 0L
                 for (clip in current.clips) {
                     val clipEnd = acc + clip.durationMs
-                    val localBeats = beats.filter { it in acc..clipEnd }.map { it - acc }
-                    if (localBeats.isEmpty() || localBeats.size > 12) {
+                    val localBeats = BeatGrid.cutOffsets(
+                        durationMs = clip.durationMs,
+                        beatOffsetsMs = beats
+                            .filter { it in acc until clipEnd }
+                            .map { it - acc }
+                    )
+                    if (localBeats.isEmpty()) {
                         newClips.add(clip.copy(startTimelineMs = acc))
                     } else {
-                        var segmentStart = 0L
+                        var remaining = clip
+                        var consumed = 0L
                         for (beat in localBeats) {
-                            val segDur = (beat - segmentStart).coerceAtLeast(200L)
-                            if (segDur >= 200L) {
-                                newClips.add(
-                                    clip.copy(
-                                        id = "beat_${UUID.randomUUID().toString().take(8)}",
-                                        startTimelineMs = acc + segmentStart,
-                                        durationMs = segDur,
-                                        originalDurationMs = clip.originalDurationMs,
-                                        trimStartMs = clip.trimStartMs + segmentStart
-                                    )
-                                )
-                            }
-                            segmentStart = beat
+                            val offset = beat - consumed
+                            val split = ClipSplit.split(remaining, offset) {
+                                "beat_${UUID.randomUUID().toString().take(8)}"
+                            } ?: continue
+                            newClips.add(split.first.copy(startTimelineMs = acc + consumed))
+                            remaining = split.second
+                            consumed = beat
                         }
-                        val tailDur = clip.durationMs - segmentStart
-                        if (tailDur >= 200L) {
-                            newClips.add(
-                                clip.copy(
-                                    id = "beat_${UUID.randomUUID().toString().take(8)}",
-                                    startTimelineMs = acc + segmentStart,
-                                    durationMs = tailDur,
-                                    originalDurationMs = clip.originalDurationMs,
-                                    trimStartMs = clip.trimStartMs + segmentStart
-                                )
-                            )
-                        }
+                        newClips.add(remaining.copy(startTimelineMs = acc + consumed))
                     }
                     acc = clipEnd
                 }

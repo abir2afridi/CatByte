@@ -255,4 +255,43 @@ class ProjectJsonTest {
         assertTrue(json.has("effects"))
         assertTrue(json.has("overlayTracks"))
     }
+
+    @Test
+    fun `track mute lock solo and clip mute survive the round trip`() {
+        val clip = MediaClip(
+            id = "clip_1",
+            title = "Clip",
+            durationMs = 2_000L,
+            originalDurationMs = 2_000L,
+            isMuted = true
+        )
+        val overlay = MediaClip(
+            id = "ov_1",
+            title = "Overlay",
+            startTimelineMs = 500L,
+            durationMs = 1_000L,
+            originalDurationMs = 1_000L
+        )
+        val project = VideoProject(
+            id = "proj_tracks",
+            title = "Tracks",
+            clips = listOf(clip),
+            overlayTracks = listOf(
+                VideoTrack(
+                    id = "track_1",
+                    name = "Overlay",
+                    isMainTrack = false,
+                    clips = listOf(overlay),
+                    isMuted = true,
+                    isLocked = true,
+                    isSolo = true
+                )
+            ),
+            isMainTrackMuted = true,
+            isMainTrackLocked = true,
+            isMainTrackSolo = false
+        )
+        val restored = ProjectJson.fromJson(ProjectJson.toJson(project))
+        assertEquals(project, restored)
+    }
 }

@@ -53,6 +53,9 @@ object ProjectJson {
         put("paperStyle", project.paperStyle)
         put("isFavorite", project.isFavorite)
         put("lastModified", project.lastModified)
+        put("isMainTrackMuted", project.isMainTrackMuted)
+        put("isMainTrackLocked", project.isMainTrackLocked)
+        put("isMainTrackSolo", project.isMainTrackSolo)
         put("thumbnailResId", project.thumbnailResId ?: JSONObject.NULL)
         put("clips", JSONArray().also { array -> project.clips.forEach { array.put(clipToJson(it)) } })
         put(
@@ -64,6 +67,9 @@ object ProjectJson {
                             put("id", track.id)
                             put("name", track.name)
                             put("isMainTrack", track.isMainTrack)
+                            put("isMuted", track.isMuted)
+                            put("isLocked", track.isLocked)
+                            put("isSolo", track.isSolo)
                             put(
                                 "clips",
                                 JSONArray().also { clips -> track.clips.forEach { clips.put(clipToJson(it)) } }
@@ -101,6 +107,9 @@ object ProjectJson {
                 id = trackJson.optString("id"),
                 name = trackJson.optString("name", "Track"),
                 isMainTrack = trackJson.optBoolean("isMainTrack", false),
+                isMuted = trackJson.optBoolean("isMuted", false),
+                isLocked = trackJson.optBoolean("isLocked", false),
+                isSolo = trackJson.optBoolean("isSolo", false),
                 clips = trackJson.optJSONArray("clips").mapObjects { clipFromJson(it) }
             )
         },
@@ -113,7 +122,10 @@ object ProjectJson {
         resolution = json.optString("resolution", "1080P"),
         fps = json.optInt("fps", 30),
         isFavorite = json.optBoolean("isFavorite", false),
-        paperStyle = json.optString("paperStyle", "Drafting Grid")
+        paperStyle = json.optString("paperStyle", "Drafting Grid"),
+        isMainTrackMuted = json.optBoolean("isMainTrackMuted", false),
+        isMainTrackLocked = json.optBoolean("isMainTrackLocked", false),
+        isMainTrackSolo = json.optBoolean("isMainTrackSolo", false)
     )
 
     // -----------------------------------------------------------------
@@ -134,6 +146,7 @@ object ProjectJson {
         put("speed", clip.speed.toDouble())
         put("speedCurve", speedCurveToJson(clip.speedCurve))
         put("volume", clip.volume.toDouble())
+        put("isMuted", clip.isMuted)
         put("filter", clip.filter.name)
         put("transition", clip.transition.name)
         put("transitionDurationMs", clip.transitionDurationMs)
@@ -193,6 +206,7 @@ object ProjectJson {
         speedCurve = json.optJSONObject("speedCurve")?.let { speedCurveFromJson(it) }
             ?: SpeedCurve(),
         volume = json.optDouble("volume", 1.0).toFloat(),
+        isMuted = json.optBoolean("isMuted", false),
         filter = parseEnum(json.optString("filter"), VideoFilter.NONE),
         transition = parseEnum(json.optString("transition"), TransitionType.NONE),
         transitionDurationMs = json.optLong("transitionDurationMs", 400L),

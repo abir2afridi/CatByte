@@ -137,6 +137,24 @@ class PolicyPresetAutoEditTest {
     }
 
     @Test
+    fun `cut offsets keep beats inside and away from the edges`() {
+        assertEquals(
+            listOf(1_000L, 2_500L),
+            BeatGrid.cutOffsets(
+                durationMs = 4_000L,
+                beatOffsetsMs = listOf(50L, 1_000L, 2_500L, 3_950L),
+                minSegmentMs = 100L
+            )
+        )
+    }
+
+    @Test
+    fun `dense beat lists abort instead of shredding a clip`() {
+        val beats = (1..20).map { it * 200L }
+        assertTrue(BeatGrid.cutOffsets(4_000L, beats, maxSegments = 5L).isEmpty())
+    }
+
+    @Test
     fun `subject smoothing follows the target gradually`() {
         val previous = SubjectTrack.Box(0.5f, 0.5f, 0.2f, 0.2f)
         val next = SubjectTrack.Box(0.9f, 0.5f, 0.2f, 0.2f)

@@ -47,6 +47,7 @@ fun TimelineRuler(
     snapCandidates: List<SnapCandidate>,
     snapThresholdFrames: Long,
     scrollState: ScrollState,
+    beats: List<Long> = emptyList(),
     onSeek: (Long) -> Unit,
     onScrubStart: () -> Unit,
     onScrubEnd: () -> Unit,
@@ -151,6 +152,18 @@ fun TimelineRuler(
                     strokeWidth = if (isSecond) 1.5f else 0.9f
                 )
                 timeMs += 200L
+            }
+
+            // Detected beats: tall cyan/amber ticks so the beat grid is visible,
+            // which is what makes beat sync and auto-cut feel intentional.
+            beats.forEach { beat ->
+                val x = beat * pxPerMs
+                drawLine(
+                    color = colors.accentCyan.copy(alpha = 0.75f),
+                    start = Offset(x, h * 0.10f),
+                    end = Offset(x, h),
+                    strokeWidth = 1.6f * density.density
+                )
             }
         }
 

@@ -419,6 +419,16 @@ fun EditorScreen(
                 },
                 onMoveClip = { from, to -> viewModel.moveClip(from, to) },
                 onMoveOverlayClip = { clipId, startMs -> viewModel.moveOverlayClip(clipId, startMs) },
+                onMoveOverlayClipToTrack = { clipId, trackId, startMs ->
+                    viewModel.moveClipToTrack(clipId, trackId, startMs)
+                },
+                onTrimClip = { edge, deltaMs ->
+                    viewModel.trimSelectedClipEdge(edge, deltaMs, project?.fps ?: 30)
+                },
+                onTrackMute = { trackId, muted -> viewModel.setTrackMuted(trackId, muted) },
+                onTrackLock = { trackId, locked -> viewModel.setTrackLocked(trackId, locked) },
+                onTrackSolo = { trackId, solo -> viewModel.setTrackSolo(trackId, solo) },
+                onSetAllAudioMuted = { muted -> viewModel.setAllAudioMuted(muted) },
                 onZoomChange = { viewModel.setTimelineZoom(it) },
                 beats = snapBeats,
                 onUserInteraction = { viewModel.pausePlayback() },

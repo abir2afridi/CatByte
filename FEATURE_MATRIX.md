@@ -35,16 +35,16 @@
 | Pinch zoom | 🟢 VERIFIED | Two-finger pinch zooms 0.5×–3.0× on the timeline; zoom +/- also on the playback strip; Robolectric pinch test passes |
 | Frame-accurate seek | 🟡 IMPLEMENTED-NOT VERIFIED | Ruler/playhead drags quantize to frames via `SnapEngine` |
 | Magnetic main track | 🟡 PARTIAL | Long-press drag reorders the main track; free magnetic insertion pending |
-| Free overlay tracks | 🟡 IMPLEMENTED-NOT VERIFIED | Overlay clips long-press-drag along their track; drop snaps via `SnapEngine.magneticStart` + project clamp. Cross-track move pending |
-| Snapping (playhead, clip edges, markers, beats) | 🟡 IMPLEMENTED-NOT VERIFIED | Timeline start + all clip/overlay/audio/text/effect edges wired into ruler + playhead drags; detected beats are lowest-priority magnets; markers still unwired |
-| Trim handles | 🟡 PARTIAL | Trim through the Edit Clip sheet (`updateClipTrim`); inline timeline edge handles not built |
+| Free overlay tracks | 🟡 IMPLEMENTED-NOT VERIFIED | One row per overlay track; clips long-press-drag along or across tracks (`moveClipToTrack`), snapping in the target track still needs a device check |
+| Snapping (playhead, clip edges, markers, beats) | 🟡 IMPLEMENTED-NOT VERIFIED | Timeline start + all clip/overlay/audio/text/effect edges wired into ruler + playhead drags; detected beats are lowest-priority magnets and drawn as ticks; user markers still unwired |
+| Trim handles | 🟡 IMPLEMENTED-NOT VERIFIED | Inline edge handles on the selected clip (`ClipTrimHandle`, frame-quantised, speed-aware, unit-tested); velocity curves fall back to the Edit Clip sheet |
 | Split | 🟡 IMPLEMENTED-NOT VERIFIED | `ClipSplit` is frame-accurate (source-offset aware through trims/speed, keyframes partitioned + rebased); needs a device re-check |
 | Delete | 🟢 VERIFIED | Works |
 | Duplicate | 🟢 VERIFIED | Works |
 | Reorder | 🟡 IMPLEMENTED-NOT VERIFIED | Long-press + drag; drop reorders the main track |
 | Ripple delete | 🟡 IMPLEMENTED-NOT VERIFIED | `deleteSelectedClip` → `TimelineEdits.delete(ripple = true)` on main, `false` on overlays; ViewModel test covers both |
 | Multi-select | 🔴 NOT STARTED | |
-| Track mute/hide/lock | 🟡 PARTIAL | `AudioClip.isMuted` mutes one clip in preview/export; the timeline header toggle is local UI only; lock/solo and track-level mute are not implemented |
+| Track mute/hide/lock | 🟡 IMPLEMENTED-NOT VERIFIED | Per-track mute/lock/solo persisted and applied to composition gain; locked tracks refuse moves/trims/deletes; audio row mutes all clips; device check pending |
 | Thumbnails strip | 🟡 IMPLEMENTED-NOT VERIFIED | Basic thumbnails |
 | Waveform | 🟡 IMPLEMENTED-NOT VERIFIED | Static waveform, need multi-resolution pyramids |
 | **Preview** | | |
@@ -137,7 +137,7 @@
 | SRT/VTT import & export, burned-in captions | 🟡 PARTIAL | Import/export wired (.srt/.vtt → text overlays, SRT share sheet); burned in shared overlay |
 | Audio: noise reduction (RNNoise) | 🔴 NOT STARTED | Check license |
 | Audio: voice effects (pitch/formant/robot/echo/reverb) | 🔴 NOT STARTED | |
-| Audio: beat detection + beat markers | 🟡 IMPLEMENTED-NOT VERIFIED | `BeatDetector` + `snapBeats` magnets + `autoCutToBeat()` wired; visible beat markers pending |
+| Audio: beat detection + beat markers | 🟡 IMPLEMENTED-NOT VERIFIED | `BeatDetector` + `snapBeats` magnets + ruler ticks + `autoCutToBeat()` wired; named/coloured beat markers and an editable grid pending |
 | Audio: auto-ducking | 🔴 NOT STARTED | |
 | Audio: equalizer | 🔴 NOT STARTED | |
 | Audio: loudness normalization (LUFS target) | 🔴 NOT STARTED | |
@@ -159,7 +159,7 @@
 | Smart cutout | 🔴 NOT STARTED | |
 | Silence removal | 🔴 NOT STARTED | |
 | Scene detection | 🔴 NOT STARTED | |
-| AI-style auto-edit to beats | 🟡 IMPLEMENTED-NOT VERIFIED | `autoCutToBeat()` slices main-track clips on detected beats from the first audio source; no scene-aware selection yet |
+| AI-style auto-edit to beats | 🟡 IMPLEMENTED-NOT VERIFIED | `autoCutToBeat()` slices main-track clips at `ClipSplit`-accurate positions from the first audio source; no scene-aware selection yet |
 | Camera capture module (CameraX) | 🔴 NOT STARTED | |
 | Screen-record import | 🔴 NOT STARTED | |
 | Text-to-speech voiceover (Android TTS) | 🟡 IMPLEMENTED-NOT VERIFIED | TTS_VOICEOVER tool sheet exists |
@@ -281,7 +281,7 @@
 | Root cause from logs before changing code | 🔴 NOT STARTED | |
 | **Definition of Done (per task)** | | |
 | Code compiles in all variants | 🔴 NOT STARTED | |
-| Unit/instrumented tests exist and pass | 🟡 IMPLEMENTED-NOT VERIFIED | 278/278 JVM/Robolectric tests pass (29 suites, incl. 4 Compose gestures); instrumented compiles, execution pending device |
+| Unit/instrumented tests exist and pass | 🟡 IMPLEMENTED-NOT VERIFIED | 294/294 JVM/Robolectric tests pass (31 suites, incl. 5 Compose UI tests); instrumented compiles, execution pending device |
 | Works in preview AND export (rendering features) | 🟡 IMPLEMENTED-NOT VERIFIED | Shared composition plan for preview/export; GL-only effects (masks/blends/shaders) not executed yet |
 | State persists and survives undo/redo/save/reload | 🟢 VERIFIED | `UndoJournal` persists atomically; autosave on every change; unit-tested |
 | Loading/error/empty states exist | 🟡 IMPLEMENTED-NOT VERIFIED | Basic empty states |

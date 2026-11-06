@@ -10,7 +10,7 @@ export — all on the device, with no account and no cloud render.
 [Architecture](#architecture) · [Testing](#testing) · [Roadmap](#roadmap) ·
 [Documentation](#documentation)
 
-> **Honest status:** the export path is solid and 278 JVM/Robolectric tests
+> **Honest status:** the export path is solid and 294 JVM/Robolectric tests
 > pass, but the "CapCut feel" still needs a real GL compositor, bundled Bangla
 > fonts and on-device models. What is done and what is not is tracked in
 > [`docs/M1-M4-ENGINE.md`](docs/M1-M4-ENGINE.md) and
@@ -28,7 +28,7 @@ export — all on the device, with no account and no cloud render.
 | **Languages** | English + Bengali UI (full key parity), Bangla digit formatting |
 | **APK** | ~26 MB debug build, no native libraries yet |
 | **Plan progress** | ~62% — export core complete, device verification pending (`STATUS.md`) |
-| **Tests** | 278 JVM/Robolectric tests, 0 failures — no instrumented/device run yet |
+| **Tests** | 294 JVM/Robolectric tests, 0 failures — no instrumented/device run yet |
 | **CI** | GitHub Actions: lint, unit tests and debug APK (`.github/workflows/ci.yml`) |
 
 Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not built**
@@ -41,7 +41,7 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 | Projects: create, duplicate, delete + undo, pin, search | ✅ | Aspect presets 9:16, 16:9, 1:1, 4:5 |
 | Autosave | 🟡 | Saves on every change; debounce + journal pending |
 | Undo / redo | ✅ | Gesture coalescing; persisted atomically so a crash keeps history |
-| Multi-track timeline (video, overlay, audio, text, effects) | ✅ | Free pan, pinch zoom, trim sheet, split, ripple delete, main-track reorder + overlay drag; real per-track mute/lock/solo pending |
+| Multi-track timeline (video, overlay, audio, text, effects) | ✅ | Free pan, pinch zoom, per-track rows (one row per overlay track), inline trim handles on the selected clip, split, ripple delete, main-track reorder + overlay/cross-track drag |
 | Snapping (playhead, clip edges, audio/text/effect bounds, beats) | ✅ | Priority order lives in the engine, not in the UI; detected beats are the lowest-priority magnets |
 | Draggable playhead + free timeline pan | ✅ | Needle drags with edge auto-scroll; any timeline touch pauses playback; content centers under the playhead during playback |
 | Drag-and-drop clip move | 🟡 | Main-track long-press reorder and overlay start-time drag (magnetic + bounds-clamped); free cross-track drag pending |
@@ -58,7 +58,7 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 |---|---|---|
 | Multi-track music, volume, fades, waveform | ✅ | |
 | Voice-over recording | ✅ | MediaRecorder based |
-| Beat detection | 🟡 | Detector, beat-magnetic snapping and auto-cut-to-beat are wired; source beats map through trim/start/speed; visible beat markers pending |
+| Beat detection | 🟡 | Detector, beat-magnetic snapping, beat ticks and auto-cut-to-beat are wired; source beats map through trim/start/speed; visible beat marker row pending |
 | Limiter, ducking, EQ, loudness (LUFS), noise reduction | 🟡 | Maths implemented and tested in the engine; not wired to the mixer |
 
 ### Export
@@ -96,7 +96,7 @@ needed for the desktop prototype.
 # Install on a connected device/emulator
 ./gradlew :app:installDebug
 
-# Unit tests (278 tests, incl. Robolectric Compose gestures)
+# Unit tests (294 tests, incl. Robolectric Compose gestures)
 ./gradlew :app:testDebugUnitTest
 
 # Lint (CI runs it on every push/PR)
@@ -177,11 +177,12 @@ app/src/main/java/com/example/
 ./gradlew :app:testDebugUnitTest --rerun
 ```
 
-- **278 JVM/Robolectric tests, 0 failures**: timing, snapping, timeline geometry, undo journal,
+- **294 JVM/Robolectric tests, 0 failures**: timing, snapping, timeline geometry, undo journal,
   render graph, transitions, LUTs, captions, audio maths, Bangla text, device
   policy, export math, JSON round-trip, editor workflow, localization parity,
-  and 4 Compose gesture tests (ruler scrub, playhead drag, pinch zoom, snap
-  threshold) driven by Robolectric.
+  inline trim maths, track mute/lock/solo persistence, and 5 Compose UI test
+  classes (ruler scrub, playhead drag, pinch zoom, snap threshold, track header
+  controls) driven by Robolectric.
 - **CI:** `.github/workflows/ci.yml` runs lint, unit tests and `assembleDebug`
   on pushes and pull requests to `main`/`develop`.
 - **Not covered yet:** instrumented codec/export runs, golden-frame rendering,

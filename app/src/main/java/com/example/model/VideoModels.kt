@@ -206,6 +206,7 @@ data class MediaClip(
     val speed: Float = 1.0f,
     val speedCurve: SpeedCurve = SpeedCurve(),
     val volume: Float = 1.0f,
+    val isMuted: Boolean = false,
     val filter: VideoFilter = VideoFilter.NONE,
     val transition: TransitionType = TransitionType.NONE,
     val transitionDurationMs: Long = 400L,
@@ -235,7 +236,13 @@ data class VideoTrack(
     val id: String = UUID.randomUUID().toString(),
     val name: String = "Main Track",
     val isMainTrack: Boolean = true,
-    val clips: List<MediaClip> = emptyList()
+    val clips: List<MediaClip> = emptyList(),
+    /** Track-level audio: silencing a track drops gain for every clip on it. */
+    val isMuted: Boolean = false,
+    /** Locked tracks refuse moves, trims and deletes (editing safety). */
+    val isLocked: Boolean = false,
+    /** Solo mutes every other video track's audio, like an audio desk. */
+    val isSolo: Boolean = false
 )
 
 data class AudioClip(
@@ -293,6 +300,11 @@ data class TimelineEffect(
     val durationMs: Long = 2000L
 )
 
+/** Stable ids for the two tracks that exist without a `VideoTrack` object. */
+object TimelineTrackIds {
+    const val MAIN = "__main__"
+}
+
 data class VideoProject(
     val id: String,
     val title: String,
@@ -308,10 +320,34 @@ data class VideoProject(
     val resolution: String = "1080P",
     val fps: Int = 30,
     val isFavorite: Boolean = false,
-    val paperStyle: String = "Drafting Grid"
+    val paperStyle: String = "Drafting Grid",
+    /** Main video track controls (the main clips have no `VideoTrack` object). */
+    val isMainTrackMuted: Boolean = false,
+    val isMainTrackLocked: Boolean = false,
+    val isMainTrackSolo: Boolean = false
 ) {
     val allVideoClips: List<MediaClip>
         get() = clips + overlayTracks.flatMap { it.clips }
+
+    /** Track that owns [clipId]; main clips belong to [TimelineTrackIds.MAIN]. */
+    fun trackIdForClip(clipId: String): String? =
+        if (clips.any { it.id == clipId }) {
+            TimelineTrackIds.MAIN
+        } else {
+            overlayTracks.firstOrNull { it.clips.any { c -> c.id == clipId } }?.id
+        }
+
+    fun isTrackLocked(trackId: String): Boolean =
+        if (trackId == TimelineTrackIds.MAIN) {
+            isMainTrackLocked
+        } else {
+            overlayTracks.firstOrNull { it.id == trackId }?.isLocked ?: false
+        }
+
+    fun isTrackLockedForClip(clipId: String): Boolean {
+        val trackId = trackIdForClip(clipId) ?: return false
+        return isTrackLocked(trackId)
+    }
 
     val totalDurationMs: Long
         get() {
