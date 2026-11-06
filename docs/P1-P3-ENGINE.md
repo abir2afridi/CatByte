@@ -11,7 +11,7 @@ The P1/P2/P3 roadmap from `README.md` splits into two halves:
 
 This document covers the first half: the modules added to `com.example.engine`,
 the wiring that now reaches the editor UI, and the work that still needs a GPU
-surface, a camera or model files. Total suite is **268 tests, 0 failures**.
+surface, a camera or model files. Total suite is **278 tests, 0 failures**.
 
 ## What was added
 
@@ -63,7 +63,7 @@ Now rounded before even alignment, which is what encoders expect.
 | Karaoke word highlighting | Needs a per-word render pass | `CaptionTimeline.karaoke` is ready |
 | CameraX capture | No CameraX dependency, no camera | New module; `Project` import path already accepts URIs |
 | On-device captions / cutout / tracking models | Model files + licence + size budget | `CaptionTimeline`, `AiCutoutManager`, `SubjectTrack` |
-| Free drag across tracks | Compose gesture work | Main-track long-press drag-reorder wired 2026-11-04; cross-track placement pending |
+| Free drag across tracks | Compose gesture work | Main-track long-press reorder + overlay start-time drag wired; cross-track placement pending |
 | Export sheet presets | UI | `PlatformPresets` + `ExportPresets.estimateBytes` |
 | Real-device verification | No device/emulator attached | `connectedDebugAndroidTest` + the codec ladder |
 
@@ -177,3 +177,32 @@ coordinator, and `EditorScreen` shed `EditorTopBar`, `CapCutBottomActionBar`,
 Every extracted composable is `internal`; only `EditorScreen` stays public.
 
 Total suite after this addendum: **268 tests, 0 failures**.
+
+## Addendum — engine→UI wiring, beat sync, ripple delete, overlay drag, pinch (2026-11-06, later)
+
+The engine modules above were already tested, but several had no production
+caller. This pass wired them into the editor and added gesture-level tests.
+
+### Wired
+
+| Wiring | Path |
+|---|---|
+| Beat sync | `EditorViewModel.snapBeats` re-detects beats whenever the first audio clip changes (`collectLatest`). `PlaybackControlsStrip`'s beat button calls `autoCutToBeat()`, and the timeline feeds the same beats into `SnapEngine.collect` as the lowest-priority magnets (clip edges still win). |
+| Beat mapping | `BeatGrid.timelineBeats` converts source-file timestamps to project time through the audio clip's timeline start, trim and speed; beats outside the played window are dropped, so magnets stay aligned after trims or speed changes. |
+| Ripple delete | `deleteSelectedClip()` now goes through `TimelineEdits.delete`: main track `ripple = true` closes the gap, overlay tracks `ripple = false` leave the remaining overlays in place. |
+| Overlay drag | `TimelineOverlayTrack` long-press-drag reports a new start time; `EditorViewModel.moveOverlayClip` runs `SnapEngine.magneticStart` against the other overlays and clamps to `0..totalDuration - duration`. |
+| Pinch zoom | Two-finger pinch is handled on `PointerEventPass.Initial` (2+ pointers only, changes consumed); a single finger still pans. Clamp 0.5×–3.0×, matching `setTimelineZoom`. |
+| Edge auto-scroll | `TimelineAutoScroll` is shared by the playhead needle and the ruler scrub, so both can walk past the viewport edge during a drag. |
+
+### Tests
+
+- `EditorWorkflowTest` +3: main-track ripple delete, overlay lift delete, overlay move (magnetic push-out + clamp).
+- `PolicyPresetAutoEditTest` +3: `BeatGrid.timelineBeats` maps timeline start/trim/speed, half-speed spread, and empty/zero-length guards.
+- `TimelineGestureTest` (new, Robolectric + Compose UI test): 4/4 pass — ruler tap seeks, playhead drag seeks forward, two-finger pinch reports a zoom, snap threshold is 6 frames at the ruler density.
+
+Total suite after this addendum: **278 tests, 0 failures** (29 suites).
+CI (`.github/workflows/ci.yml`) now runs lint, unit tests and `assembleDebug`
+without `--offline`, so a fresh runner can resolve dependencies.
+
+Still environment-blocked: no device/emulator for instrumented runs, no EGL/GLES
+surface for the GL compositor, no Bangla font binaries or ASR model.

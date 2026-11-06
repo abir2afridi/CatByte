@@ -8,6 +8,7 @@ import com.example.R
 import com.example.data.AppLog
 import com.example.data.AppLanguage
 import com.example.data.AutoCaptionManager
+import com.example.data.BeatDetector
 import com.example.data.CacheManager
 import com.example.data.ClipTiming
 import com.example.data.ExportServiceScheduler
@@ -40,10 +41,13 @@ import com.example.model.VideoProject
 import com.example.model.VideoTrack
 import com.example.data.KeyframeInterpolator
 import com.example.data.db.ProjectJson
+import com.example.engine.BeatGrid
 import com.example.engine.CaptionBridge
 import com.example.engine.ClipSplit
 import com.example.engine.FileJournalStorage
+import com.example.engine.SnapEngine
 import com.example.engine.SubtitleIO
+import com.example.engine.TimelineEdits
 import com.example.engine.UndoJournal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -51,6 +55,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -92,6 +99,28 @@ data class ExportUiState(
     val warnings: List<String> = emptyList()
 )
 
+/**
+ * Snapshot of the audio clip that drives beat detection. Comparing this value
+ * (instead of the whole project) avoids re-running detection when unrelated
+ * timeline edits happen.
+ */
+private data class BeatSource(
+    val uri: String,
+    val startTimelineMs: Long,
+    val trimStartMs: Long,
+    val trimEndMs: Long,
+    val speed: Float,
+    val durationMs: Long
+) {
+    /** Source-media length the clip actually consumes. */
+    val sourceWindowMs: Long
+        get() = if (trimEndMs > trimStartMs) {
+            (trimEndMs - trimStartMs).coerceAtLeast(1L)
+        } else {
+            (durationMs * speed.coerceAtLeast(0.01f)).toLong().coerceAtLeast(1L)
+        }
+}
+
 @androidx.media3.common.util.UnstableApi
 class EditorViewModel(
     private val repository: ProjectRepository = ProjectRepository(),
@@ -125,6 +154,10 @@ class EditorViewModel(
 
     private val _isEyedropperActive = MutableStateFlow(false)
     val isEyedropperActive: StateFlow<Boolean> = _isEyedropperActive.asStateFlow()
+
+    /** Detected beat positions (ms) used as magnetic snap targets on the timeline. */
+    private val _snapBeats = MutableStateFlow<List<Long>>(emptyList())
+    val snapBeats: StateFlow<List<Long>> = _snapBeats.asStateFlow()
 
     fun setEyedropperActive(active: Boolean) {
         _isEyedropperActive.value = active
@@ -315,6 +348,47 @@ class EditorViewModel(
         }
         refreshCacheSize()
         speechSynthesizer?.initialise { /* ready */ }
+
+        // Beat magnets for the timeline: re-detected whenever the first audio
+        // source or the project duration changes. collectLatest cancels a stale
+        // detection pass as soon as the audio changes again.
+        viewModelScope.launch {
+            _currentProject
+                .map { project ->
+                    val audio = project?.audioTracks
+                        ?.firstOrNull { !it.uriString.isNullOrBlank() }
+                    audio?.let {
+                        BeatSource(
+                            uri = it.uriString.orEmpty(),
+                            startTimelineMs = it.startTimelineMs,
+                            trimStartMs = it.trimStartMs,
+                            trimEndMs = it.trimEndMs,
+                            speed = it.speed,
+                            durationMs = it.durationMs
+                        )
+                    }
+                }
+                .distinctUntilChanged()
+                .collectLatest { source ->
+                    val ctx = context
+                    if (ctx == null || source == null) {
+                        _snapBeats.value = emptyList()
+                        return@collectLatest
+                    }
+                    val sourceBeats = BeatDetector.detectBeats(
+                        ctx,
+                        source.uri,
+                        source.sourceWindowMs
+                    )
+                    _snapBeats.value = BeatGrid.timelineBeats(
+                        sourceBeats = sourceBeats,
+                        startTimelineMs = source.startTimelineMs,
+                        trimStartMs = source.trimStartMs,
+                        speed = source.speed,
+                        durationMs = source.durationMs
+                    )
+                }
+        }
     }
 
     override fun onCleared() {
@@ -716,15 +790,36 @@ class EditorViewModel(
         return false
     }
 
+    /**
+     * Deletes the selected clip through [TimelineEdits.delete]: the main track
+     * ripples (the gap closes, list order defines time) while overlay tracks
+     * lift (absolute positions of the remaining overlays stay put).
+     */
     fun deleteSelectedClip() {
         val clipId = _selectedClipId.value ?: return
         updateProject { proj ->
-            proj.copy(
-                clips = proj.clips.filterNot { it.id == clipId },
-                overlayTracks = proj.overlayTracks.map { track ->
-                    track.copy(clips = track.clips.filterNot { it.id == clipId })
+            val mainSpans = proj.clips.map {
+                TimelineEdits.ClipSpan(it.id, it.startTimelineMs, it.durationMs)
+            }
+            val byId = proj.clips.associateBy { it.id }
+            val newMainClips = TimelineEdits.delete(mainSpans, clipId, ripple = true)
+                .mapNotNull { span -> byId[span.id] }
+
+            val newOverlays = proj.overlayTracks.map { track ->
+                if (track.clips.none { it.id == clipId }) {
+                    track
+                } else {
+                    val spans = track.clips.map {
+                        TimelineEdits.ClipSpan(it.id, it.startTimelineMs, it.durationMs)
+                    }
+                    val lookup = track.clips.associateBy { it.id }
+                    track.copy(
+                        clips = TimelineEdits.delete(spans, clipId, ripple = false)
+                            .mapNotNull { span -> lookup[span.id] }
+                    )
                 }
-            )
+            }
+            proj.copy(clips = newMainClips, overlayTracks = newOverlays)
         }
         val updated = _currentProject.value
         _selectedClipId.value = updated?.clips?.firstOrNull()?.id
@@ -953,6 +1048,40 @@ class EditorViewModel(
         val clip = clips.removeAt(fromIndex)
         clips.add(toIndex, clip)
         updateProject { it.copy(clips = clips) }
+    }
+
+    /**
+     * Moves an overlay clip to a new start time. The drop snaps to neighbouring
+     * overlay edges ([SnapEngine.magneticStart]) and clamps inside the project,
+     * so a fling can never park a clip outside the timeline.
+     */
+    fun moveOverlayClip(clipId: String, desiredStartMs: Long) {
+        updateProject { proj ->
+            val trackIndex = proj.overlayTracks.indexOfFirst { track ->
+                track.clips.any { it.id == clipId }
+            }
+            if (trackIndex == -1) return@updateProject proj
+            val track = proj.overlayTracks[trackIndex]
+            val clip = track.clips.first { it.id == clipId }
+            val occupied = SnapEngine.occupiedRanges(
+                track.clips
+                    .filter { it.id != clipId }
+                    .map { it.startTimelineMs to it.durationMs }
+            )
+            val snapped = SnapEngine.magneticStart(desiredStartMs, clip.durationMs, occupied)
+            val maxStart = (proj.totalDurationMs - clip.durationMs).coerceAtLeast(0L)
+            val start = snapped.coerceIn(0L, maxStart)
+            val updatedTrack = track.copy(
+                clips = track.clips.map { existing ->
+                    if (existing.id == clipId) existing.copy(startTimelineMs = start) else existing
+                }
+            )
+            proj.copy(
+                overlayTracks = proj.overlayTracks.mapIndexed { index, current ->
+                    if (index == trackIndex) updatedTrack else current
+                }
+            )
+        }
     }
 
     /** Adds a clip by looking up its real duration and waveform from the file. */

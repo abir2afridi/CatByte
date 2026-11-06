@@ -145,6 +145,7 @@ fun EditorScreen(
     val canRedo by viewModel.canRedo.collectAsState()
     val magneticSnap by viewModel.magneticSnap.collectAsState()
     val watermarkEnabled by viewModel.watermarkEnabled.collectAsState()
+    val snapBeats by viewModel.snapBeats.collectAsState()
 
     var activeTransitionClipId by remember { mutableStateOf<String?>(null) }
     var showTtsDialog by remember { mutableStateOf(false) }
@@ -378,6 +379,7 @@ fun EditorScreen(
             onStepBackward = { viewModel.stepBackward() },
             onStepForward = { viewModel.stepForward() },
             onQuickSplit = splitAtPlayhead,
+            onBeatSync = { viewModel.autoCutToBeat() },
             onToggleMagneticSnap = { viewModel.toggleMagneticSnap() },
             onZoomChanged = { viewModel.setTimelineZoom(it) },
             selectedClip = currentClip,
@@ -416,6 +418,9 @@ fun EditorScreen(
                     viewModel.setActiveSheet(ActiveToolSheet.TRANSITIONS_PICKER)
                 },
                 onMoveClip = { from, to -> viewModel.moveClip(from, to) },
+                onMoveOverlayClip = { clipId, startMs -> viewModel.moveOverlayClip(clipId, startMs) },
+                onZoomChange = { viewModel.setTimelineZoom(it) },
+                beats = snapBeats,
                 onUserInteraction = { viewModel.pausePlayback() },
                 modifier = Modifier.fillMaxSize()
             )

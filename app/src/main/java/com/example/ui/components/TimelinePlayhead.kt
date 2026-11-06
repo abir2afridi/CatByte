@@ -35,7 +35,6 @@ import com.example.engine.SnapEngine
 import com.example.engine.TimelineGeometry
 import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.SharpenedPencilTip
-import kotlin.math.min
 
 /**
  * Draggable playhead needle.
@@ -120,8 +119,8 @@ fun TimelinePlayhead(
                             thresholdFrames = latestThreshold
                         )
                         latestOnSeek(target)
-                        autoScrollToReveal(
-                            target = target,
+                        TimelineAutoScroll.toReveal(
+                            targetMs = target,
                             zoom = latestZoom,
                             density = density.density,
                             scrollState = scrollState
@@ -186,29 +185,6 @@ fun TimelinePlayhead(
         } else {
             SharpenedPencilTip(modifier = Modifier.align(Alignment.TopCenter))
         }
-    }
-}
-
-/**
- * Nudges the timeline when the needle reaches a viewport edge, so a long
- * timeline can still be scrubbed without lifting the finger.
- */
-private fun autoScrollToReveal(
-    target: Long,
-    zoom: Float,
-    density: Float,
-    scrollState: ScrollState
-) {
-    val viewportPx = scrollState.viewportSize
-    if (viewportPx <= 0 || density <= 0f) return
-    val edgePx = 48f * density
-    val maxStepPx = 24f * density
-    val screenPx = TimelineGeometry.contentXDp(target, zoom) * density - scrollState.value
-    when {
-        screenPx < edgePx && scrollState.value > 0 ->
-            scrollState.dispatchRawDelta(-min(edgePx - screenPx, maxStepPx))
-        screenPx > viewportPx - edgePx && scrollState.value < scrollState.maxValue ->
-            scrollState.dispatchRawDelta(min(screenPx - (viewportPx - edgePx), maxStepPx))
     }
 }
 

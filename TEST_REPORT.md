@@ -4,6 +4,13 @@
 **Scope:** P8 export hardening round (codec capability ladder, typed foreground service, background export UX, Bangla localization parity, test infrastructure).
 **Format:** Per `docs+\plan.md` §13 (FINAL REPORT structure: A–I).
 
+> **Latest snapshot (2026-11-06):** 278/278 JVM/Robolectric tests pass across 29
+> suites, including 4 Robolectric Compose gesture tests (`TimelineGestureTest`)
+> and 3 beat-mapping tests. Debug APK is 26.19 MB. CI
+> (`.github/workflows/ci.yml`) runs lint, unit tests and `assembleDebug`. The
+> numbers in sections D–E below are the historical 2026-11-01 P8 snapshot;
+> section E notes the new gesture suite.
+
 ---
 
 ## A) What was built
@@ -45,7 +52,7 @@ Android app (single `:app` module, Kotlin + Compose, Media3 1.11.1):
 | Item | Reason |
 |------|--------|
 | Real end-to-end export (import → edit → export → validate MP4 → share) on device | Requires running interactive UI on device; underlying pipeline is unit + on-device verified |
-| Compose UI tests | In backlog |
+| Compose UI tests | 4 Robolectric gesture tests added 2026-11-06 (`TimelineGestureTest`); instrumented UI tests still pending a device |
 | Golden-frame/img tests for Bangla shaping | Deferred to DEC-013 (font bundling) |
 
 ---
@@ -90,7 +97,7 @@ All commands run from the repo root on Windows 11 PowerShell (`.\gradlew.bat`).
 | `LocalizationRobolectricTest` | 2 | 2 | 0 | 0 | — | Robolectric 4.16.1, `@Config(sdk=[34])` |
 | **Unit total** | **50** | **50** | **0** | **0** | — | |
 | `CodecCapabilityInstrumentedTest` | 5 | — | — | — | NOT RUN (no device attached) | instrumented |
-| Compose UI tests | 0 | — | — | — | NOT STARTED | |
+| Compose UI tests | 4 | 4 | 0 | 0 | — | Robolectric 4.16.1 + Compose UI test |
 | `:app:lintDebug` | — | — | — | — | NOT RUN | |
 
 **Device info:** No emulator/device was available during this round. Soak tests, connectedAndroidTest and golden-frame tests remain pending a device run.

@@ -4,6 +4,8 @@ import com.example.model.AspectRatioType
 import com.example.data.ProjectRepository
 import com.example.model.MediaClip
 import com.example.model.VideoFilter
+import com.example.model.VideoProject
+import com.example.model.VideoTrack
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -175,5 +177,121 @@ class EditorWorkflowTest {
         assertNull(viewModel.selectedClipId.value)
         viewModel.selectClip("clip_1")
         assertNull(viewModel.selectedTextId.value)
+    }
+
+    @Test
+    fun `deleting the middle clip ripples the main track`() {
+        val viewModel = newViewModel()
+        val project = VideoProject(
+            id = "p1",
+            title = "Ripple",
+            clips = listOf(
+                MediaClip(id = "a", title = "A", durationMs = 1_000L, originalDurationMs = 1_000L),
+                MediaClip(id = "b", title = "B", durationMs = 2_000L, originalDurationMs = 2_000L),
+                MediaClip(id = "c", title = "C", durationMs = 500L, originalDurationMs = 500L)
+            )
+        )
+        viewModel.openProject(project)
+        viewModel.selectClip("b")
+        viewModel.deleteSelectedClip()
+
+        val clips = viewModel.currentProject.value?.clips.orEmpty()
+        assertEquals(listOf("a", "c"), clips.map { it.id })
+        assertEquals(1_500L, clips.sumOf { it.durationMs })
+    }
+
+    @Test
+    fun `deleting an overlay lifts it without moving the others`() {
+        val viewModel = newViewModel()
+        val project = VideoProject(
+            id = "p2",
+            title = "Overlay delete",
+            clips = listOf(
+                MediaClip(id = "main", title = "Main", durationMs = 5_000L, originalDurationMs = 5_000L)
+            ),
+            overlayTracks = listOf(
+                VideoTrack(
+                    id = "track",
+                    name = "Overlay",
+                    isMainTrack = false,
+                    clips = listOf(
+                        MediaClip(
+                            id = "ov1", title = "OV1",
+                            startTimelineMs = 500L, durationMs = 1_000L,
+                            originalDurationMs = 1_000L
+                        ),
+                        MediaClip(
+                            id = "ov2", title = "OV2",
+                            startTimelineMs = 2_500L, durationMs = 1_000L,
+                            originalDurationMs = 1_000L
+                        )
+                    )
+                )
+            )
+        )
+        viewModel.openProject(project)
+        viewModel.selectClip("ov1")
+        viewModel.deleteSelectedClip()
+
+        val remaining = viewModel.currentProject.value
+            ?.overlayTracks?.firstOrNull()?.clips.orEmpty()
+        assertEquals(listOf("ov2"), remaining.map { it.id })
+        assertEquals(2_500L, remaining.single().startTimelineMs)
+    }
+
+    @Test
+    fun `overlay move is clamped to the project and pushed out of overlaps`() {
+        val viewModel = newViewModel()
+        val project = VideoProject(
+            id = "p3",
+            title = "Overlay move",
+            clips = listOf(
+                MediaClip(id = "main", title = "Main", durationMs = 5_000L, originalDurationMs = 5_000L)
+            ),
+            overlayTracks = listOf(
+                VideoTrack(
+                    id = "track",
+                    name = "Overlay",
+                    isMainTrack = false,
+                    clips = listOf(
+                        MediaClip(
+                            id = "ov1", title = "OV1",
+                            startTimelineMs = 0L, durationMs = 1_000L,
+                            originalDurationMs = 1_000L
+                        ),
+                        MediaClip(
+                            id = "ov2", title = "OV2",
+                            startTimelineMs = 2_500L, durationMs = 1_000L,
+                            originalDurationMs = 1_000L
+                        )
+                    )
+                )
+            )
+        )
+        viewModel.openProject(project)
+
+        // Overlapping the second overlay pushes the clip to its end.
+        viewModel.moveOverlayClip("ov1", 1_800L)
+        assertEquals(
+            3_500L,
+            viewModel.currentProject.value!!.overlayTracks.first().clips
+                .first { it.id == "ov1" }.startTimelineMs
+        )
+
+        // A negative drop clamps to the project start.
+        viewModel.moveOverlayClip("ov1", -2_000L)
+        assertEquals(
+            0L,
+            viewModel.currentProject.value!!.overlayTracks.first().clips
+                .first { it.id == "ov1" }.startTimelineMs
+        )
+
+        // A drop past the end clamps to projectDuration - clipDuration.
+        viewModel.moveOverlayClip("ov1", 9_000L)
+        assertEquals(
+            4_000L,
+            viewModel.currentProject.value!!.overlayTracks.first().clips
+                .first { it.id == "ov1" }.startTimelineMs
+        )
     }
 }

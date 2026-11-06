@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -45,6 +46,7 @@ fun TimelineRuler(
     magneticSnap: Boolean,
     snapCandidates: List<SnapCandidate>,
     snapThresholdFrames: Long,
+    scrollState: ScrollState,
     onSeek: (Long) -> Unit,
     onScrubStart: () -> Unit,
     onScrubEnd: () -> Unit,
@@ -100,6 +102,13 @@ fun TimelineRuler(
                         drag(down.id) { change ->
                             change.consume()
                             seekAtX(change.position.x)
+                            // Keep scrubbing past the viewport edge: nudge the
+                            // timeline so the finger can keep walking the ruler.
+                            TimelineAutoScroll.atContentPx(
+                                contentPx = change.position.x,
+                                density = density.density,
+                                scrollState = scrollState
+                            )
                         }
                     } finally {
                         latestOnScrubEnd()

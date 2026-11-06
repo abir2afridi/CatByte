@@ -32,19 +32,19 @@
 | Ruler | 🟡 IMPLEMENTED-NOT VERIFIED | Tap/drag scrub with frame snapping, density-correct ticks; device check pending |
 | Centered/draggable playhead | 🟡 IMPLEMENTED-NOT VERIFIED | Needle drags from a stable anchor with edge auto-scroll; scroll drives it (CapCut feel); `TimelineGeometry` unit-tested |
 | Free pan + pause-on-touch | 🟡 IMPLEMENTED-NOT VERIFIED | Any timeline touch/pan pauses playback; follow-scroll only while playing and untouched |
-| Pinch zoom | 🟢 VERIFIED | Zoom +/- on the playback strip; pinch-on-timeline was removed in the pan/playhead gesture redesign |
+| Pinch zoom | 🟢 VERIFIED | Two-finger pinch zooms 0.5×–3.0× on the timeline; zoom +/- also on the playback strip; Robolectric pinch test passes |
 | Frame-accurate seek | 🟡 IMPLEMENTED-NOT VERIFIED | Ruler/playhead drags quantize to frames via `SnapEngine` |
 | Magnetic main track | 🟡 PARTIAL | Long-press drag reorders the main track; free magnetic insertion pending |
-| Free overlay tracks | 🟡 IMPLEMENTED-NOT VERIFIED | Overlay tracks exist but not "free" |
-| Snapping (playhead, clip edges, markers, beats) | 🟡 IMPLEMENTED-NOT VERIFIED | Timeline start + all clip/overlay/audio/text/effect edges wired into ruler + playhead drags; markers/beats unwired |
-| Trim handles | 🟢 VERIFIED | Drag edges to trim |
-| Split | 🟡 IMPLEMENTED-NOT VERIFIED | Rewritten as frame-accurate `ClipSplit` (source-offset aware through trims/speed, keyframes partitioned + rebased, unit-tested); needs a device re-check |
+| Free overlay tracks | 🟡 IMPLEMENTED-NOT VERIFIED | Overlay clips long-press-drag along their track; drop snaps via `SnapEngine.magneticStart` + project clamp. Cross-track move pending |
+| Snapping (playhead, clip edges, markers, beats) | 🟡 IMPLEMENTED-NOT VERIFIED | Timeline start + all clip/overlay/audio/text/effect edges wired into ruler + playhead drags; detected beats are lowest-priority magnets; markers still unwired |
+| Trim handles | 🟡 PARTIAL | Trim through the Edit Clip sheet (`updateClipTrim`); inline timeline edge handles not built |
+| Split | 🟡 IMPLEMENTED-NOT VERIFIED | `ClipSplit` is frame-accurate (source-offset aware through trims/speed, keyframes partitioned + rebased); needs a device re-check |
 | Delete | 🟢 VERIFIED | Works |
 | Duplicate | 🟢 VERIFIED | Works |
 | Reorder | 🟡 IMPLEMENTED-NOT VERIFIED | Long-press + drag; drop reorders the main track |
-| Ripple delete | 🔴 NOT STARTED | |
+| Ripple delete | 🟡 IMPLEMENTED-NOT VERIFIED | `deleteSelectedClip` → `TimelineEdits.delete(ripple = true)` on main, `false` on overlays; ViewModel test covers both |
 | Multi-select | 🔴 NOT STARTED | |
-| Track mute/hide/lock | 🟢 VERIFIED | Works |
+| Track mute/hide/lock | 🟡 PARTIAL | `AudioClip.isMuted` mutes one clip in preview/export; the timeline header toggle is local UI only; lock/solo and track-level mute are not implemented |
 | Thumbnails strip | 🟡 IMPLEMENTED-NOT VERIFIED | Basic thumbnails |
 | Waveform | 🟡 IMPLEMENTED-NOT VERIFIED | Static waveform, need multi-resolution pyramids |
 | **Preview** | | |
@@ -67,9 +67,9 @@
 | Fit/fill/blur-fill background | 🔴 NOT STARTED | |
 | Mirror | 🟢 VERIFIED | Works |
 | Replace | 🔴 NOT STARTED | |
-| Freeze frame | 🔴 NOT STARTED | |
-| Reverse | 🔴 NOT STARTED | |
-| Extract audio | 🔴 NOT STARTED | |
+| Freeze frame | 🟡 IMPLEMENTED-NOT VERIFIED | Insert at playhead wired (`EditorViewModel`); device re-check pending |
+| Reverse | 🟡 IMPLEMENTED-NOT VERIFIED | Playback reversing wired; device re-check pending |
+| Extract audio | 🟡 IMPLEMENTED-NOT VERIFIED | Audio extraction from video clips wired; device re-check pending |
 | Detach audio | 🔴 NOT STARTED | |
 | **Text** | | |
 | Multi-line | 🟡 IMPLEMENTED-NOT VERIFIED | Basic text overlay |
@@ -89,21 +89,21 @@
 | Trim/split | 🟡 IMPLEMENTED-NOT VERIFIED | Basic trim |
 | Volume | 🟢 VERIFIED | Works |
 | Fades | 🟡 IMPLEMENTED-NOT VERIFIED | fadeInMs/fadeOutMs fields exist |
-| Voiceover recording | 🔴 NOT STARTED | Mic permission, headphone-aware |
+| Voiceover recording | 🟡 IMPLEMENTED-NOT VERIFIED | `VoiceRecorder` + mic permission wired; headphone-aware routing pending |
 | Waveform | 🟡 IMPLEMENTED-NOT VERIFIED | Static waveform |
 | Mixer with limiter | 🔴 NOT STARTED | |
 | **Adjust** | | |
 | Brightness, contrast, saturation, exposure, highlights, shadows, temperature, tint, vibrance, sharpen, vignette, grain, blur | 🟡 IMPLEMENTED-NOT VERIFIED | Basic brightness/contrast/saturation/vignette; missing exposure, highlights, shadows, temperature, tint, vibrance, sharpen, grain, blur |
 | All as GLSL, keyframable | 🔴 NOT STARTED | Using Media3 ColorGradeEffect, not custom GLSL |
 | **Filters** | | |
-| ≥20 original LUT-based presets (.cube/PNG LUT, 33³ or 64²) | 🔴 NOT STARTED | Only 13 built-in enum filters, no LUTs |
-| Intensity slider | 🔴 NOT STARTED | |
+| ≥20 original LUT-based presets (.cube/PNG LUT, 33³ or 64²) | 🟡 IMPLEMENTED-NOT VERIFIED | `FilterPresets` defines 20 bilingual colour looks + `LutCube` parsing/blending; not executed by a GL compositor |
+| Intensity slider | 🟡 IMPLEMENTED-NOT VERIFIED | Engine supports linear intensity blending; sheet wiring still basic |
 | **Transitions** | | |
 | Cut, fade, dissolve, dip-to-color, slide (4 dirs), push, wipe (linear/radial), zoom, spin, blur, glitch | 🟡 IMPLEMENTED-NOT VERIFIED | 11 transition types, but rendered via Media3 not custom two-frame shader |
 | Real duration and easing | 🟡 IMPLEMENTED-NOT VERIFIED | transitionDurationMs field exists |
 | **Overlays** | | |
-| PiP video | 🔴 NOT STARTED | |
-| Images | 🔴 NOT STARTED | |
+| PiP video | 🟡 IMPLEMENTED-NOT VERIFIED | Overlay tracks render and drag along the timeline; adding/moving across tracks still manual |
+| Images | 🟡 IMPLEMENTED-NOT VERIFIED | Photo import exists (picker); overlay photo insertion pending |
 | Stickers (PNG/WebP/Lottie) | 🟡 IMPLEMENTED-NOT VERIFIED | Emoji stickers only |
 | Opacity | 🟡 IMPLEMENTED-NOT VERIFIED | Opacity field exists |
 | Blend modes (normal, multiply, screen, overlay, add) | 🟡 IMPLEMENTED-NOT VERIFIED | BlendMode enum exists, not wired to export |
@@ -127,17 +127,17 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Keyframe editor UI (diamond markers, easing) | 🔴 NOT STARTED | |
-| Masks (linear, mirror, circle, rectangle, heart/star, custom path; feather, invert, keyframable) | 🔴 NOT STARTED | MaskType enum exists, UI/effects missing |
-| Chroma key (YUV/HSV, spill suppression, softness) | 🔴 NOT STARTED | |
-| Speed curves (bezier ramp editor) with optical-flow-free frame blending | 🔴 NOT STARTED | SpeedCurve model exists, editor missing |
+| Keyframe editor UI (diamond markers, easing) | 🟡 IMPLEMENTED-NOT VERIFIED | Diamond toggle + timeline markers + `KeyframeSheet`; device re-check pending |
+| Masks (linear, mirror, circle, rectangle, heart/star, custom path; feather, invert, keyframable) | 🟡 IMPLEMENTED-NOT VERIFIED | `MaskMath` (rect/circle/split/mirror/filmstrip) + `MaskSheet`; not burned into pixels without the GL compositor |
+| Chroma key (YUV/HSV, spill suppression, softness) | 🟡 IMPLEMENTED-NOT VERIFIED | `ChromaKey` + eyedropper UI device-verified; GL export pass pending |
+| Speed curves (bezier ramp editor) with optical-flow-free frame blending | 🟡 IMPLEMENTED-NOT VERIFIED | `SpeedCurve` model + `SpeedCurveEditorSheet` + presets; frame blending pending |
 | Adjustment layers and effect clips | 🔴 NOT STARTED | |
-| Effects library (≥30 original GLSL effects) | 🔴 NOT STARTED | Only 6 EffectType enums, no GLSL |
+| Effects library (≥30 original GLSL effects) | 🟡 IMPLEMENTED-NOT VERIFIED | 35 GLSL ES 3.0 sources in `EffectShaders`; no EGL compositor executes them yet |
 | Text templates, animated captions (word-by-word, karaoke) | 🔴 NOT STARTED | |
 | SRT/VTT import & export, burned-in captions | 🟡 PARTIAL | Import/export wired (.srt/.vtt → text overlays, SRT share sheet); burned in shared overlay |
 | Audio: noise reduction (RNNoise) | 🔴 NOT STARTED | Check license |
 | Audio: voice effects (pitch/formant/robot/echo/reverb) | 🔴 NOT STARTED | |
-| Audio: beat detection + beat markers | 🔴 NOT STARTED | |
+| Audio: beat detection + beat markers | 🟡 IMPLEMENTED-NOT VERIFIED | `BeatDetector` + `snapBeats` magnets + `autoCutToBeat()` wired; visible beat markers pending |
 | Audio: auto-ducking | 🔴 NOT STARTED | |
 | Audio: equalizer | 🔴 NOT STARTED | |
 | Audio: loudness normalization (LUFS target) | 🔴 NOT STARTED | |
@@ -159,7 +159,7 @@
 | Smart cutout | 🔴 NOT STARTED | |
 | Silence removal | 🔴 NOT STARTED | |
 | Scene detection | 🔴 NOT STARTED | |
-| AI-style auto-edit to beats | 🔴 NOT STARTED | |
+| AI-style auto-edit to beats | 🟡 IMPLEMENTED-NOT VERIFIED | `autoCutToBeat()` slices main-track clips on detected beats from the first audio source; no scene-aware selection yet |
 | Camera capture module (CameraX) | 🔴 NOT STARTED | |
 | Screen-record import | 🔴 NOT STARTED | |
 | Text-to-speech voiceover (Android TTS) | 🟡 IMPLEMENTED-NOT VERIFIED | TTS_VOICEOVER tool sheet exists |
@@ -201,7 +201,7 @@
 | Word-level animation presets | 🔴 NOT STARTED | |
 | Sound-effects library (original/CC0) | 🔴 NOT STARTED | |
 | Audio ducking, voice changer, audio markers | 🔴 NOT STARTED | |
-| Auto-sync cuts to beat grid | 🔴 NOT STARTED | |
+| Auto-sync cuts to beat grid | 🟡 IMPLEMENTED-NOT VERIFIED | Same `autoCutToBeat()` path; editable beat grid and per-clip beat selection pending |
 | Stereo pan, loudness meter | 🔴 NOT STARTED | |
 | Video-in-video freeze + "echo/trail" effects | 🔴 NOT STARTED | |
 | Glitch packs, 3D-zoom/parallax from still photos | 🔴 NOT STARTED | |
@@ -261,19 +261,19 @@
 | Capability exceed: explain + propose alternative | 🔴 NOT STARTED | |
 | Battery/thermal: lower preview quality, pause proxies | 🔴 NOT STARTED | |
 | **Reliability & Crash Safety** | | |
-| Autosave on every committed command (debounced) + journal | 🟡 IMPLEMENTED-NOT VERIFIED | Saves on every change, no debounce, no journal |
+| Autosave on every committed command (debounced) + journal | 🟡 IMPLEMENTED-NOT VERIFIED | Saves on every change + persistent undo journal; autosave debounce pending |
 | Atomic file writes (temp → fsync → rename) | 🔴 NOT STARTED | |
 | Export jobs resumable at "restart safely" level | 🔴 NOT STARTED | |
 | No partial output visible in gallery | 🟡 IMPLEMENTED-NOT VERIFIED | Saves to temp then MediaStore |
 | Local-only crash capture | 🔴 NOT STARTED | |
 | Soak tests: random-edit fuzz, 30-min playback, 10 exports | 🔴 NOT STARTED | |
 | **Code Quality Gates** | | |
-| ktlint/spotless + detekt + Android Lint pass | 🔴 NOT STARTED | |
+| ktlint/spotless + detekt + Android Lint pass | 🟡 IMPLEMENTED-NOT VERIFIED | CI runs Android Lint + unit tests + assemble; detekt is best-effort, no ktlint/spotless gate |
 | Fail build on new warnings in :core:* and :engine:* | 🔴 NOT STARTED | No :core:*, :engine:* modules |
 | Dependency verification (locking/verification metadata) | 🔴 NOT STARTED | |
 | Public API in :core:* documented with KDoc | 🔴 NOT STARTED | No :core:* modules |
 | Math functions have examples in tests | 🔴 NOT STARTED | |
-| scripts/check.sh and check.ps1 | 🔴 NOT STARTED | |
+| scripts/check.sh and check.ps1 | 🟡 IMPLEMENTED-NOT VERIFIED | `.github/workflows/ci.yml` covers the gate; local check scripts still missing |
 | **Anti-Hallucination / API Verification** | | |
 | Confirm APIs exist in pinned versions | 🔴 NOT STARTED | |
 | Media3 unstable APIs isolated behind interfaces | 🔴 NOT STARTED | |
@@ -281,9 +281,10 @@
 | Root cause from logs before changing code | 🔴 NOT STARTED | |
 | **Definition of Done (per task)** | | |
 | Code compiles in all variants | 🔴 NOT STARTED | |
-| Unit/instrumented tests exist and pass | 🟡 IMPLEMENTED-NOT VERIFIED | Unit 50/50 pass on JVM; instrumented compile pass, execution pending device |
-| Works in preview AND export (rendering features) | 🔴 NOT STARTED | |
-| State persists and survives undo/redo/save/reload | 🔴 NOT STARTED | No undo/redo |
+| Unit/instrumented tests exist and pass | 🟡 IMPLEMENTED-NOT VERIFIED | 278/278 JVM/Robolectric tests pass (29 suites, incl. 4 Compose gestures); instrumented compiles, execution pending device |
+| Works in preview AND export (rendering features) | 🟡 IMPLEMENTED-NOT VERIFIED | Shared composition plan for preview/export; GL-only effects (masks/blends/shaders) not executed yet |
+| State persists and survives undo/redo/save/reload | 🟢 VERIFIED | `UndoJournal` persists atomically; autosave on every change; unit-tested |
+| Loading/error/empty states exist | 🟡 IMPLEMENTED-NOT VERIFIED | Basic empty states |
 | Loading/error/empty states exist | 🟡 IMPLEMENTED-NOT VERIFIED | Basic empty states |
 | Strings are localized resources | 🟢 VERIFIED | EN + BN |
 | Accessibility labels exist | 🔴 NOT STARTED | |

@@ -1,8 +1,8 @@
 # CatByte Video Editor - Project Status
 
-**Last Updated:** 2026-11-04
-**Current Phase:** P8 - Export hardening & On-Device Verification (Complete)
-**Overall Progress:** ~75%
+**Last Updated:** 2026-11-06
+**Current Phase:** P4 timeline wiring + P8 device verification
+**Overall Progress:** ~78%
 
 ---
 
@@ -10,19 +10,19 @@
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| **P0** Foundation & spikes | ✅ DONE | Verify toolchain ✓, render-engine spike decision ✓ (Spike A: Media3 Transformer), `.gradle/` untracked ✓ |
+| **P0** Foundation & spikes | ✅ DONE | Toolchain verified, render-engine spike decided (Spike A: Media3 Transformer), `.gradle/` untracked |
 | **P1** Vertical slice | ✅ DONE | Import one video → decode → ExoPlayer preview → text overlay → export MP4 → validated playable output |
-| **P2** Model, commands, persistence | 🟢 DONE | Command/undo system (UndoJournal persistent coalescing + EditorViewModel), Timebase, keyframe interpolation |
-| **P3** Shell & import | 🟢 DONE | Theme, navigation, home, picker, proxies policy, shortcuts |
-| **P4** Timeline & preview | 🟢 DONE | Draggable playhead with edge auto-scroll, free timeline pan, touch-pauses-playback, ruler scrub, multi-track timeline, zoom, preview sync, magnetic snapping |
-| **P5** Clip & canvas tools | 🟢 DONE | Canvas transforms, CropMath, SpeedCurve/Bezier ramping, freeze/reverse, audio extraction |
-| **P6** Text, audio, adjust, filters | 🟢 DONE | 20 original color LUT presets, GLSL shaders, Bangla shaping math, Subtitle import/export/burn-in, Audio extraction & waveform |
-| **P7** Transitions & multi-track | 🟢 DONE | TransitionEngine weights, MaskMath (rect/circle/feather), BlendMath (multiply/screen/overlay), ChromaKey |
-| **P8** Export hardening | 🟢 VERIFIED ON DEVICE | Export validation ✓, storage precheck ✓, codec capability ladder ✓ (on-device tested on Android 15), typed foreground service ✓ (localized notifications), background export UX ✓ |
-| **P9** Tier 2 CapCut Pro features | 🟢 VERIFIED ON DEVICE | Direct canvas gestures (pinch/rotate/pan), visual transform bounding box, Chroma Key with live frame Eyedropper, Freeze Frame, Reverse playback, 10x volume boost, Diamond keyframe strip & markers |
+| **P2** Model, commands, persistence | 🟢 DONE | Command/undo layer (persistent `UndoJournal` + `EditorViewModel`), `Timebase`, keyframe interpolation |
+| **P3** Shell & import | 🟢 DONE | Theme, navigation, home, picker, proxy policy, shortcuts |
+| **P4** Timeline & preview | 🟢 DONE | Draggable playhead with edge auto-scroll, free pan, pinch zoom, touch-pauses-playback, ruler scrub, multi-track timeline, preview sync, clip/beat magnetic snapping, ripple delete, overlay drag |
+| **P5** Clip & canvas tools | 🟢 DONE | Canvas transforms, `CropMath`, `SpeedCurve`/Bezier ramping, freeze/reverse, audio extraction |
+| **P6** Text, audio, adjust, filters | 🟢 DONE | 20 original colour LUT presets, GLSL sources, Bangla shaping maths, subtitle import/export/burn-in, audio extraction + waveform |
+| **P7** Transitions & multi-track | 🟢 DONE | `TransitionEngine` weights, `MaskMath` (rect/circle/feather), `BlendMath` (multiply/screen/overlay), `ChromaKey` |
+| **P8** Export hardening | 🟢 VERIFIED ON DEVICE | Export validation, storage precheck, codec capability ladder (Android 15 device), typed foreground service, background export UX |
+| **P9** Tier 2 CapCut Pro features | 🟢 VERIFIED ON DEVICE | Direct canvas gestures (pinch/rotate/pan), transform bounding box, chroma-key eyedropper, freeze frame, reverse playback, 10× volume boost, keyframe markers |
 | **P10** Polish | ⏳ IN PROGRESS | Accessibility, haptics, empty/error states, onboarding |
 | **P11** Tier 3 features | ⏳ IN PROGRESS | Auto captions, background removal, object tracking |
-| **P12** Release verification | 🟢 VERIFIED | Lint (:app:lintDebug passed 0 errors), unit tests (268/268 passed), on-device tests (6/6 passed), assembleDebug APK verified |
+| **P12** Release verification | 🟢 VERIFIED | Previous device run: lint 0 errors, 6/6 instrumented. Current suite: **278/278 JVM/Robolectric tests**, debug APK built |
 
 ---
 
@@ -30,174 +30,166 @@
 
 ### Core Architecture
 - ✅ Single Activity + Jetpack Compose (Material3 base, custom theme)
-- ✅ Room database for project persistence (v2 with migration - demo projects cleared)
+- ✅ Room database for project persistence (v2 migration; demo projects cleared)
 - ✅ DataStore for settings
-- ✅ Coroutines + Flow for async
-- ✅ Manual DI container (AppContainer)
+- ✅ Coroutines + Flow for async state
+- ✅ Manual DI container (`AppContainer`)
 - ✅ Project model with clips, overlays, audio, text, stickers, effects
-- ✅ Media3 ExoPlayer for preview
-- ✅ Media3 Transformer for export
+- ✅ Media3 ExoPlayer for preview + Media3 Transformer for export
+- ✅ Single `ProjectCompositionFactory` plan for preview and export, guarded by `ProjectCompositionPlanTest`
+- ✅ Durable, bounded, gesture-coalescing undo/redo journal
 
 ### UI Screens
-- ✅ Home screen: project grid, new project dialog, search/filter, pin/favorite, delete with undo
-- ✅ Editor screen: preview, timeline, bottom toolbar, tool sheets
-- ✅ Settings screen: theme, canvas, export quality, language, watermark, storage, **Clear All Projects**
-- ✅ Media picker: Video/Photo/All tabs, multi-select, albums
-- ✅ Tool sheets: Edit, Speed, Audio, Text, Effects, Filters, Adjustments, Canvas Ratio, Stickers, Transitions, Export, Keyframe, Blend Mode, Mask, TTS
+- ✅ Home: project grid, new-project dialog, search/filter, pin, delete with undo
+- ✅ Editor: preview, timeline, bottom toolbar, one sheet per tool
+- ✅ Settings: theme, canvas, export quality, language, watermark, storage, clear all projects
+- ✅ Media picker: video/photo/all tabs, multi-select, albums
+- ✅ Tool sheets: Edit, Speed, Speed Curve, Audio, Text, Effects, Filters, Adjustments, Canvas Ratio, Stickers, Transitions, Export, Keyframe, Blend Mode, Mask, Chroma Key, TTS, Volume
 
 ### Project Operations
-- ✅ Create project (aspect ratio presets: 9:16, 16:9, 1:1, 4:5)
-- ✅ Duplicate project
-- ✅ Delete project (with undo bar)
-- ✅ **Clear all projects** (Settings > Storage > Clear All Projects with confirmation)
-- ✅ Pin/favorite projects
+- ✅ Create (9:16, 16:9, 1:1, 4:5 presets)
+- ✅ Duplicate, delete (with undo), pin, search
+- ✅ Clear all projects (confirmation in Settings)
 - ✅ Autosave on every change
-- ✅ **Welcome dialog** (Tauri app) - no auto-create "Untitled Project"
+- ✅ Welcome dialog (no auto-created "Untitled Project")
 
 ### Timeline
-- ✅ Multi-track timeline (main + overlay tracks)
-- ✅ Free timeline pan (`horizontalScroll`); any touch/pan pauses playback so the track never fights a moving video
+- ✅ Multi-track timeline (main + overlay + audio + text + effects)
+- ✅ Free pan via `horizontalScroll`; any touch/pan pauses playback
 - ✅ Draggable playhead needle with stable drag anchor, edge auto-scroll and timecode badge
-- ✅ Ruler tap/drag scrubbing with frame snapping; density-correct tick drawing
-- ✅ Follow-scroll centers the playhead only while playing and untouched
-- ✅ Pinch zoom, scroll
-- ✅ Clip trim handles (drag edges)
-- ✅ Split, duplicate, delete, reorder clips
-- ✅ **Frame-accurate split** (`ClipSplit`): converts the timeline offset back to a source offset through trims/speed curves, partitions + rebases keyframes, keeps the outgoing transition on the second half and the entrance animation on the first; toasts instead of silently doing nothing at clip edges
-- ✅ Track mute/hide/lock/solo
-- ✅ Playhead with timecode
+- ✅ Ruler tap/drag scrubbing with frame snapping, density-correct ticks and edge auto-scroll
+- ✅ Follow-scroll centres the playhead only while playing and untouched
+- ✅ Two-finger pinch zoom (0.5×–3.0×) plus zoom +/- on the playback strip
+- ✅ Split, duplicate, ripple delete (main) / lift delete (overlay), main-track reorder
+- ✅ Overlay clips long-press-drag along their track; drop uses `SnapEngine.magneticStart` and project-bounds clamp
+- ✅ Frame-accurate split (`ClipSplit`): source-offset aware through trims/speed, keyframes partitioned + rebased, transition/animation ownership preserved
+- 🟡 Per-clip audio mute (`AudioClip.isMuted`) is wired to composition gain; track-level mute/lock/solo and the header button are not wired
 - ✅ Waveform display for audio clips
+- ✅ Magnetic snapping: timeline start, clip/overlay/audio/text/effect bounds, playhead; detected beats are lowest-priority magnets
+- ✅ Trim through the Edit Clip sheet (`updateClipTrim`); inline timeline edge handles are not built
 
 ### Preview & Canvas Gestures
-- ✅ ExoPlayer-based playback with Composition preview
-- ✅ Direct Canvas Transform Gestures: Pinch-to-zoom (0.1x to 5.0x), two-finger twist rotation (360°), and single-finger repositioning drag on preview
-- ✅ CapCut-style Selection Bounding Box: 4 corner resize nodes, top rotation pin handle, and live scale/rotation HUD badge
-- ✅ Chroma Key Eyedropper Tool: Real video frame pixel sampling with `MediaMetadataRetriever` on touch/drag, color loupe reticle with crosshairs
-- ✅ Play/pause/seek/scrub
-- ✅ Loop toggle
-- ✅ Volume control (0% to 1000% 10x amplification boost)
-- ✅ Canvas-correct rendering (aspect ratio handling)
+- ✅ ExoPlayer playback with composition preview
+- ✅ Direct canvas transforms: pinch-to-zoom (0.1×–5.0×), two-finger rotation, single-finger reposition
+- ✅ CapCut-style selection box: 4 corner resize nodes, rotation handle, live scale/rotation HUD
+- ✅ Chroma-key eyedropper with real frame sampling (`MediaMetadataRetriever`)
+- ✅ Play/pause/seek/scrub, loop, volume (0–1000%)
+- ✅ Canvas-correct aspect-ratio rendering
 
 ### CapCut-Class Editing Features
-- ✅ Freeze Frame insertion at playhead
-- ✅ Reverse playback toggling
-- ✅ One-tap Diamond Keyframe toggle (`◆`) with visual timeline keyframe markers
-- ✅ Chroma Key Cutout (Green/Blue/Cyan/Magenta/Black presets + custom sampled hex, tolerance, softness, spill suppression)
-- ✅ Blend modes (Normal, Multiply, Screen, Overlay, Soft Light)
-- ✅ Mask shapes (Rectangle, Circle, Horizontal Split, Invert, Feather)
+- ✅ Freeze frame at playhead
+- ✅ Reverse playback
+- ✅ One-tap diamond keyframe toggle with timeline markers
+- ✅ Chroma key (green/blue/cyan/magenta/black presets, tolerance, softness, spill suppression)
+- ✅ Blend modes (normal, multiply, screen, overlay, soft light)
+- ✅ Mask shapes (rectangle, circle, horizontal split, invert, feather)
 - ✅ Audio extraction from video clips
-- ✅ Speed Curve / Bezier ramping with CapCut presets (Montage, Hero, Bullet, Jump Cut, Flash In/Out)
+- ✅ Speed curve / Bezier ramping with CapCut presets
+- ✅ Beat detection, beat-magnetic snapping and auto-cut-to-beat (`autoCutToBeat()`); source beats map through trim/start/speed; visible beat markers pending
 
 ### Export
-- ✅ Media3 Transformer-based export
-- ✅ Filters, color adjustments, rotation/mirroring
+- ✅ Media3 Transformer export with filters, adjustments, rotation/mirroring
 - ✅ Text overlays, stickers, watermark
 - ✅ Audio tracks with volume/fades
-- ✅ Progress tracking
-- ✅ Cancel support
-- ✅ Save to MediaStore (Movies/CatByte)
-- ✅ Export validation (validate exported MP4 using MediaMetadataRetriever: tracks, dims, duration)
-- ✅ Storage precheck (estimate = bitrate × resolved-output duration × 1.1, post-downgrade size)
-- ✅ **Codec capability ladder** (unit-tested 9/9): HEVC→H.264, size requested→1440p→1080p→720p→480p, fps 60→30→24; never larger than requested; rejected pinned codec retries once with Media3's default encoder (DEC-017)
-- ✅ **Typed foreground service**: API 35+ `mediaProcessing`, API 34 `dataSync`, typed notification channel, double-start guard
-- ✅ **Background export UX**: "Keep editing — export in background" closes the dialog, starts the FGS; Android 13+ requests `POST_NOTIFICATIONS` first (denial does not block the export)
+- ✅ Progress tracking and cancel
+- ✅ Save to MediaStore (`Movies/CatByte`)
+- ✅ Export validation (tracks, dimensions, duration ±1 frame)
+- ✅ Storage precheck using the post-downgrade resolved size
+- ✅ Codec capability ladder (unit-tested 9/9): HEVC→H.264, 4K→1440p→1080p→720p→480p, fps 60→30→24; rejected pinned codec retries once with Media3's default encoder (DEC-017)
+- ✅ Typed foreground service (API 35+ `mediaProcessing`, API 34 `dataSync`), notification channel, double-start guard
+- ✅ Background export UX with Android 13+ notification permission flow
 
 ### Localization
-- ✅ English + Bengali full parity (125 keys each, incl. new `export_background_hint`)
+- ✅ English + Bengali full parity (125 keys each)
 - ✅ Robolectric guard test: bn resources actually translated (`LocalizationRobolectricTest`, sdk 34)
-- ✅ Locale-safe numeric labels: `fps_label`/`export_encoding` use `%s` placeholders so fps stays Latin digits in every locale (matches Latin resolution labels like "1080P")
+- ✅ Locale-safe numeric labels (`%s` placeholders keep fps Latin in every locale)
 - ✅ RTL-safe layouts
 
 ---
 
-## What's Missing / Not Matching Plan (Critical Gaps)
+## What's Missing / Not Matching Plan
 
-### Architecture (P0 - CRITICAL)
-- ❌ **Module structure**: Plan requires multi-module Gradle. Per code_arc.md Rule 5 ("No over-engineering"), keeping single `:app` module for small project (~63 files).
-- ❌ **RenderGraph concept**: Plan requires `Project` → `RenderGraphBuilder` → `RenderGraph`. Currently separate preview (ExoPlayer) and export (Transformer) paths.
-- ❌ **Custom GL compositor**: Plan requires custom GLSL compositor. Currently using Media3's built-in effects only.
-- ❌ **Decoder pool**: Plan requires bounded DecoderPool with priority/eviction. Not implemented.
-- ❌ **Proxy generation**: Plan requires auto-generate low-res proxies. Not implemented.
+### Architecture
+- ❌ **Custom GL compositor**: masks, blends, chroma and 35 GLSL effects exist as engine maths/shaders but no EGL/GLES surface executes them
+- ❌ **Decoder pool**: bounded priority/eviction pool not implemented
+- ❌ **Proxy generation**: policy exists; actual proxy files are not generated
+- 🟡 **Module structure**: single `:app` module by decision (DEC-006); revisit only when the codebase justifies it
 
-### Domain Model (P2 - CRITICAL)
-- ❌ **Command/Undo system**: Plan requires all edits as `Command`s with `apply`/`invert`. Currently direct mutation.
-- ❌ **TimeUs value class**: Plan requires microseconds. Currently using `Long` milliseconds.
-- ❌ **Keyframe interpolation**: Interpolation/easing exist (`KeyframeInterpolator`); splitting now partitions + rebases keyframes (`ClipSplit`), but mid-clip keyframe editing on the split halves is basic.
-- ❌ **Transition clamping**: Plan requires transition duration ≤ min(adjacent clip durations) / 2. Not enforced.
-- ❌ **Project JSON formatVersion + migration chain**: Missing.
+### Timeline & Preview
+- ❌ **60 fps scroll guarantee**: no LRU bitmap pool or multi-resolution waveform pyramids
+- ❌ **Visible beat markers**: beats feed snapping and auto-cut, but the timeline does not draw a beat row yet
+- ❌ **Cross-track clip drag**: main-track reorder and overlay start-time drag are wired; moving a clip between tracks is not
+- ❌ **Markers with labels/colours, jump-to-marker, marker-based snapping**
+- ❌ **Decoder pool with priority/eviction**
+- 🟡 **Inline trim handles**: trim works through the Edit Clip sheet, not by dragging clip edges on the timeline
 
-### Timeline & Preview (P4 - CRITICAL)
-- ✅ **Draggable playhead + free pan**: needle drags with a stable anchor (accumulated deltas), edge auto-scroll, ruler scrub; any timeline touch pauses playback; content centers under the playhead during playback (`TimelineGeometry`, unit-tested).
-- ❌ **60fps scroll guarantee**: No LRU bitmap pool, no multi-resolution waveform pyramids.
-- 🟡 **Magnetic main track + free overlay tracks**: long-press drag reorders the main track; free overlay-track drag pending.
-- ✅ **Snapping (timeline start, clip edges, overlay/audio/text/effect bounds)**: engine-owned priority (`SnapEngine`) wired into ruler + playhead drags; markers/beats still unwired.
-- ❌ **Decoder pool with priority/eviction**: Not implemented.
-
-### Clip Tools (P5 - CRITICAL)
-- ❌ **On-canvas gestures** (move/scale/rotate/crop corners, pinch/rotate)
+### Clip Tools
 - ❌ **Alignment guides with snap haptics**
-- ❌ **Crop (free + ratios)**
-- ❌ **Speed curves** (bezier ramp editor)
-- ❌ **Freeze frame, reverse, extract audio, detach audio**
+- 🟡 **Crop**: `CropMath` implemented and unit-tested; on-canvas crop UI still pending
+- ❌ **Detach audio** (extraction exists; detaching onto its own track is separate)
 - ❌ **Fit/fill/blur-fill background**
+- ❌ **Replace clip**
+- ✅ On-canvas move/scale/rotate, freeze frame, reverse, extract audio, speed curves
 
-### Text (P6 - CRITICAL)
-- ❌ **Bangla shaping verification** (HarfBuzz via Android text stack/Paint)
+### Text
+- ❌ **Bangla shaping verification**: no golden-image tests; Android text stack is used but not proven for conjuncts
 - ❌ **Bundled OFL Bangla fonts** (Noto Sans Bengali, Hind Siliguri, Tiro Bangla, Anek Bangla)
-- ❌ **Text templates, animated captions styles** (word-by-word highlight, karaoke)
-- ✅ **SRT/VTT import & export, burned-in captions** (word-by-word karaoke and Bangla ASR still pending)
+- ❌ **Text templates, word-by-word/karaoke caption styles**
+- 🟡 **Bangla ASR**: cue timing and caption conversion are real; no speech model is bundled
+- ✅ SRT/VTT import & export and burned-in captions
 
-### Audio (P6 - CRITICAL)
-- ❌ **Voiceover recording** (mic permission, headphone-aware)
-- ❌ **Waveform extraction** (multi-resolution min/max peak pyramids on disk)
-- ❌ **Mixer with limiter** to prevent clipping
-- ❌ **Beat detection + beat markers**
-- ❌ **Auto-ducking, equalizer, loudness normalization (LUFS target)**
+### Audio
+- ❌ **Beat markers UI** (detection + auto-cut are wired)
+- ❌ **RNNoise noise reduction, voice effects (pitch/formant/robot/echo/reverb)**
+- 🟡 **Mixer wiring**: limiter, ducking, EQ and LUFS maths are implemented and tested in `AudioMath`, but not connected to the Media3 mixer
+- 🟡 **Waveform**: 48-peak waveform from `MediaMetadata`; on-disk multi-resolution pyramids pending
+- ✅ Voice-over recording (MediaRecorder); headphone-aware routing pending
 
-### Effects & Filters (P6/P7 - CRITICAL)
-- ❌ **≥20 original LUT-based presets** (.cube/PNG LUT, 33³ or 64²) with intensity slider
-- ❌ **≥30 original GLSL effects** (glitch, RGB split, VHS, shake, etc.)
-- ❌ **Transitions with two-frame compositing** in shader
+### Effects, Filters & Transitions
+- 🟡 **20 LUT-style colour presets + `.cube` parser**: engine maths and preset definitions exist; not executed through a custom GL pipeline
+- 🟡 **35 GLSL effect sources**: written, not executed by a GL compositor
+- 🟡 **Transitions**: 11 types render through Media3 today; true two-frame shader compositing needs the GL compositor
+- 🟡 **Blend modes and masks**: data + maths exist; export falls back to normal alpha unless a GL pass is wired
 
-### Export Pipeline (P8 - RELEASE BLOCKER)
-- ❌ **Frame-by-frame render at project frame-rate timebase** (rational math, no float drift)
-- ❌ **Audio: render mixed PCM from same graph** (resample to 48kHz stereo, apply speed/pitch, fades, volume, limiter)
-- ❌ **On-device probe**: instrumented codec + E2E export run (test written, needs device)
-- ✅ **Export validation** (MediaExtractor/MediaMetadataRetriever: tracks, dims, duration ±1 frame)
-- ✅ **Storage precheck** (estimate = bitrate × duration × 1.1)
-- ✅ **Codec capability query** with fallback ladder (HEVC→H.264, 4K→1080p; DEC-017)
-- ✅ **Foreground service typed** (`mediaProcessing` API 35+ / `dataSync` API 34), notification channel, double-start guard
+### Export Pipeline
+- ❌ **Frame-by-frame custom render at the project timebase** (current path is Media3 Transformer)
+- ❌ **Mixed PCM audio render from the same graph** (speed/pitch, fades, volume, limiter)
+- ❌ **On-device probe this round**: instrumented codec/E2E test compiles but no device is attached
+- ❌ **HDR tone-map / 10-bit output**
+- ✅ Export validation, storage precheck, codec fallback ladder, typed foreground service
 
-### Testing (P0-P12 - CRITICAL)
-- ❌ **Fixtures**: No `scripts/make_fixtures.sh|ps1` with ffmpeg synthetic media
-- ❌ **Instrumented execution**: `CodecCapabilityInstrumentedTest` (5 tests) compiles, NOT RUN (no device)
-- ❌ **Golden frames**: None
-- ❌ **Compose UI tests**: None
-- ✅ **Unit tests**: 50/50 pass (ProjectJson 9, ExportMath 9, KeyframeInterpolator 9, ProjectRepository 8, EditorWorkflow 13, Robolectric localization 2) — example tests (7/8 failing) removed
-- ✅ **TEST_REPORT.md**: Created (root, plan §13 format; sections A–I)
+### Testing & Quality Gates
+- ❌ **Fixtures**: no `scripts/make_fixtures.sh|ps1` with ffmpeg synthetic media
+- ❌ **Instrumented execution**: `CodecCapabilityInstrumentedTest` compiles; NOT RUN in this environment
+- ❌ **Golden-frame rendering tests**
+- ❌ **Soak/fuzz tests** (random edits, 30-min playback, 10 exports)
+- ❌ **Local check scripts** (`scripts/check.sh` / `check.ps1`)
+- ✅ **Unit tests**: 278/278 across 29 suites, including 4 Robolectric Compose gesture tests
+- ✅ **CI**: `.github/workflows/ci.yml` runs lint, unit tests and `assembleDebug` on pushes/PRs
+- ✅ **TEST_REPORT.md**: exists with the P8 device round and current snapshot
 
 ---
 
 ## Known Issues / Blockers
 
-1. **Single module architecture** - Per code_arc.md Rule 5, single module is fine for small project (~63 files). Will restructure when project grows.
-2. **No RenderGraph** - Preview and export use different paths, parity not guaranteed
-3. **No custom GL compositor** - Limited to Media3's built-in effects
-4. **No command/undo system** - Direct state mutation, no undo/redo
-5. **Bangla text not verified** - No golden image tests, no bundled Bangla fonts
-6. **No on-device test run yet** — fixtures + instrumented E2E pending a device/emulator (unit tests are green: 50/50)
-7. **Export validation missing** ✅ - Now implemented (MediaMetadataRetriever validation)
-8. **No CI/check scripts** - No local pipeline for format, lint, unit tests, assembleDebug
+1. **No GL compositor** — masks, blends, chroma and shader effects cannot be executed without an EGL/GLES surface. Engine maths is ready; the renderer is the blocker.
+2. **No device/emulator in this environment** — all verification is JVM/Robolectric + compile/assemble. Instrumented codec tests and a real export E2E run remain pending.
+3. **Bangla text not verified** — no bundled fonts and no golden-image shaping tests.
+4. **No ASR model** — auto-caption timing/cue logic is real, but word recognition needs model binaries and a size/licence decision.
+5. **HDR/10-bit output** — requires renderer work beyond Media3's current path.
+6. **Cross-track drag** — free placement between overlay tracks is still a compose gesture task.
+7. **Inline trim handles** — trimming currently goes through the Edit Clip sheet.
+8. **No local check script** — CI covers the gate, but `scripts/check.ps1` is still missing.
 
 ---
 
 ## Next 5 Tasks (Priority Order)
 
-1. **On-device E2E export run**: Execute a full synthetic fixture export on the connected device and verify playback
-2. **Keyframe timeline dots UI**: Visual diamond markers on the timeline tracks corresponding to active keyframes
-3. **Chroma key color picker UI**: Interactive eyedropper on the preview canvas for chroma color selection
-4. **Custom GL Compositor integration**: Connect `TransitionEngine.weights()` and `MaskMath` directly into custom Media3 `GlShaderProgram`
-5. **Release verification**: Signed release APK build and size report
+1. **On-device E2E export run**: execute a full synthetic fixture export on a connected device and record it in `TEST_REPORT.md`.
+2. **Beat marker row + snap indicator**: draw detected beats on the ruler/timeline and highlight the active magnet during drags.
+3. **Cross-track clip drag**: long-press a clip and drop it onto another track, reusing `TimelineEdits` for placement.
+4. **Custom GL compositor**: execute `MaskMath`, `BlendMath`, `ChromaKey` and `EffectShaders` in one GL pipeline shared by preview and export.
+5. **Release verification**: signed release build, size report and one device smoke pass.
 
 ---
 
@@ -216,9 +208,9 @@
 | DEC-009 | Clear All Projects Button | ✅ Decided | 2026-10-31 |
 | DEC-010 | Render Engine Spike | ✅ Decided | P0 - Spike A (Media3 Transformer) chosen |
 | DEC-011 | Multi-Module Restructure | 🔴 Pending | P0 - Deferred per code_arc.md Rule 5 |
-| DEC-012 | Command/Undo System | 🔴 Pending | P2 |
+| DEC-012 | Command/Undo System | ✅ Decided | P2 - journal-based undo shipped |
 | DEC-013 | Bangla Font Bundling | 🔴 Pending | P6 |
-| DEC-014 | LUT Format | 🔴 Pending | P6 |
+| DEC-014 | LUT Format | ✅ Decided | P6 - `.cube` + 20 presets |
 | DEC-015 | RNNoise License/Size | 🔴 Pending | P9 |
 | DEC-016 | Whisper.cpp Auto Captions | 🔴 Pending | P11 |
 | DEC-017 | Codec Capability Fallback Ladder | ✅ Decided | P8 - 2026-11-01 |
@@ -231,16 +223,20 @@
 ```bash
 # Compile debug
 ./gradlew :app:compileDebugKotlin
-# Result: BUILD SUCCESSFUL (1m 20s; only pre-existing deprecation warnings)
+# Result: BUILD SUCCESSFUL (2026-11-06; only pre-existing deprecation warnings)
 
-# Assemble debug APK + instrumented test compile
-./gradlew :app:assembleDebug :app:compileDebugAndroidTestKotlin
-# Result: BUILD SUCCESSFUL (3m 38s) - app-debug.apk 22.93 MB
+# Assemble debug APK
+./gradlew :app:assembleDebug
+# Result: BUILD SUCCESSFUL - app-debug.apk 26.19 MB (24.98 MiB)
 
 # Run unit tests
 ./gradlew :app:testDebugUnitTest
-# Result: BUILD SUCCESSFUL (3m 58s) - 50 tests, 0 failed, 0 skipped
+# Result: BUILD SUCCESSFUL - 278 tests, 0 failed, 0 skipped, 29 suites
 # (XML results under app/build/test-results/testDebugUnitTest/)
+
+# Compose gesture tests (Robolectric)
+./gradlew :app:testDebugUnitTest --tests "com.example.ui.components.TimelineGestureTest"
+# Result: 4/4 pass (ruler seek, playhead drag, pinch zoom, snap threshold)
 
 # Run instrumented tests
 ./gradlew :app:connectedDebugAndroidTest
@@ -248,14 +244,14 @@
 
 # Lint
 ./gradlew :app:lintDebug
-# Result: Not yet run
+# Result: BUILD SUCCESSFUL - 0 errors, 157 warnings (2026-11-06); CI runs it
 ```
 
 ---
 
 ## Device/Emulator Info (for testing)
 - **OS**: Windows 11 (PowerShell)
-- **JDK**: Verified via Gradle daemon (Java 17 toolchain)
-- **Android SDK**: Paths resolved through `local.properties`
+- **JDK**: Android Studio JBR (Java 17 toolchain)
+- **Android SDK**: paths resolved through `local.properties`
 - **Gradle**: 9.8.2 (via wrapper)
-- **Emulator/Device**: None attached during the 2026-11-01 session; connected tests pending
+- **Emulator/Device**: none attached during the 2026-11-06 session; connected tests pending

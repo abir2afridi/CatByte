@@ -135,6 +135,35 @@ object BeatGrid {
 
     fun nearestBeat(grid: Grid, atMs: Long): Long? =
         grid.beatsMs.minByOrNull { abs(it - atMs) }
+
+    /**
+     * Converts source-file beat timestamps into project-timeline magnets.
+     *
+     * [sourceBeats] are relative to the media file, but an audio clip can start
+     * later, trim into the file and play at a different speed. The same beat
+     * therefore belongs at `start + (beat - trimStart) / speed`; beats outside
+     * the clip's played window are dropped so they cannot magnetise the
+     * playhead to silence.
+     */
+    fun timelineBeats(
+        sourceBeats: List<Long>,
+        startTimelineMs: Long,
+        trimStartMs: Long,
+        speed: Float,
+        durationMs: Long,
+    ): List<Long> {
+        if (sourceBeats.isEmpty() || durationMs <= 0L) return emptyList()
+        val safeSpeed = speed.coerceAtLeast(0.01f)
+        val start = startTimelineMs.coerceAtLeast(0L)
+        val end = start + durationMs
+        return sourceBeats.asSequence()
+            .filter { it >= trimStartMs }
+            .map { beat -> start + ((beat - trimStartMs) / safeSpeed).roundToLong() }
+            .filter { it in start until end }
+            .distinct()
+            .sorted()
+            .toList()
+    }
 }
 
 object SubjectTrack {

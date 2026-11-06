@@ -102,6 +102,41 @@ class PolicyPresetAutoEditTest {
     }
 
     @Test
+    fun `source beats map through timeline start, trim and speed`() {
+        val sourceBeats = listOf(0L, 500L, 1_000L, 2_000L, 3_000L)
+        assertEquals(
+            listOf(2_000L, 2_500L),
+            BeatGrid.timelineBeats(
+                sourceBeats = sourceBeats,
+                startTimelineMs = 2_000L,
+                trimStartMs = 1_000L,
+                speed = 2f,
+                durationMs = 1_000L
+            )
+        )
+    }
+
+    @Test
+    fun `half-speed audio spreads beats across the timeline`() {
+        assertEquals(
+            listOf(0L, 2_000L, 4_000L),
+            BeatGrid.timelineBeats(
+                sourceBeats = listOf(0L, 1_000L, 2_000L, 5_000L),
+                startTimelineMs = 0L,
+                trimStartMs = 0L,
+                speed = 0.5f,
+                durationMs = 4_500L
+            )
+        )
+    }
+
+    @Test
+    fun `beat mapping drops empty and zero-length inputs`() {
+        assertTrue(BeatGrid.timelineBeats(emptyList(), 0L, 0L, 1f, 1_000L).isEmpty())
+        assertTrue(BeatGrid.timelineBeats(listOf(100L), 0L, 0L, 1f, 0L).isEmpty())
+    }
+
+    @Test
     fun `subject smoothing follows the target gradually`() {
         val previous = SubjectTrack.Box(0.5f, 0.5f, 0.2f, 0.2f)
         val next = SubjectTrack.Box(0.9f, 0.5f, 0.2f, 0.2f)

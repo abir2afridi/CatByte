@@ -3,6 +3,8 @@ package com.example.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +48,8 @@ import kotlin.math.roundToInt
  * other's events:
  *
  * * the viewport pans with [horizontalScroll] (free timeline drag),
+ * * two-finger pinch zooms the timeline (Initial-pass handler that outranks
+ *   the pan, so a single finger still pans),
  * * the ruler tap/drag scrubs (inside [TimelineRuler]),
  * * the playhead needle drags (rendered outside the scroll container),
  * * clips long-press to reorder without breaking normal panning.
@@ -69,6 +73,9 @@ fun MultiTrackTimeline(
     onAddMediaClick: () -> Unit,
     onTransitionClick: (String) -> Unit,
     onMoveClip: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> },
+    onMoveOverlayClip: (clipId: String, newStartMs: Long) -> Unit = { _, _ -> },
+    onZoomChange: (Float) -> Unit = {},
+    beats: List<Long> = emptyList(),
     onUserInteraction: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -85,6 +92,8 @@ fun MultiTrackTimeline(
 
     val isUserDragging by scrollState.interactionSource.collectIsDraggedAsState()
     val latestInteraction by rememberUpdatedState(onUserInteraction)
+    val latestOnZoom by rememberUpdatedState(onZoomChange)
+    val latestZoom by rememberUpdatedState(zoom)
 
     val fps = project.fps.coerceIn(1, 120)
     /** dp per frame: shared by snapping and the follow-scroll maths. */
@@ -98,7 +107,7 @@ fun MultiTrackTimeline(
      * magnet while scrubbing, otherwise the needle would stick to its own
      * previous position.
      */
-    val snapCandidates: List<SnapCandidate> = remember(project, fps) {
+    val snapCandidates: List<SnapCandidate> = remember(project, fps, beats) {
         val edges = mutableListOf<Long>(0L)
         var acc = 0L
         project.clips.forEach { clip ->
@@ -121,11 +130,13 @@ fun MultiTrackTimeline(
             edges += effect.startTimelineMs * fps / 1_000L
             edges += (effect.startTimelineMs + effect.durationMs) * fps / 1_000L
         }
+        // Detected beats become the lowest-priority magnets (clip edges win).
+        val beatFrames = beats.map { it * fps / 1_000L }
         SnapEngine.collect(
             playhead = -1L,
             clipEdges = edges,
             markers = emptyList(),
-            beats = emptyList()
+            beats = beatFrames
         ).filter { it.frame >= 0L }
     }
     val snapThresholdFrames = remember(pxPerFrameDp) {
@@ -200,6 +211,37 @@ fun MultiTrackTimeline(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    // Two-finger pinch zoom. Runs on the Initial pass so the
+                    // scroll container never sees a partially-consumed pinch;
+                    // a single finger is left alone and pans normally.
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown(
+                                requireUnconsumed = false,
+                                pass = PointerEventPass.Initial
+                            )
+                            var baselineSpan = 0f
+                            var baselineZoom = 0f
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                val pressed = event.changes.filter { it.pressed }
+                                if (pressed.size >= 2) {
+                                    latestInteraction()
+                                    val span = abs(pressed[0].position.x - pressed[1].position.x)
+                                    if (baselineSpan <= 0f) {
+                                        baselineSpan = span.coerceAtLeast(1f)
+                                        baselineZoom = latestZoom
+                                    } else if (span > 0f) {
+                                        val next = (baselineZoom * (span / baselineSpan))
+                                            .coerceIn(0.5f, 3f)
+                                        if (abs(next - latestZoom) > 0.001f) latestOnZoom(next)
+                                    }
+                                    event.changes.forEach { it.consume() }
+                                }
+                                if (event.changes.all { !it.pressed }) break
+                            }
+                        }
+                    }
                     .pointerInput(Unit) {
                         awaitPointerEventScope {
                             while (true) {
@@ -230,6 +272,7 @@ fun MultiTrackTimeline(
                                 magneticSnap = magneticSnap,
                                 snapCandidates = snapCandidates,
                                 snapThresholdFrames = snapThresholdFrames,
+                                scrollState = scrollState,
                                 onSeek = onSeek,
                                 onScrubStart = beginScrub,
                                 onScrubEnd = endScrub
@@ -255,7 +298,8 @@ fun MultiTrackTimeline(
                                     clips = overlayClips,
                                     selectedClipId = selectedClipId,
                                     msToDp = msToDp,
-                                    onSelectClip = onSelectClip
+                                    onSelectClip = onSelectClip,
+                                    onMoveClip = onMoveOverlayClip
                                 )
                                 Spacer(modifier = Modifier.height(5.dp))
                             }

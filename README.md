@@ -10,9 +10,9 @@ export — all on the device, with no account and no cloud render.
 [Architecture](#architecture) · [Testing](#testing) · [Roadmap](#roadmap) ·
 [Documentation](#documentation)
 
-> **Honest status:** the export path is solid and 268 unit tests pass, but the
-> "CapCut feel" still needs a real GL compositor, bundled Bangla fonts and
-> on-device models. What is done and what is not is tracked in
+> **Honest status:** the export path is solid and 278 JVM/Robolectric tests
+> pass, but the "CapCut feel" still needs a real GL compositor, bundled Bangla
+> fonts and on-device models. What is done and what is not is tracked in
 > [`docs/M1-M4-ENGINE.md`](docs/M1-M4-ENGINE.md) and
 > [`FEATURE_MATRIX.md`](FEATURE_MATRIX.md).
 
@@ -26,9 +26,10 @@ export — all on the device, with no account and no cloud render.
 | **Rendering** | Media3 ExoPlayer (preview) + Media3 Transformer (export) |
 | **State** | Room + JSON snapshots, DataStore settings, durable undo journal |
 | **Languages** | English + Bengali UI (full key parity), Bangla digit formatting |
-| **APK** | ~23 MB debug build, no native libraries yet |
+| **APK** | ~26 MB debug build, no native libraries yet |
 | **Plan progress** | ~62% — export core complete, device verification pending (`STATUS.md`) |
-| **Tests** | 268 JVM unit tests, 0 failures — no instrumented/device run yet |
+| **Tests** | 278 JVM/Robolectric tests, 0 failures — no instrumented/device run yet |
+| **CI** | GitHub Actions: lint, unit tests and debug APK (`.github/workflows/ci.yml`) |
 
 Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not built**
 
@@ -40,10 +41,10 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 | Projects: create, duplicate, delete + undo, pin, search | ✅ | Aspect presets 9:16, 16:9, 1:1, 4:5 |
 | Autosave | 🟡 | Saves on every change; debounce + journal pending |
 | Undo / redo | ✅ | Gesture coalescing; persisted atomically so a crash keeps history |
-| Multi-track timeline (video, overlay, audio, text, effects) | ✅ | Free pan, zoom, trim, split, duplicate, track mute/lock/solo |
-| Snapping (playhead, clip edges, audio/text/effect bounds) | ✅ | Priority order lives in the engine, not in the UI |
+| Multi-track timeline (video, overlay, audio, text, effects) | ✅ | Free pan, pinch zoom, trim sheet, split, ripple delete, main-track reorder + overlay drag; real per-track mute/lock/solo pending |
+| Snapping (playhead, clip edges, audio/text/effect bounds, beats) | ✅ | Priority order lives in the engine, not in the UI; detected beats are the lowest-priority magnets |
 | Draggable playhead + free timeline pan | ✅ | Needle drags with edge auto-scroll; any timeline touch pauses playback; content centers under the playhead during playback |
-| Drag-and-drop clip move | 🟡 | Long-press + drag reorders the main track; free cross-track drag pending |
+| Drag-and-drop clip move | 🟡 | Main-track long-press reorder and overlay start-time drag (magnetic + bounds-clamped); free cross-track drag pending |
 | Keyframes (position, scale, rotation, opacity, volume) | ✅ | Sheet + interpolation + easing curves |
 | Speed: constant and bezier velocity curves | ✅ | Presets: montage, hero moment, bullet time, jump cut |
 | Masks (rectangle, circle, split, mirror, filmstrip) | 🟡 | Data + sheet exist; not burned into the pixels yet |
@@ -57,7 +58,7 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 |---|---|---|
 | Multi-track music, volume, fades, waveform | ✅ | |
 | Voice-over recording | ✅ | MediaRecorder based |
-| Beat detection | 🟡 | Detector exists; auto-cut to beat not wired |
+| Beat detection | 🟡 | Detector, beat-magnetic snapping and auto-cut-to-beat are wired; source beats map through trim/start/speed; visible beat markers pending |
 | Limiter, ducking, EQ, loudness (LUFS), noise reduction | 🟡 | Maths implemented and tested in the engine; not wired to the mixer |
 
 ### Export
@@ -67,7 +68,7 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 | H.264 + HEVC, AAC | ✅ | Encoder rejection retries once with the default encoder |
 | Progress, cancel, validation, MediaStore save | ✅ | Duration/dimension validation before success |
 | Background export (foreground service) | ✅ | Typed `mediaProcessing` / `dataSync` notification |
-| Platform presets, audio-only (.m4a), GIF | 🟡 | Presets + size estimate implemented; export sheet not wired |
+| Platform presets, audio-only (.m4a), GIF | 🟡 | Preset chips + size estimate wired; audio-only and GIF export not built |
 | HDR tone-map, 10-bit output | 🔴 | 10-bit sources detected by the proxy policy only |
 
 ### Not built yet
@@ -95,10 +96,10 @@ needed for the desktop prototype.
 # Install on a connected device/emulator
 ./gradlew :app:installDebug
 
-# Unit tests (268 tests)
+# Unit tests (278 tests, incl. Robolectric Compose gestures)
 ./gradlew :app:testDebugUnitTest
 
-# Lint (available, not yet a build gate)
+# Lint (CI runs it on every push/PR)
 ./gradlew :app:lintDebug
 ```
 
@@ -147,10 +148,12 @@ app/src/main/java/com/example/
 | Module | Responsibility |
 |---|---|
 | `Timebase` | Rational fps (30000/1001), `TimeUs`, frame snapping, timecode |
-| `SnapEngine` | Magnet collection/priority, magnetic main-track placement |
+| `SnapEngine` | Magnet collection/priority (clip edges, playhead, markers, beats), magnetic main-track placement |
+| `TimelineEdits` | Magnetic placement, ripple vs lift delete, reorder-close-gaps, trim bounds |
 | `UndoJournal` | Atomic, bounded, gesture-coalescing undo/redo persistence |
 | `CenterPlayhead` | Fixed-playhead scroll maths, zoom anchoring |
 | `TimelineGeometry` | dp/ms conversions, drag-anchor maths, screen x, timeline constants |
+| `BeatGrid` | Onset peaks, tempo from inter-onset intervals, beat lattice, nearest beat |
 | `ClipSplit` | Frame-accurate split: source-offset resolution, keyframe partition/rebase, transition/animation rules |
 | `RenderGraph` | Single render description + canvas maths |
 | `TransitionEngine` | 17 transition kinds, two-frame weights, shaders |
@@ -174,18 +177,22 @@ app/src/main/java/com/example/
 ./gradlew :app:testDebugUnitTest --rerun
 ```
 
-- **268 JVM unit tests, 0 failures**: timing, snapping, timeline geometry, undo journal, render
-  graph, transitions, LUTs, captions, audio maths, Bangla text, device policy,
-  export math, JSON round-trip, editor workflow, localization parity.
-- **Not covered yet:** instrumented codec/export runs, Compose UI tests,
-  golden-frame rendering, 60 fps scroll, memory and soak tests. See
-  [`TEST_REPORT.md`](TEST_REPORT.md).
+- **278 JVM/Robolectric tests, 0 failures**: timing, snapping, timeline geometry, undo journal,
+  render graph, transitions, LUTs, captions, audio maths, Bangla text, device
+  policy, export math, JSON round-trip, editor workflow, localization parity,
+  and 4 Compose gesture tests (ruler scrub, playhead drag, pinch zoom, snap
+  threshold) driven by Robolectric.
+- **CI:** `.github/workflows/ci.yml` runs lint, unit tests and `assembleDebug`
+  on pushes and pull requests to `main`/`develop`.
+- **Not covered yet:** instrumented codec/export runs, golden-frame rendering,
+  60 fps scroll, memory and soak tests. See [`TEST_REPORT.md`](TEST_REPORT.md).
 
 ## Roadmap
 
 1. Run the instrumented export probe on a real device and record it in
    `TEST_REPORT.md`.
-2. Free drag of clips across tracks (main-track long-press drag-reorder is wired).
+2. Free drag of clips across tracks (main-track reorder and overlay start-time
+   drag are wired; cross-track placement remains).
 3. Execute the shader library in a GL compositor shared by preview and export.
 4. Bundle Bangla OFL fonts and add golden-image shaping tests.
 5. Finish captions and the export sheet (SRT/VTT import/export, readable
