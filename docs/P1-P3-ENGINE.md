@@ -11,7 +11,7 @@ The P1/P2/P3 roadmap from `README.md` splits into two halves:
 
 This document covers the first half: the modules added to `com.example.engine`,
 the wiring that now reaches the editor UI, and the work that still needs a GPU
-surface, a camera or model files. Total suite is **294 tests, 0 failures**.
+surface, a camera or model files. Total suite is **306 tests, 0 failures**.
 
 ## What was added
 
@@ -243,7 +243,111 @@ surface for the GL compositor, no Bangla font binaries or ASR model.
 - `ProjectJsonTest` +1: track flags and clip mute survive the JSON round trip.
 - `TimelineTrackControlsTest` (new, Robolectric Compose): mute/lock/solo header taps report the right control.
 
-Total suite after this addendum: **294 tests, 0 failures** (31 suites). Debug APK rebuilt (26.22 MB).
+Total suite after this addendum: **306 tests, 0 failures** (32 suites). Debug APK rebuilt (25.77 MB).
 
 Still environment-blocked: no device/emulator for instrumented runs, no EGL/GLES
 surface for the GL compositor, no Bangla font binaries or ASR model.
+
+## Addendum — markers, vertical track scroll, audio rows, track reorder (2026-11-06, night)
+
+### Model / persistence
+- New `TimelineMarker(id, atMs, label, colorArgb)` and `VideoProject.markers`.
+- `ProjectJson` round-trips markers; a restoration keeps position, label and colour.
+
+### Timeline / navigation
+- `SnapEngine.collect` now receives real marker positions, so markers magnetise the
+  ruler and the needle (beats stay lower priority).
+- The ruler draws marker pins; the transport strip gained **add marker**, **jump
+  previous** and **jump next** controls (`PlaybackControlsStrip`).
+- `EditorViewModel` owns `addMarker`, `removeMarker`, `moveMarkerToPlayhead`,
+  `seekToMarker`, `jumpToMarker`.
+
+### Multi-track layout
+- The track area now scrolls **vertically** with its own `ScrollState`, shared with
+  the fixed left gutter so headers and rows stay aligned. The ruler stays pinned
+  horizontally at the top and scrolls horizontally with the tracks.
+- Every overlay track gets its own row and its own header; the header gained up/down
+  arrows wired to `EditorViewModel.moveOverlayTrack`, which reorders tracks and
+  therefore the render order.
+- Every `AudioClip` is now its own row with its own mute toggle
+  (`setAudioClipMuted`), replacing the single flattened "all audio" row.
+
+### Local gate
+- `scripts/check.ps1` and `scripts/check.sh` already existed as the local pipeline;
+  CI (`.github/workflows/ci.yml`) runs the verified gate: lint, unit tests and the
+  debug APK.
+
+### Tests
+- `EditorWorkflowTest` +4: marker add/jump/move/remove, two-marker directional
+  jumps, overlay track reorder.
+- `ProjectJsonTest` +1: markers survive the JSON round trip.
+
+Total suite after this addendum: **306 tests, 0 failures** (32 suites).
+Still environment-blocked: no device/emulator for instrumented runs, no EGL/GLES
+surface for the GL compositor, no Bangla font binaries or ASR model.
+
+## Addendum — multi-select, group move/delete, overlay clipboard (2026-11-06, late night)
+
+### Engine
+- `TimelineEdits.deleteAll(spans, ids, ripple)`: group delete that ripples the main
+  track and lifts overlays in one decision, mirroring the single-clip rule.
+
+### ViewModel
+- Selection state is now a set: `selectedClipIds`, `toggleClipSelection`,
+  `clearSelection`, `selectAllClips`, `hasMultiSelection`.
+- `deleteSelectedClips()` deletes the whole selection (main ripple + overlay lift).
+- `moveSelectedOverlays(delta)` moves overlay members as a group via
+  `TimelineEdits.shiftGroup`, preserving relative offsets and clamping to bounds.
+- `copySelectedOverlays()` / `pasteOverlays()` copy overlay clips and paste them
+  at the playhead, keeping their relative offsets.
+
+### UI
+- `PlaybackControlsStrip` gained an **MS ON/OFF** toggle; in multi-select mode a
+  track tap toggles selection instead of opening a sheet.
+- New `SelectionControlsBar` shows the selection count and group actions:
+  move ±100ms, delete, copy, paste, clear.
+
+### Tests
+- `TimelineEditsTest` +2: group delete ripple + group delete lift.
+- `EditorWorkflowTest` +2: group delete/move and overlay clipboard paste offsets.
+
+Total suite after this addendum: **306 tests, 0 failures** (32 suites).
+
+## Addendum — import speed, preview surface, aspect, responsive editor (2026-11-06, bugfix pass)
+
+### Import speed
+- `importMultipleUris()` no longer decodes a waveform per clip. It reads one
+  `MediaMetadata.videoInfo()` (duration, dimensions, rotation, display name) and
+  adds all clips in a single `updateProject()`, so a new project opens on the
+  timeline immediately instead of one save/reload per clip.
+
+### Imported geometry + naming
+- `MediaMetadata.videoInfo()` reads real width/height/rotation plus the file
+  display name from the content resolver (falling back to the URI segment).
+- New `AspectMath.fromVideo()` maps portrait/landscape/square/4:5 footage to the
+  shipped canvas presets; an empty project adopts the first clip's aspect ratio
+  instead of being forced to 9:16.
+- A fresh project whose title is still the generated "New Project …"/"Untitled …"
+  is renamed to the imported file name (extension trimmed).
+
+### Playback fix
+- `VideoCanvas` now renders the preview surface whenever a player exists. The
+  ExoPlayer fallback path used to drive audio/timeline while the picture stayed
+  on a generated `RenderClipVisual`, which looked like a frozen video.
+
+### Responsive editor
+- `PlaybackControlsStrip` and `SelectionControlsBar` are horizontally scrollable,
+  so the transport, beat/marker/multi-select controls and group actions cannot
+  overlap each other on narrow screens.
+- The timeline height drops from 175 dp to 148 dp below a 640 dp screen.
+- The preview frame is height-constrained by its aspect ratio instead of a fixed
+  720 dp width, so the canvas fits small/shallow screens.
+
+### Transition icon
+- The main-track transition button uses a neutral compare-arrows icon instead of
+  the "AutoAwesome"/AI star, which read as a demo/AI affordance.
+
+### Tests
+- `AspectMathTest` (4): landscape, portrait, square/4:5, unknown dimensions.
+
+Total suite after this addendum: **306 tests, 0 failures** (32 suites).

@@ -1,8 +1,10 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.FastForward
@@ -49,6 +52,12 @@ fun PlaybackControlsStrip(
     onStepForward: () -> Unit,
     onQuickSplit: () -> Unit,
     onBeatSync: (() -> Unit)? = null,
+    onAddMarker: (() -> Unit)? = null,
+    onPreviousMarker: (() -> Unit)? = null,
+    onNextMarker: (() -> Unit)? = null,
+    markerCount: Int = 0,
+    onToggleMultiSelect: (() -> Unit)? = null,
+    isMultiSelect: Boolean = false,
     onToggleMagneticSnap: () -> Unit,
     onZoomChanged: (Float) -> Unit,
     selectedClip: MediaClip? = null,
@@ -63,8 +72,9 @@ fun PlaybackControlsStrip(
             .height(50.dp)
             .background(colors.surface)
             .border(1.2.dp, colors.borderSubtle)
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onStepBackward, modifier = Modifier.size(36.dp)) {
@@ -171,6 +181,89 @@ fun PlaybackControlsStrip(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Beat", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
+            }
+        }
+
+        if (onAddMarker != null) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(colors.surfaceElevated)
+                    .border(1.3.dp, colors.border, RoundedCornerShape(8.dp))
+                    .clickable { onAddMarker() }
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .testTag("editor_add_marker")
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Marker",
+                        tint = colors.accentYellow,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "M:$markerCount",
+                        color = colors.textPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        if (onPreviousMarker != null) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(colors.surfaceElevated)
+                    .border(1.3.dp, colors.border, RoundedCornerShape(8.dp))
+                    .clickable { onPreviousMarker() }
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .testTag("editor_prev_marker")
+            ) {
+                Text("M⏴", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Black)
+            }
+        }
+
+        if (onNextMarker != null) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(colors.surfaceElevated)
+                    .border(1.3.dp, colors.border, RoundedCornerShape(8.dp))
+                    .clickable { onNextMarker() }
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .testTag("editor_next_marker")
+            ) {
+                Text("M⏵", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Black)
+            }
+        }
+
+        if (onToggleMultiSelect != null) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isMultiSelect) colors.accentCyan.copy(alpha = 0.18f) else colors.surfaceElevated)
+                    .border(
+                        1.3.dp,
+                        if (isMultiSelect) colors.accentCyan else colors.border,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable { onToggleMultiSelect() }
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .testTag("editor_toggle_multiselect")
+            ) {
+                Text(
+                    text = if (isMultiSelect) "MS ON" else "MS OFF",
+                    color = if (isMultiSelect) colors.accentCyan else colors.textPrimary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 

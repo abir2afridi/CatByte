@@ -17,6 +17,7 @@ import com.example.model.StickerOverlay
 import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
 import com.example.model.TimelineEffect
+import com.example.model.TimelineMarker
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
@@ -290,6 +291,23 @@ class ProjectJsonTest {
             isMainTrackMuted = true,
             isMainTrackLocked = true,
             isMainTrackSolo = false
+        )
+        val restored = ProjectJson.fromJson(ProjectJson.toJson(project))
+        assertEquals(project, restored)
+    }
+
+    @Test
+    fun `markers survive the round trip`() {
+        val marker = TimelineMarker(
+            id = "marker_1",
+            atMs = 1_500L,
+            label = "Drop",
+            colorArgb = 0xFF00FF00
+        )
+        val project = VideoProject(
+            id = "proj_markers",
+            title = "Markers",
+            markers = listOf(marker)
         )
         val restored = ProjectJson.fromJson(ProjectJson.toJson(project))
         assertEquals(project, restored)

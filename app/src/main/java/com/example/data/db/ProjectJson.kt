@@ -22,6 +22,7 @@ import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
 import com.example.model.TimelineEffect
 import com.example.model.TransitionType
+import com.example.model.TimelineMarker
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
@@ -88,6 +89,10 @@ object ProjectJson {
             JSONArray().also { array -> project.textOverlays.forEach { array.put(textToJson(it)) } }
         )
         put(
+            "markers",
+            JSONArray().also { array -> project.markers.forEach { array.put(markerToJson(it)) } }
+        )
+        put(
             "stickers",
             JSONArray().also { array -> project.stickers.forEach { array.put(stickerToJson(it)) } }
         )
@@ -115,6 +120,7 @@ object ProjectJson {
         },
         audioTracks = json.optJSONArray("audioTracks").mapObjects { audioFromJson(it) },
         textOverlays = json.optJSONArray("textOverlays").mapObjects { textFromJson(it) },
+        markers = json.optJSONArray("markers").mapObjects { markerFromJson(it) },
         stickers = json.optJSONArray("stickers").mapObjects { stickerFromJson(it) },
         effects = json.optJSONArray("effects").mapObjects { effectFromJson(it) },
         thumbnailResId = if (json.isNull("thumbnailResId")) null else json.optInt("thumbnailResId"),
@@ -385,6 +391,20 @@ object ProjectJson {
         effectType = parseEnum(json.optString("effectType"), EffectType.RGB_SPLIT),
         startTimelineMs = json.optLong("startTimelineMs"),
         durationMs = json.optLong("durationMs", 2000L)
+    )
+
+    private fun markerToJson(marker: TimelineMarker): JSONObject = JSONObject().apply {
+        put("id", marker.id)
+        put("atMs", marker.atMs)
+        put("label", marker.label)
+        put("colorArgb", marker.colorArgb.toString())
+    }
+
+    private fun markerFromJson(json: JSONObject): TimelineMarker = TimelineMarker(
+        id = json.optString("id"),
+        atMs = json.optLong("atMs"),
+        label = json.optString("label", ""),
+        colorArgb = json.optString("colorArgb", "4276944634").toLongOrNull() ?: 0xFFFFC94A
     )
 
     private fun keyframeToJson(keyframe: Keyframe): JSONObject = JSONObject().apply {

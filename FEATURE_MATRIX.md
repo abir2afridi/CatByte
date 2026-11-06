@@ -43,8 +43,10 @@
 | Duplicate | 🟢 VERIFIED | Works |
 | Reorder | 🟡 IMPLEMENTED-NOT VERIFIED | Long-press + drag; drop reorders the main track |
 | Ripple delete | 🟡 IMPLEMENTED-NOT VERIFIED | `deleteSelectedClip` → `TimelineEdits.delete(ripple = true)` on main, `false` on overlays; ViewModel test covers both |
-| Multi-select | 🔴 NOT STARTED | |
-| Track mute/hide/lock | 🟡 IMPLEMENTED-NOT VERIFIED | Per-track mute/lock/solo persisted and applied to composition gain; locked tracks refuse moves/trims/deletes; audio row mutes all clips; device check pending |
+| Multi-select | 🟡 IMPLEMENTED-NOT VERIFIED | Timeline "MS" toggle + selection count bar; group overlay move/delete and overlay copy/paste are wired; main-track group move and paste-attributes pending |
+| Track mute/hide/lock | 🟡 IMPLEMENTED-NOT VERIFIED | Per-track mute/lock/solo persisted and applied to composition gain; locked tracks refuse moves/trims/deletes; audio row mutes per clip; device check pending |
+| Track reorder / z-order | 🟡 IMPLEMENTED-NOT VERIFIED | Overlay tracks reorder from the timeline header (top row renders last); persistence + ViewModel test; device check pending |
+| Audio rows (one per clip) | 🟡 IMPLEMENTED-NOT VERIFIED | Each audio clip is its own timeline row with mute; drag/move/fades + mixer still pending |
 | Thumbnails strip | 🟡 IMPLEMENTED-NOT VERIFIED | Basic thumbnails |
 | Waveform | 🟡 IMPLEMENTED-NOT VERIFIED | Static waveform, need multi-resolution pyramids |
 | **Preview** | | |
@@ -170,11 +172,11 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Copy/cut/paste/paste-attributes for clips | 🔴 NOT STARTED | |
+| Copy/cut/paste/paste-attributes for clips | 🟡 IMPLEMENTED-NOT VERIFIED | Overlay copy + paste-at-playhead wired; cut, paste-attributes and main-track paste pending |
 | Multi-select with group move | 🔴 NOT STARTED | |
 | Clip grouping | 🔴 NOT STARTED | |
 | "Select all to right" | 🔴 NOT STARTED | |
-| Markers with labels/colors; jump-to-marker; marker-based snapping | 🔴 NOT STARTED | |
+| Markers with labels/colors; jump-to-marker; marker-based snapping | 🟡 IMPLEMENTED-NOT VERIFIED | `TimelineMarker` model + persistence; add/jump/move-to-playhead/remove + marker snap wired; rename/recolour/delete UI pending |
 | Ken Burns auto pan/zoom for photos | 🔴 NOT STARTED | |
 | Background options: color, gradient, blurred-copy, image | 🟡 IMPLEMENTED-NOT VERIFIED | Paper styles exist |
 | Split-screen / collage layouts (2,3,4-up, grid) | 🔴 NOT STARTED | |
@@ -273,7 +275,7 @@
 | Dependency verification (locking/verification metadata) | 🔴 NOT STARTED | |
 | Public API in :core:* documented with KDoc | 🔴 NOT STARTED | No :core:* modules |
 | Math functions have examples in tests | 🔴 NOT STARTED | |
-| scripts/check.sh and check.ps1 | 🟡 IMPLEMENTED-NOT VERIFIED | `.github/workflows/ci.yml` covers the gate; local check scripts still missing |
+| scripts/check.sh and check.ps1 | 🟡 IMPLEMENTED-NOT VERIFIED | Scripts exist and run the gate (plus optional spotless/detekt steps that are not configured); CI is the verified gate |
 | **Anti-Hallucination / API Verification** | | |
 | Confirm APIs exist in pinned versions | 🔴 NOT STARTED | |
 | Media3 unstable APIs isolated behind interfaces | 🔴 NOT STARTED | |
@@ -281,7 +283,7 @@
 | Root cause from logs before changing code | 🔴 NOT STARTED | |
 | **Definition of Done (per task)** | | |
 | Code compiles in all variants | 🔴 NOT STARTED | |
-| Unit/instrumented tests exist and pass | 🟡 IMPLEMENTED-NOT VERIFIED | 294/294 JVM/Robolectric tests pass (31 suites, incl. 5 Compose UI tests); instrumented compiles, execution pending device |
+| Unit/instrumented tests exist and pass | 🟡 IMPLEMENTED-NOT VERIFIED | 306/306 JVM/Robolectric tests pass (32 suites, incl. 5 Compose UI tests); instrumented compiles, execution pending device |
 | Works in preview AND export (rendering features) | 🟡 IMPLEMENTED-NOT VERIFIED | Shared composition plan for preview/export; GL-only effects (masks/blends/shaders) not executed yet |
 | State persists and survives undo/redo/save/reload | 🟢 VERIFIED | `UndoJournal` persists atomically; autosave on every change; unit-tested |
 | Loading/error/empty states exist | 🟡 IMPLEMENTED-NOT VERIFIED | Basic empty states |

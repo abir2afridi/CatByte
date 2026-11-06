@@ -63,7 +63,10 @@ fun TimelineOverlayTrack(
     fps: Int = 30,
     isLocked: Boolean = false,
     trackIndex: Int = 0,
-    trackCount: Int = 1
+    trackCount: Int = 1,
+    isMultiSelect: Boolean = false,
+    selectedClipIds: Set<String> = emptySet(),
+    onToggleClipSelection: (String) -> Unit = {}
 ) {
     val colors = PencilTheme.colors
     val density = LocalDensity.current
@@ -81,7 +84,7 @@ fun TimelineOverlayTrack(
             .padding(vertical = 2.dp)
     ) {
         clips.forEach { clip ->
-            val isSelected = clip.id == selectedClipId
+            val isSelected = clip.id == selectedClipId || clip.id in selectedClipIds
             val isDragging = draggedId == clip.id
             val startOffsetDp = (clip.startTimelineMs * msToDp).dp
             val widthDp = (clip.durationMs * msToDp).dp.coerceAtLeast(48.dp)
@@ -103,7 +106,13 @@ fun TimelineOverlayTrack(
                         color = if (isDragging) colors.accentYellow else colors.accentCyan,
                         shape = RoundedCornerShape(6.dp)
                     )
-                    .clickable { onSelectClip(clip.id) }
+                    .clickable {
+                        if (isMultiSelect) {
+                            onToggleClipSelection(clip.id)
+                        } else {
+                            onSelectClip(clip.id)
+                        }
+                    }
                     .pointerInput(clip.id, msToDp, trackCount, isLocked) {
                         if (isLocked) return@pointerInput
                         detectDragGesturesAfterLongPress(

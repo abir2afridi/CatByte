@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -48,6 +49,7 @@ fun TimelineRuler(
     snapThresholdFrames: Long,
     scrollState: ScrollState,
     beats: List<Long> = emptyList(),
+    markers: List<com.example.model.TimelineMarker> = emptyList(),
     onSeek: (Long) -> Unit,
     onScrubStart: () -> Unit,
     onScrubEnd: () -> Unit,
@@ -163,6 +165,17 @@ fun TimelineRuler(
                     start = Offset(x, h * 0.10f),
                     end = Offset(x, h),
                     strokeWidth = 1.6f * density.density
+                )
+            }
+
+            // Markers: amber pins with a label, above the graduations.
+            markers.forEach { marker ->
+                val x = marker.atMs * pxPerMs
+                drawLine(
+                    color = Color(marker.colorArgb),
+                    start = Offset(x, 0f),
+                    end = Offset(x, h * 0.78f),
+                    strokeWidth = 2f * density.density
                 )
             }
         }

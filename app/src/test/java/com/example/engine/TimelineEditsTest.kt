@@ -149,4 +149,21 @@ class TimelineEditsTest {
         assertTrue(runCatching { TimelineEdits.ClipSpan("x", -1, 100) }.isFailure)
         assertTrue(runCatching { TimelineEdits.ClipSpan("x", 0, 0) }.isFailure)
     }
+
+    @Test
+    fun `group delete ripples the main track`() {
+        val spans = listOf(span("a", 0, 1_000), span("b", 1_000, 1_000), span("c", 2_000, 1_000))
+        val out = TimelineEdits.deleteAll(spans, setOf("a", "c"), ripple = true)
+        assertEquals(listOf("b"), out.map { it.id })
+        assertEquals(0L, out.first().startMs)
+        assertEquals(1_000L, out.first().durationMs)
+    }
+
+    @Test
+    fun `group delete lifts overlays`() {
+        val spans = listOf(span("a", 0, 1_000), span("b", 2_000, 1_000), span("c", 4_000, 1_000))
+        val out = TimelineEdits.deleteAll(spans, setOf("b"), ripple = false)
+        assertEquals(listOf("a", "c"), out.map { it.id })
+        assertEquals(4_000L, out.last().startMs)
+    }
 }

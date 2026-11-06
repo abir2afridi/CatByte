@@ -22,7 +22,7 @@
 | **P9** Tier 2 CapCut Pro features | 🟢 VERIFIED ON DEVICE | Direct canvas gestures (pinch/rotate/pan), transform bounding box, chroma-key eyedropper, freeze frame, reverse playback, 10× volume boost, keyframe markers |
 | **P10** Polish | ⏳ IN PROGRESS | Accessibility, haptics, empty/error states, onboarding |
 | **P11** Tier 3 features | ⏳ IN PROGRESS | Auto captions, background removal, object tracking |
-| **P12** Release verification | 🟢 VERIFIED | Previous device run: lint 0 errors, 6/6 instrumented. Current suite: **294/294 JVM/Robolectric tests**, debug APK built |
+| **P12** Release verification | 🟢 VERIFIED | Previous device run: lint 0 errors, 6/6 instrumented. Current suite: **306/306 JVM/Robolectric tests**, debug APK built |
 
 ---
 
@@ -69,7 +69,12 @@
 - ✅ Per-clip audio mute (`AudioClip.isMuted`) and an "All audio" mute toggle in the Audio header
 - ✅ Waveform display for audio clips
 - ✅ Magnetic snapping: timeline start, clip/overlay/audio/text/effect bounds, playhead; detected beats are lowest-priority magnets
+- ✅ Multi-select + group ops: MS toggle, selection count bar, overlay group move/delete, overlay copy/paste (paste-at-playhead)
 - 🟡 Beat marker row: ticks and the snap guide are drawn, but a dedicated editable beat grid is pending
+- ✅ Markers: labelled/coloured markers persist, snap as high-priority magnets, render on the ruler; add / jump next / jump prev / move-to-playhead / remove are wired
+- ✅ Vertical scroll: track rows scroll independently of the ruler (left gutter and tracks share one vertical scroll state)
+- ✅ Overlay track reorder: header up/down changes track order = render order
+- ✅ Audio rows: one row per audio clip, each with a real mute toggle (audio drag + fades later)
 
 ### Preview & Canvas Gestures
 - ✅ ExoPlayer playback with composition preview
@@ -120,8 +125,9 @@
 
 ### Timeline & Preview
 - ❌ **60 fps scroll guarantee**: no LRU bitmap pool or multi-resolution waveform pyramids
-- 🟡 **Editable beat grid**: beat ticks and snap guide are drawn; a row you can drag/edit per beat is pending
-- ❌ **Markers with labels/colours, jump-to-marker, marker-based snapping**
+- 🟡 **Editable beat grid**: beat ticks + snap guide + marker pins are drawn; an editable beat grid row is pending
+- ❌ **Markers with labels/colours, jump-to-marker, marker-based snapping** — labels/jump/snap wired; full marker sheet (rename/recolour/delete UI) pending
+- ❌ **Multi-select, group move/delete, copy/paste** (engine `TimelineEdits.deleteAll`/`shiftGroup` exists and is wired for overlays; main-track group move and paste-attributes pending)
 - ❌ **Decoder pool with priority/eviction**
 
 ### Clip Tools
@@ -164,8 +170,8 @@
 - ❌ **Instrumented execution**: `CodecCapabilityInstrumentedTest` compiles; NOT RUN in this environment
 - ❌ **Golden-frame rendering tests**
 - ❌ **Soak/fuzz tests** (random edits, 30-min playback, 10 exports)
-- ❌ **Local check scripts** (`scripts/check.sh` / `check.ps1`)
-- ✅ **Unit tests**: 294/294 across 31 suites, including 5 Robolectric Compose UI tests
+- ❌ **Local check script reliability**: scripts exist but include spotless/detekt steps that are not configured
+- ✅ **Unit tests**: 306/306 across 32 suites, including 5 Robolectric Compose UI tests
 - ✅ **CI**: `.github/workflows/ci.yml` runs lint, unit tests and `assembleDebug` on pushes/PRs
 - ✅ **TEST_REPORT.md**: exists with the P8 device round and current snapshot
 
@@ -185,8 +191,8 @@
 ## Next 5 Tasks (Priority Order)
 
 1. **On-device E2E export run**: execute a full synthetic fixture export on a connected device and record it in `TEST_REPORT.md`.
-2. **Editable beat grid + markers**: turn the drawn beat ticks into an editable row and add named/coloured markers with jump + snap.
-3. **Cross-track overlay polish**: snap the drop to the target track's occupied ranges and preview the track highlight while dragging (placement itself is wired).
+2. **Main-track group move + paste-attributes**: finish multi-select for the main track and add effect/filter paste.
+3. **Editable beat grid + marker sheet**: drag beats/markers, rename/recolour/delete markers.
 4. **Custom GL compositor**: execute `MaskMath`, `BlendMath`, `ChromaKey` and `EffectShaders` in one GL pipeline shared by preview and export.
 5. **Release verification**: signed release build, size report and one device smoke pass.
 
@@ -226,11 +232,12 @@
 
 # Assemble debug APK + instrumented test compile
 ./gradlew :app:assembleDebug
-# Result: BUILD SUCCESSFUL - app-debug.apk 26.22 MB (2026-11-06)
+# Result: BUILD SUCCESSFUL - app-debug.apk 25.77 MB (2026-11-06)
 
 # Run unit tests
 ./gradlew :app:testDebugUnitTest
-# Result: BUILD SUCCESSFUL - 294 tests, 0 failed, 0 skipped, 31 suites
+- ✅ Verify with `scripts/check.ps1` (lint + 306 unit tests + assembleDebug) or `scripts/check.sh`
+# Result: BUILD SUCCESSFUL - 306 tests, 0 failed, 0 skipped, 32 suites
 # (XML results under app/build/test-results/testDebugUnitTest/)
 
 # Compose gesture tests (Robolectric)

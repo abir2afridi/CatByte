@@ -136,6 +136,24 @@ object TimelineEdits {
     }
 
     /**
+     * Deletes many clips at once. With [ripple] the gap closes (main-track
+     * default); without it the holes stay so overlay/audio clips keep their
+     * absolute timing.
+     */
+    fun deleteAll(spans: List<ClipSpan>, ids: Set<String>, ripple: Boolean = true): List<ClipSpan> {
+        if (ids.isEmpty()) return spans
+        val remaining = spans.filterNot { it.id in ids }.sortedBy { it.startMs }
+        if (!ripple) return remaining
+        var at = 0L
+        val out = ArrayList<ClipSpan>(remaining.size)
+        for (span in remaining) {
+            out.add(ClipSpan(span.id, at, span.durationMs))
+            at += span.durationMs
+        }
+        return out
+    }
+
+    /**
      * Moves a multi-selection by [deltaMs] without breaking its relative
      * offsets. The shift is clamped so the left-most member never goes negative.
      */

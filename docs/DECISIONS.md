@@ -252,7 +252,7 @@
 - **Keeping the example tests:** they depended on demo seed data that was removed on purpose.
 - **kotlinx-serialization rewrite of ProjectJson:** large production change to fix a test-infra problem.
 **Consequences:**
-- ✅ 294/294 unit + Robolectric tests pass locally (2026-11-06), repeated and stable
+- ✅ 306/306 unit + Robolectric tests pass locally (2026-11-06), repeated and stable
 - ✅ Bangla localization guarded by a Robolectric test (bn strings actually resolve)
 - ❌ Robolectric only usable for sdk 34 until more jars are cached
 - ❌ Instrumented tests (`CodecCapabilityInstrumentedTest`, 5 tests) compile but need a device/emulator to run

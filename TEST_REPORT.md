@@ -4,7 +4,7 @@
 **Scope:** P8 export hardening round (codec capability ladder, typed foreground service, background export UX, Bangla localization parity, test infrastructure).
 **Format:** Per `docs+\plan.md` §13 (FINAL REPORT structure: A–I).
 
-> **Latest snapshot (2026-11-06):** 294/294 JVM/Robolectric tests pass across 31
+> **Latest snapshot (2026-11-06):** 306/306 JVM/Robolectric tests pass across 31
 > suites, including 4 Robolectric Compose gesture tests (`TimelineGestureTest`),
 > a track-header control test (`TimelineTrackControlsTest`) and inline trim /
 > beat-mapping maths. Debug APK is 26.22 MB. CI

@@ -8,6 +8,7 @@ import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
 import com.example.model.TimelineTrackIds
+import com.example.model.TimelineMarker
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -460,7 +461,8 @@ class EditorWorkflowTest {
     }
 
     @Test
-    fun `inline trim handle moves the source trim and duration`() {        val viewModel = newViewModel()
+    fun `inline trim handle moves the source trim and duration`() {
+        val viewModel = newViewModel()
         val project = VideoProject(
             id = "p7",
             title = "Trim handle",
@@ -482,5 +484,159 @@ class EditorWorkflowTest {
         val clip = viewModel.currentProject.value!!.clips.first()
         assertEquals(3_990L, clip.durationMs)
         assertEquals(3_990L, clip.trimEndMs)
+    }
+
+    @Test
+    fun `markers add jump move and remove`() {
+        val viewModel = vmWithOneClip()
+        viewModel.seekTo(1_000L)
+        viewModel.addMarker("A")
+
+        var marker = viewModel.currentProject.value!!.markers.single()
+        assertEquals(1_000L, marker.atMs)
+        assertEquals("A", marker.label)
+
+        viewModel.seekTo(2_500L)
+        viewModel.moveMarkerToPlayhead(marker.id)
+        marker = viewModel.currentProject.value!!.markers.single()
+        assertEquals(2_500L, marker.atMs)
+
+        // With a single marker after the playhead, both directions land on it.
+        viewModel.seekTo(0L)
+        assertEquals(2_500L, viewModel.jumpToMarker(1))
+        assertEquals(2_500L, viewModel.jumpToMarker(-1))
+
+        viewModel.removeMarker(marker.id)
+        assertTrue(viewModel.currentProject.value!!.markers.isEmpty())
+    }
+
+    @Test
+    fun `markers jump between two markers in both directions`() {
+        val viewModel = vmWithOneClip()
+        viewModel.seekTo(1_000L)
+        viewModel.addMarker("A")
+        viewModel.seekTo(2_500L)
+        viewModel.addMarker("B")
+
+        viewModel.seekTo(0L)
+        assertEquals(1_000L, viewModel.jumpToMarker(1))
+        assertEquals(2_500L, viewModel.jumpToMarker(1))
+        assertEquals(1_000L, viewModel.jumpToMarker(-1))
+    }
+
+    @Test
+    fun `group selection delete move and paste overlays`() {
+        val project = VideoProject(
+            id = "p10",
+            title = "Group",
+            clips = listOf(
+                MediaClip(id = "a", title = "A", durationMs = 1_000L, originalDurationMs = 1_000L),
+                MediaClip(id = "b", title = "B", durationMs = 1_000L, originalDurationMs = 1_000L),
+                MediaClip(id = "c", title = "C", durationMs = 1_000L, originalDurationMs = 1_000L)
+            ),
+            overlayTracks = listOf(
+                VideoTrack(
+                    id = "track_a",
+                    name = "OV A",
+                    isMainTrack = false,
+                    clips = listOf(
+                        MediaClip(
+                            id = "ov1", title = "OV1",
+                            startTimelineMs = 0L, durationMs = 1_000L, originalDurationMs = 1_000L
+                        ),
+                        MediaClip(
+                            id = "ov2", title = "OV2",
+                            startTimelineMs = 2_000L, durationMs = 1_000L, originalDurationMs = 1_000L
+                        )
+                    )
+                )
+            )
+        )
+        val viewModel = newViewModel()
+        viewModel.openProject(project)
+
+        viewModel.toggleClipSelection("a")
+        viewModel.toggleClipSelection("b")
+        viewModel.toggleClipSelection("ov1")
+        viewModel.toggleClipSelection("ov2")
+        assertEquals(4, viewModel.selectedClipIds.value.size)
+
+        // Overlay group moves keeps relative offsets, clamped to project bounds.
+        viewModel.moveSelectedOverlays(1_000L)
+        val overlays = viewModel.currentProject.value!!.overlayTracks.first().clips
+        assertEquals(1_000L, overlays.first { it.id == "ov1" }.startTimelineMs)
+        assertEquals(3_000L, overlays.first { it.id == "ov2" }.startTimelineMs)
+
+        // Main group delete ripples; overlay group delete lifts.
+        viewModel.deleteSelectedClips()
+        val updated = viewModel.currentProject.value!!
+        assertEquals(listOf("c"), updated.clips.map { it.id })
+        assertTrue(updated.overlayTracks.first().clips.isEmpty())
+    }
+
+    @Test
+    fun `overlay clipboard pastes at the playhead with relative offsets`() {
+        val project = VideoProject(
+            id = "p11",
+            title = "Clipboard",
+            clips = listOf(
+                MediaClip(id = "main", title = "Main", durationMs = 5_000L, originalDurationMs = 5_000L)
+            ),
+            overlayTracks = listOf(
+                VideoTrack(
+                    id = "track_a",
+                    name = "OV",
+                    isMainTrack = false,
+                    clips = listOf(
+                        MediaClip(
+                            id = "ov1", title = "OV1",
+                            startTimelineMs = 0L, durationMs = 1_000L, originalDurationMs = 1_000L
+                        ),
+                        MediaClip(
+                            id = "ov2", title = "OV2",
+                            startTimelineMs = 2_000L, durationMs = 1_000L, originalDurationMs = 1_000L
+                        )
+                    )
+                )
+            )
+        )
+        val viewModel = newViewModel()
+        viewModel.openProject(project)
+
+        viewModel.toggleClipSelection("ov1")
+        viewModel.toggleClipSelection("ov2")
+        viewModel.copySelectedOverlays()
+        viewModel.seekTo(3_000L)
+        viewModel.pasteOverlays()
+
+        val clips = viewModel.currentProject.value!!.overlayTracks.first().clips
+        assertEquals(4, clips.size)
+        val pasted = clips
+            .filter { it.id.startsWith("paste_") && (it.title == "OV1" || it.title == "OV2") }
+        assertEquals(3_000L, pasted.first { it.title == "OV1" }.startTimelineMs)
+        assertEquals(5_000L, pasted.first { it.title == "OV2" }.startTimelineMs)
+    }
+
+    @Test
+    fun `overlay tracks can be reordered`() {
+        val viewModel = newViewModel()
+        val project = VideoProject(
+            id = "p9",
+            title = "Reorder",
+            clips = listOf(
+                MediaClip(id = "main", title = "Main", durationMs = 3_000L, originalDurationMs = 3_000L)
+            ),
+            overlayTracks = listOf(
+                VideoTrack(id = "track_a", name = "OV A", isMainTrack = false, clips = emptyList()),
+                VideoTrack(id = "track_b", name = "OV B", isMainTrack = false, clips = emptyList())
+            )
+        )
+        viewModel.openProject(project)
+
+        viewModel.moveOverlayTrack(0, 1)
+        assertEquals(
+            listOf("track_b", "track_a"),
+            viewModel.currentProject.value!!.overlayTracks.map { it.id }
+        )
     }
 }

@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Mic
@@ -49,7 +51,11 @@ data class TimelineHeaderRow(
     val icon: ImageVector = Icons.Default.VideoLibrary,
     val onMute: (() -> Unit)? = null,
     val onLock: (() -> Unit)? = null,
-    val onSolo: (() -> Unit)? = null
+    val onSolo: (() -> Unit)? = null,
+    /** Overlay tracks can move up/down; that also changes their render order. */
+    val canReorder: Boolean = false,
+    val onMoveUp: (() -> Unit)? = null,
+    val onMoveDown: (() -> Unit)? = null
 )
 
 /**
@@ -122,6 +128,29 @@ fun TimelineTrackHeaders(rows: List<TimelineHeaderRow>) {
                             off = Icons.Default.Headset,
                             description = "Solo track",
                             onClick = { row.onSolo?.invoke() },
+                            activeColor = colors.accentCyan
+                        )
+                    }
+                }
+                if (row.canReorder) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HeaderToggle(
+                            selected = true,
+                            on = Icons.Default.KeyboardArrowUp,
+                            off = Icons.Default.KeyboardArrowUp,
+                            description = "Move track up",
+                            onClick = { row.onMoveUp?.invoke() },
+                            activeColor = colors.accentCyan
+                        )
+                        HeaderToggle(
+                            selected = true,
+                            on = Icons.Default.KeyboardArrowDown,
+                            off = Icons.Default.KeyboardArrowDown,
+                            description = "Move track down",
+                            onClick = { row.onMoveDown?.invoke() },
                             activeColor = colors.accentCyan
                         )
                     }

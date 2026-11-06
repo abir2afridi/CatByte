@@ -88,6 +88,7 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -103,6 +104,7 @@ import com.example.ui.components.AudioSheet
 import com.example.ui.components.BlendModeSheet
 import com.example.ui.components.CanvasRatioSheet
 import com.example.ui.components.PlaybackControlsStrip
+import com.example.ui.components.SelectionControlsBar
 import com.example.ui.components.EditClipSheet
 import com.example.ui.components.EffectsSheet
 import com.example.ui.components.ExportDialog
@@ -135,6 +137,8 @@ fun EditorScreen(
     val isPlaying by viewModel.isPlaying.collectAsState()
     val currentPositionMs by viewModel.currentPositionMs.collectAsState()
     val selectedClipId by viewModel.selectedClipId.collectAsState()
+    val selectedClipIds by viewModel.selectedClipIds.collectAsState()
+    val overlayClipboard by viewModel.overlayClipboard.collectAsState()
     val selectedTextId by viewModel.selectedTextId.collectAsState()
     val activeSheet by viewModel.activeSheet.collectAsState()
     val timelineZoom by viewModel.timelineZoom.collectAsState()
@@ -150,6 +154,7 @@ fun EditorScreen(
     var activeTransitionClipId by remember { mutableStateOf<String?>(null) }
     var showTtsDialog by remember { mutableStateOf(false) }
     var ttsInputText by remember { mutableStateOf("") }
+    var isMultiSelect by remember { mutableStateOf(false) }
 
     // Intercept back button if any sheet is open
     BackHandler {
@@ -380,6 +385,15 @@ fun EditorScreen(
             onStepForward = { viewModel.stepForward() },
             onQuickSplit = splitAtPlayhead,
             onBeatSync = { viewModel.autoCutToBeat() },
+            onAddMarker = { viewModel.addMarker() },
+            onPreviousMarker = { viewModel.jumpToMarker(-1) },
+            onNextMarker = { viewModel.jumpToMarker(1) },
+            markerCount = project?.markers?.size ?: 0,
+            onToggleMultiSelect = {
+                isMultiSelect = !isMultiSelect
+                if (!isMultiSelect) viewModel.clearSelection()
+            },
+            isMultiSelect = isMultiSelect,
             onToggleMagneticSnap = { viewModel.toggleMagneticSnap() },
             onZoomChanged = { viewModel.setTimelineZoom(it) },
             selectedClip = currentClip,
@@ -387,11 +401,43 @@ fun EditorScreen(
             onToggleKeyframe = { viewModel.toggleKeyframeAtPlayhead() }
         )
 
+        // Group actions for multi-selection.
+        val selectedOverlayClips = remember(project, selectedClipIds) {
+            project?.overlayTracks?.flatMap { it.clips }
+                ?.filter { it.id in selectedClipIds }
+                ?: emptyList()
+        }
+        if (selectedClipIds.size > 1) {
+            SelectionControlsBar(
+                selectedCount = selectedClipIds.size,
+                isMultiSelect = isMultiSelect,
+                canMoveOverlays = selectedOverlayClips.isNotEmpty(),
+                canPaste = overlayClipboard.isNotEmpty(),
+                onMoveLeft = { viewModel.moveSelectedOverlays(-100L) },
+                onMoveRight = { viewModel.moveSelectedOverlays(100L) },
+                onDelete = { viewModel.deleteSelectedClips() },
+                onCopy = { viewModel.copySelectedOverlays() },
+                onPaste = { viewModel.pasteOverlays() },
+                onClear = {
+                    viewModel.clearSelection()
+                    isMultiSelect = false
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // Adaptive heights: small phones must not overlap the bottom bar.
+        val timelineHeight = if (LocalConfiguration.current.screenHeightDp < 640) {
+            148.dp
+        } else {
+            175.dp
+        }
+
         // 4. Multi-Track Timeline
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(175.dp)
+                .height(timelineHeight)
         ) {
             MultiTrackTimeline(
                 project = project!!,
@@ -428,8 +474,12 @@ fun EditorScreen(
                 onTrackMute = { trackId, muted -> viewModel.setTrackMuted(trackId, muted) },
                 onTrackLock = { trackId, locked -> viewModel.setTrackLocked(trackId, locked) },
                 onTrackSolo = { trackId, solo -> viewModel.setTrackSolo(trackId, solo) },
-                onSetAllAudioMuted = { muted -> viewModel.setAllAudioMuted(muted) },
+                onMoveOverlayTrack = { from, to -> viewModel.moveOverlayTrack(from, to) },
+                onToggleAudioMute = { audioId, muted -> viewModel.setAudioClipMuted(audioId, muted) },
                 onZoomChange = { viewModel.setTimelineZoom(it) },
+                onToggleClipSelection = { viewModel.toggleClipSelection(it) },
+                isMultiSelect = isMultiSelect,
+                selectedClipIds = selectedClipIds,
                 beats = snapBeats,
                 onUserInteraction = { viewModel.pausePlayback() },
                 modifier = Modifier.fillMaxSize()

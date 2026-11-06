@@ -305,6 +305,14 @@ object TimelineTrackIds {
     const val MAIN = "__main__"
 }
 
+/** A timeline marker: labelled magnet and jump target. */
+data class TimelineMarker(
+    val id: String = UUID.randomUUID().toString(),
+    val atMs: Long = 0L,
+    val label: String = "",
+    val colorArgb: Long = 0xFFFFC94A
+)
+
 data class VideoProject(
     val id: String,
     val title: String,
@@ -324,7 +332,9 @@ data class VideoProject(
     /** Main video track controls (the main clips have no `VideoTrack` object). */
     val isMainTrackMuted: Boolean = false,
     val isMainTrackLocked: Boolean = false,
-    val isMainTrackSolo: Boolean = false
+    val isMainTrackSolo: Boolean = false,
+    /** Named, coloured timeline markers (jump targets and snap magnets). */
+    val markers: List<TimelineMarker> = emptyList()
 ) {
     val allVideoClips: List<MediaClip>
         get() = clips + overlayTracks.flatMap { it.clips }

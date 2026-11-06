@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Icon
@@ -69,7 +70,10 @@ fun TimelineVideoTrack(
     onMoveClip: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> },
     onTrimClip: (clipId: String, edge: ClipTrimHandle.Edge, deltaMs: Long) -> Unit = { _, _, _ -> },
     fps: Int = 30,
-    isLocked: Boolean = false
+    isLocked: Boolean = false,
+    isMultiSelect: Boolean = false,
+    selectedClipIds: Set<String> = emptySet(),
+    onToggleClipSelection: (String) -> Unit = {}
 ) {
     val colors = PencilTheme.colors
     val density = LocalDensity.current
@@ -108,7 +112,7 @@ fun TimelineVideoTrack(
     ) {
         clips.forEachIndexed { index, clip ->
             val fromIndex = index
-            val isSelected = clip.id == selectedClipId
+            val isSelected = clip.id == selectedClipId || clip.id in selectedClipIds
             val isDragging = draggedId == clip.id
             val clipWidthDp = clipWidthDps[index].dp
 
@@ -140,7 +144,13 @@ fun TimelineVideoTrack(
                         cornerRadius = 8.dp,
                         isPencilStyle = colors.isPencilSketch
                     )
-                    .clickable { onSelectClip(clip.id) }
+                    .clickable {
+                        if (isMultiSelect) {
+                            onToggleClipSelection(clip.id)
+                        } else {
+                            onSelectClip(clip.id)
+                        }
+                    }
                     .pointerInput(clip.id, clips.size, clipWidthDps, isLocked) {
                         if (isLocked) return@pointerInput
                         detectDragGesturesAfterLongPress(
@@ -345,7 +355,7 @@ fun TimelineVideoTrack(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.AutoAwesome,
+                        imageVector = Icons.Default.CompareArrows,
                         contentDescription = "Transition",
                         tint = if (clip.transition != TransitionType.NONE) {
                             colors.accentCyan

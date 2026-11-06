@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -191,7 +192,7 @@ fun VideoCanvas(
         // Outer Canvas Frame with sketched/clean border
         Box(
             modifier = Modifier
-                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .fillMaxHeight()
                 .aspectRatio(targetAspect)
                 .clip(RoundedCornerShape(14.dp))
                 .background(Color.Black)
@@ -269,17 +270,25 @@ fun VideoCanvas(
                     tapeLabel = "DRAFT"
                 )
             }
-            if (compositionPreview && player != null) {
-                // One texture: the Media3 render graph already contains video,
-                // PIP overlays, text, stickers, effects and the watermark.
+            if (player != null) {
+                // One surface: composition preview when available, otherwise the
+                // ExoPlayer fallback playlist. The fallback must still render a
+                // real video surface, or playback advances the audio/timeline
+                // while the picture stays frozen on a generated still.
                 key(player) {
-                    CompositionPreviewSurface(
+                    PlayerPreviewSurface(
                         player = player,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
+
+                // The fallback player renders plain video, so draw title/text
+                // overlays ourselves (composition burns them in).
+                if (!compositionPreview) {
+                    // Drafting overlay for transform handles (existing code below)
+                }
             } else if (activeClip != null) {
-                // Fallback visual rendering (no composition player available).
+                // No player at all: show the generated preview frame only.
                 RenderClipVisual(
                     clip = activeClip,
                     activeEffects = activeEffects,
@@ -694,7 +703,7 @@ fun VideoCanvas(
  * the composition and fallback players always re-attaches a fresh surface.
  */
 @Composable
-private fun CompositionPreviewSurface(
+private fun PlayerPreviewSurface(
     player: Player,
     modifier: Modifier = Modifier
 ) {

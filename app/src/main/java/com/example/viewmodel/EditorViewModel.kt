@@ -14,6 +14,7 @@ import com.example.data.ClipTiming
 import com.example.data.ExportServiceScheduler
 import com.example.data.MediaDurationFallback
 import com.example.data.MediaMetadata
+import com.example.data.MediaVideoInfo
 import com.example.data.ProjectRepository
 import com.example.data.SettingsRepository
 import com.example.data.SpeechSynthesizer
@@ -36,12 +37,14 @@ import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
 import com.example.model.TimelineTrackIds
 import com.example.model.TimelineEffect
+import com.example.model.TimelineMarker
 import com.example.model.TransitionType
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
 import com.example.data.KeyframeInterpolator
 import com.example.data.db.ProjectJson
+import com.example.engine.AspectMath
 import com.example.engine.BeatGrid
 import com.example.engine.CaptionBridge
 import com.example.engine.ClipSplit
@@ -147,6 +150,10 @@ class EditorViewModel(
 
     private val _selectedClipId = MutableStateFlow<String?>(null)
     val selectedClipId: StateFlow<String?> = _selectedClipId.asStateFlow()
+
+    /** Ids currently in a multi-selection (single selection is a set of one). */
+    private val _selectedClipIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedClipIds: StateFlow<Set<String>> = _selectedClipIds.asStateFlow()
 
     private val _selectedTextId = MutableStateFlow<String?>(null)
     val selectedTextId: StateFlow<String?> = _selectedTextId.asStateFlow()
@@ -488,9 +495,155 @@ class EditorViewModel(
 
     fun selectClip(clipId: String?) {
         _selectedClipId.value = clipId
+        _selectedClipIds.value = if (clipId == null) emptySet() else setOf(clipId)
         if (clipId != null) {
             _selectedTextId.value = null
         }
+    }
+
+    /** Toggles a clip in the multi-selection. */
+    fun toggleClipSelection(clipId: String) {
+        val next = _selectedClipIds.value.toMutableSet()
+        if (!next.add(clipId)) next.remove(clipId)
+        _selectedClipIds.value = next
+        _selectedClipId.value = next.firstOrNull()
+        if (next.isNotEmpty()) _selectedTextId.value = null
+    }
+
+    fun clearSelection() {
+        _selectedClipIds.value = emptySet()
+    }
+
+    fun selectAllClips() {
+        val project = _currentProject.value ?: return
+        _selectedClipIds.value = project.allVideoClips.map { it.id }.toSet()
+        _selectedClipId.value = _selectedClipIds.value.firstOrNull()
+    }
+
+    /** True when a group operation should apply instead of the single-clip one. */
+    fun hasMultiSelection(): Boolean = _selectedClipIds.value.size > 1
+
+    /**
+     * Deletes every selected clip. Main-track members ripple (the gap closes,
+     * list order defines time) while overlay members lift (the remaining
+     * overlays keep their absolute positions).
+     */
+    fun deleteSelectedClips() {
+        val ids = _selectedClipIds.value
+        if (ids.isEmpty()) {
+            deleteSelectedClip()
+            return
+        }
+        updateProject { proj ->
+            val mainSpans = proj.clips.map {
+                TimelineEdits.ClipSpan(it.id, it.startTimelineMs, it.durationMs)
+            }
+            val byId = proj.clips.associateBy { it.id }
+            val newMain = TimelineEdits.deleteAll(mainSpans, ids, ripple = true)
+                .mapNotNull { span -> byId[span.id] }
+            val newOverlays = proj.overlayTracks.map { track ->
+                if (track.clips.none { it.id in ids }) {
+                    track
+                } else {
+                    val spans = track.clips.map {
+                        TimelineEdits.ClipSpan(it.id, it.startTimelineMs, it.durationMs)
+                    }
+                    val lookup = track.clips.associateBy { it.id }
+                    track.copy(
+                        clips = TimelineEdits.deleteAll(spans, ids, ripple = false)
+                            .mapNotNull { span -> lookup[span.id] }
+                    )
+                }
+            }
+            proj.copy(clips = newMain, overlayTracks = newOverlays)
+        }
+        val updated = _currentProject.value
+        val remaining = _selectedClipIds.value.intersect(
+            (updated?.clips?.map { it.id } ?: emptyList()) +
+                (updated?.overlayTracks?.flatMap { it.clips }?.map { it.id } ?: emptyList())
+        ).toSet()
+        _selectedClipIds.value = remaining
+        _selectedClipId.value = remaining.firstOrNull()
+            ?: updated?.clips?.firstOrNull()?.id
+    }
+
+    /**
+     * Moves the selected overlay clips by [deltaMs] as one group, keeping their
+     * relative offsets and clamping inside the project.
+     */
+    fun moveSelectedOverlays(deltaMs: Long) {
+        if (deltaMs == 0L) return
+        updateProject { proj ->
+            val ids = _selectedClipIds.value
+            val newOverlays = proj.overlayTracks.map { track ->
+                if (track.clips.none { it.id in ids }) {
+                    track
+                } else {
+                    val spans = track.clips.map {
+                        TimelineEdits.ClipSpan(it.id, it.startTimelineMs, it.durationMs)
+                    }
+                    val shifted = TimelineEdits.shiftGroup(spans, ids, deltaMs)
+                        .map { it.id to it.startMs }
+                        .toMap()
+                    val lookup = track.clips.associateBy { it.id }
+                    track.copy(
+                        clips = track.clips.map { clip ->
+                            val shiftedStart = shifted[clip.id]
+                            if (shiftedStart != null) {
+                                clip.copy(startTimelineMs = shiftedStart)
+                            } else {
+                                clip
+                            }
+                        }
+                    )
+                }
+            }
+            proj.copy(overlayTracks = newOverlays)
+        }
+    }
+
+    /** Copies selected overlay clips so they can be pasted at the playhead. */
+    private val _overlayClipboard = MutableStateFlow<List<MediaClip>>(emptyList())
+    val overlayClipboard: StateFlow<List<MediaClip>> = _overlayClipboard.asStateFlow()
+
+    fun copySelectedOverlays() {
+        val ids = _selectedClipIds.value
+        val project = _currentProject.value ?: return
+        val clips = project.overlayTracks.flatMap { it.clips }.filter { it.id in ids }
+        _overlayClipboard.value = clips.map { it.copy(id = "copy_${it.id}") }
+    }
+
+    /** Pastes the clipboard at the playhead, keeping the copied relative offsets. */
+    fun pasteOverlays() {
+        val clipboard = _overlayClipboard.value
+        if (clipboard.isEmpty()) return
+        val baseStart = clipboard.minOf { it.startTimelineMs }
+        val pasteStart = _currentPositionMs.value.coerceAtLeast(0L)
+        updateProject { proj ->
+            val tracks = proj.overlayTracks.toMutableList()
+            val pasted = clipboard.map { clip ->
+                clip.copy(
+                    id = "paste_${clip.id}",
+                    startTimelineMs = (pasteStart + (clip.startTimelineMs - baseStart))
+                        .coerceAtLeast(0L)
+                )
+            }
+            if (tracks.isEmpty()) {
+                tracks.add(
+                    VideoTrack(
+                        name = "Pasted Track",
+                        isMainTrack = false,
+                        clips = pasted
+                    )
+                )
+            } else {
+                tracks[0] = tracks[0].copy(clips = tracks[0].clips + pasted)
+            }
+            proj.copy(overlayTracks = tracks)
+        }
+        val newIds = _overlayClipboard.value.map { "paste_${it.id}" }
+        _selectedClipIds.value = newIds.toSet()
+        _selectedClipId.value = newIds.firstOrNull()
     }
 
     fun selectText(textId: String?) {
@@ -1203,12 +1356,80 @@ class EditorViewModel(
         }
     }
 
+    /** Mutes or unmutes one audio clip (the per-audio-row header toggle). */
+    fun setAudioClipMuted(audioId: String, muted: Boolean) {
+        updateProject { proj ->
+            proj.copy(
+                audioTracks = proj.audioTracks.map { audio ->
+                    if (audio.id == audioId) audio.copy(isMuted = muted) else audio
+                }
+            )
+        }
+    }
+
     /** Mutes or unmutes every audio clip at once (the "Audio" row header). */
     fun setAllAudioMuted(muted: Boolean) {
         val project = _currentProject.value ?: return
         if (project.audioTracks.isEmpty()) return
         updateProject { proj ->
             proj.copy(audioTracks = proj.audioTracks.map { it.copy(isMuted = muted) })
+        }
+    }
+
+    /** Adds a marker at the playhead. */
+    fun addMarker(label: String = "") {
+        updateProject { proj ->
+            val at = _currentPositionMs.value.coerceAtLeast(0L)
+            proj.copy(markers = proj.markers + TimelineMarker(atMs = at, label = label))
+        }
+    }
+
+    fun removeMarker(markerId: String) {
+        updateProject { proj ->
+            proj.copy(markers = proj.markers.filterNot { it.id == markerId })
+        }
+    }
+
+    fun moveMarkerToPlayhead(markerId: String) {
+        updateProject { proj ->
+            val at = _currentPositionMs.value.coerceAtLeast(0L)
+            proj.copy(
+                markers = proj.markers.map { marker ->
+                    if (marker.id == markerId) marker.copy(atMs = at) else marker
+                }
+            )
+        }
+    }
+
+    fun seekToMarker(markerId: String) {
+        val marker = _currentProject.value?.markers?.firstOrNull { it.id == markerId } ?: return
+        seekTo(marker.atMs)
+    }
+
+    /** Jumps to the marker before/after the playhead. Returns the new position. */
+    fun jumpToMarker(direction: Int): Long? {
+        val markers = _currentProject.value?.markers?.sortedBy { it.atMs } ?: return null
+        if (markers.isEmpty()) return null
+        val here = _currentPositionMs.value
+        val target = if (direction >= 0) {
+            markers.firstOrNull { it.atMs > here } ?: markers.last()
+        } else {
+            markers.lastOrNull { it.atMs < here } ?: markers.first()
+        }
+        seekTo(target.atMs)
+        return target.atMs
+    }
+
+    /** Reorders overlay tracks (top row = first layer rendered). */
+    fun moveOverlayTrack(fromIndex: Int, toIndex: Int) {
+        updateProject { proj ->
+            if (fromIndex !in proj.overlayTracks.indices) return@updateProject proj
+            if (toIndex !in proj.overlayTracks.indices) return@updateProject proj
+            if (fromIndex == toIndex) return@updateProject proj
+            val tracks = proj.overlayTracks.toMutableList()
+            val track = tracks.removeAt(fromIndex)
+            tracks.add(toIndex, track)
+            proj.copy(overlayTracks = tracks)
         }
     }
 
@@ -1300,11 +1521,70 @@ class EditorViewModel(
         importJob?.cancel()
         importJob = viewModelScope.launch {
             AppLog.info("EditorViewModel", "importMultipleUris() started: ${uris.size} URIs to import")
+            _isImporting.value = true
+            val built = mutableListOf<MediaClip>()
+            var cursor = _currentProject.value
+                ?.clips
+                ?.maxOfOrNull { it.startTimelineMs + it.durationMs }
+                ?: 0L
+            var firstInfo: MediaVideoInfo? = null
+
             uris.forEachIndexed { index, uriString ->
+                val ctx = context
                 AppLog.info("EditorViewModel", "Importing URI ${index + 1}/${uris.size}: $uriString")
-                addClipFromUri(uriString, titles.getOrElse(index) { "Clip ${index + 1}" })
+                val info = if (ctx != null) {
+                    runCatching { MediaMetadata.videoInfo(ctx, Uri.parse(uriString)) }.getOrNull()
+                        ?: MediaVideoInfo(0)
+                } else {
+                    MediaVideoInfo(0)
+                }
+                if (firstInfo == null && info.width > 0 && info.height > 0) {
+                    firstInfo = info
+                }
+                val fallbackTitle = titles.getOrNull(index)?.takeIf { it.isNotBlank() }
+                val fileTitle = info.displayName.substringBeforeLast('.').takeIf { it.isNotBlank() }
+                val realTitle = (fallbackTitle?.takeIf { !it.startsWith("Clip ") })
+                    ?: fileTitle
+                    ?: "Clip ${index + 1}"
+                val durationMs = if (info.durationMs > 0L) info.durationMs else 4_000L
+                built += MediaClip(
+                    id = UUID.randomUUID().toString(),
+                    title = realTitle,
+                    uriString = uriString,
+                    startTimelineMs = cursor,
+                    durationMs = durationMs,
+                    originalDurationMs = durationMs,
+                    // Waveform decode is expensive; video clips use the default
+                    // waveform until the user opens the Audio sheet.
+                    waveform = emptyList(),
+                    filter = VideoFilter.NONE
+                )
+                cursor += durationMs
             }
-            AppLog.info("EditorViewModel", "importMultipleUris() completed all imports")
+
+            updateProject { proj ->
+                val renamed = if (proj.clips.isEmpty() && built.isNotEmpty() &&
+                    (proj.title.isBlank() || proj.title == "New Project" ||
+                        proj.title.startsWith("New Project") || proj.title.startsWith("Untitled"))
+                ) {
+                    built.first().title
+                } else {
+                    proj.title
+                }
+                val ratio = if (proj.clips.isEmpty()) {
+                    firstInfo?.let { AspectMath.fromVideo(it.width, it.height, it.rotation) }
+                } else {
+                    null
+                }
+                proj.copy(
+                    title = renamed,
+                    aspectRatio = ratio ?: proj.aspectRatio,
+                    clips = proj.clips + built
+                )
+            }
+            _selectedClipId.value = built.lastOrNull()?.id
+            _isImporting.value = false
+            AppLog.info("EditorViewModel", "importMultipleUris() completed ${built.size} clip(s)")
             onComplete()
         }
     }
@@ -1312,9 +1592,9 @@ class EditorViewModel(
     /** Launch import of multiple URIs from Composable (non-suspend context). */
     fun launchImportUris(uris: List<android.net.Uri>) {
         val uriStrings = uris.map { it.toString() }
-        val titles = uriStrings.indices.map { "Clip ${it + 1}" }
         AppLog.info("EditorViewModel", "launchImportUris() called: ${uris.size} URIs")
-        importMultipleUris(uriStrings, titles) { }
+        // Empty titles: the real file display names come from MediaMetadata.
+        importMultipleUris(uriStrings, emptyList()) { }
     }
 
     /** Updates the trim of the selected clip. Streams collapse into one undo. */
