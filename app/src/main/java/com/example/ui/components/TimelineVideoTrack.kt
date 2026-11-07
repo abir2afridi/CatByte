@@ -49,7 +49,6 @@ import com.example.engine.ClipTrimHandle
 import com.example.model.MediaClip
 import com.example.model.TransitionType
 import com.example.ui.theme.PencilTheme
-import com.example.ui.theme.pencilHatching
 import com.example.ui.theme.sketchPencilBorder
 import kotlin.math.roundToLong
 
@@ -129,11 +128,6 @@ fun TimelineVideoTrack(
                     }
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (isSelected) colors.clipSelected else colors.clipBg)
-                    .pencilHatching(
-                        color = if (isSelected) colors.accentCyan.copy(alpha = 0.18f) else colors.border.copy(alpha = 0.08f),
-                        spacing = 7.dp,
-                        enabled = colors.isPencilSketch
-                    )
                     .sketchPencilBorder(
                         strokeWidth = if (isSelected || isDragging) 2.2.dp else 1.2.dp,
                         color = when {
@@ -215,6 +209,24 @@ fun TimelineVideoTrack(
                                 .graphicsLayer { rotationZ = 45f }
                                 .background(Color(0xFFFF3B30), RoundedCornerShape(1.dp))
                                 .border(1.dp, Color.White, RoundedCornerShape(1.dp))
+                        )
+                    }
+                }
+
+                if (fromIndex == 0) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(2.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(colors.accentCyan)
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = "Cover",
+                            color = Color.Black,
+                            fontSize = 7.sp,
+                            fontWeight = FontWeight.Black
                         )
                     }
                 }

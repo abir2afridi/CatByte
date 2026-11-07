@@ -29,7 +29,11 @@ object ExportPresets {
     /** Target height (in pixels) for the exported video. */
     fun heightFor(resolution: String): Int = when (resolution.uppercase().replace(" ", "")) {
         "360P" -> 360
+        "480P" -> 480
+        "540P" -> 540
         "720P" -> 720
+        "1080P" -> 1080
+        "2K", "1440P" -> 1440
         "4K", "2160P" -> 2160
         else -> 1080
     }

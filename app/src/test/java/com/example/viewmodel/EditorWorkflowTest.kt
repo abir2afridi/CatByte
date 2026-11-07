@@ -4,6 +4,7 @@ import com.example.engine.ClipTrimHandle
 import com.example.model.AspectRatioType
 import com.example.data.ProjectRepository
 import com.example.model.MediaClip
+import com.example.model.AudioClip
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
@@ -575,8 +576,7 @@ class EditorWorkflowTest {
     }
 
     @Test
-    fun `overlay clipboard pastes at the playhead with relative offsets`() {
-        val project = VideoProject(
+    fun `overlay clipboard pastes at the playhead with relative offsets`() {        val project = VideoProject(
             id = "p11",
             title = "Clipboard",
             clips = listOf(
@@ -638,5 +638,114 @@ class EditorWorkflowTest {
             listOf("track_b", "track_a"),
             viewModel.currentProject.value!!.overlayTracks.map { it.id }
         )
+    }
+
+    @Test
+    fun `audio clip moves with snap and clamp`() {
+        val viewModel = newViewModel()
+        val project = VideoProject(
+            id = "p12",
+            title = "Audio move",
+            clips = listOf(
+                MediaClip(id = "main", title = "Main", durationMs = 5_000L, originalDurationMs = 5_000L)
+            ),
+            audioTracks = listOf(
+                AudioClip(
+                    id = "a1", title = "Music 1", artist = "Artist",
+                    startTimelineMs = 0L, durationMs = 1_000L
+                ),
+                AudioClip(
+                    id = "a2", title = "Music 2", artist = "Artist",
+                    startTimelineMs = 2_000L, durationMs = 1_000L
+                )
+            )
+        )
+        viewModel.openProject(project)
+
+        // Overlapping a2 pushes a1 to its end.
+        viewModel.moveAudioClip("a1", 1_200L)
+        var audio = viewModel.currentProject.value!!.audioTracks
+        assertEquals(3_000L, audio.first { it.id == "a1" }.startTimelineMs)
+
+        // Negative drop clamps to the project start.
+        viewModel.moveAudioClip("a1", -1_000L)
+        audio = viewModel.currentProject.value!!.audioTracks
+        assertEquals(0L, audio.first { it.id == "a1" }.startTimelineMs)
+
+        // Past the end clamps to projectDuration - clipDuration.
+        viewModel.moveAudioClip("a1", 9_000L)
+        audio = viewModel.currentProject.value!!.audioTracks
+        assertEquals(4_000L, audio.first { it.id == "a1" }.startTimelineMs)
+    }
+
+    @Test
+    fun `selected main clips move as one contiguous block`() {
+        val viewModel = newViewModel()
+        val project = VideoProject(
+            id = "p13",
+            title = "Block move",
+            clips = listOf(
+                MediaClip(id = "a", title = "A", durationMs = 1_000L, originalDurationMs = 1_000L),
+                MediaClip(id = "b", title = "B", durationMs = 1_000L, originalDurationMs = 1_000L),
+                MediaClip(id = "c", title = "C", durationMs = 1_000L, originalDurationMs = 1_000L),
+                MediaClip(id = "d", title = "D", durationMs = 1_000L, originalDurationMs = 1_000L)
+            )
+        )
+        viewModel.openProject(project)
+
+        viewModel.toggleClipSelection("a")
+        viewModel.toggleClipSelection("b")
+        viewModel.moveSelectedMainClips(1)
+        assertEquals(
+            listOf("c", "a", "b", "d"),
+            viewModel.currentProject.value!!.clips.map { it.id }
+        )
+
+        viewModel.moveSelectedMainClips(-1)
+        assertEquals(
+            listOf("a", "b", "c", "d"),
+            viewModel.currentProject.value!!.clips.map { it.id }
+        )
+    }
+
+    @Test
+    fun `clip attributes paste to the whole selection`() {
+        val viewModel = newViewModel()
+        val project = VideoProject(
+            id = "p14",
+            title = "Paste style",
+            clips = listOf(
+                MediaClip(
+                    id = "a", title = "A", durationMs = 1_000L, originalDurationMs = 1_000L,
+                    filter = VideoFilter.CYBERPUNK,
+                    brightness = 0.2f,
+                    contrast = 1.3f,
+                    saturation = 1.4f,
+                    vignette = 0.3f,
+                    speed = 2f,
+                    volume = 0.5f
+                ),
+                MediaClip(id = "b", title = "B", durationMs = 1_000L, originalDurationMs = 1_000L),
+                MediaClip(id = "c", title = "C", durationMs = 1_000L, originalDurationMs = 1_000L)
+            )
+        )
+        viewModel.openProject(project)
+
+        viewModel.toggleClipSelection("a")
+        viewModel.toggleClipSelection("b")
+        viewModel.copySelectedClipAttributes()
+        viewModel.pasteClipAttributes()
+
+        val clips = viewModel.currentProject.value!!.clips
+        val pasted = clips.first { it.id == "b" }
+        val untouched = clips.first { it.id == "c" }
+        assertEquals(VideoFilter.CYBERPUNK, pasted.filter)
+        assertEquals(0.2f, pasted.brightness, 0.0001f)
+        assertEquals(1.3f, pasted.contrast, 0.0001f)
+        assertEquals(1.4f, pasted.saturation, 0.0001f)
+        assertEquals(0.3f, pasted.vignette, 0.0001f)
+        assertEquals(2f, pasted.speed, 0.0001f)
+        assertEquals(0.5f, pasted.volume, 0.0001f)
+        assertEquals(VideoFilter.NONE, untouched.filter)
     }
 }

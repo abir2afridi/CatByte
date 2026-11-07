@@ -142,15 +142,31 @@ fun EffectsSheet(
     onAddEffect: (EffectType) -> Unit,
     onClose: () -> Unit
 ) {
+    val colors = PencilTheme.colors
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
-            .background(CapCutSurface)
-            .border(1.dp, CapCutBorderSubtle, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
-            .padding(14.dp)
+            .height(200.dp)
+            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.borderSubtle.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .testTag("effects_sheet")
     ) {
+        // Drag handle indicator
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp, bottom = 2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(36.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(colors.textTertiary.copy(alpha = 0.4f))
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

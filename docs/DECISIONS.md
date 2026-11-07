@@ -252,10 +252,57 @@
 - **Keeping the example tests:** they depended on demo seed data that was removed on purpose.
 - **kotlinx-serialization rewrite of ProjectJson:** large production change to fix a test-infra problem.
 **Consequences:**
-- ✅ 306/306 unit + Robolectric tests pass locally (2026-11-06), repeated and stable
+- ✅ 309/309 unit + Robolectric tests pass locally (2026-11-06), repeated and stable
 - ✅ Bangla localization guarded by a Robolectric test (bn strings actually resolve)
 - ❌ Robolectric only usable for sdk 34 until more jars are cached
 - ❌ Instrumented tests (`CodecCapabilityInstrumentedTest`, 5 tests) compile but need a device/emulator to run
+
+---
+
+## DEC-019: CapCut Parity Editor Shell (top bar / transport / clip bar / bottom nav)
+**Date:** 2026-11-07
+**Status:** ✅ Decided (parity round)
+**Context:** The walkthrough reference defines exact editor chrome: top bar (X, search, "Free trial" diamond, "AI UHD ▾", teal Export), transport row (fullscreen left, play centre, transition+undo+redo right), timecode strip, a clip-context action bar while a clip is selected, and a fixed bottom-nav order (Edit, Audio, Text, Effects, Overlay, Captions, Stickers, Filters, Adjust, Ratio, Background).
+**Decision:**
+- Reproduce that chrome 1:1 (`EditorTopBar`, `EditorTransportRow`, `ClipActionBar`, `CapCutBottomActionBar`, `EditorTimecodeRow`); CatByte extras (markers, beat sync, multi-select, snap, zoom, keyframes) live in a final "Tools" entry → `TimelineToolsSheet`, and settings moved into the AI UHD dropdown.
+- Selecting a clip shows the context bar only; it no longer auto-opens the Edit sheet ("More" opens it).
+- One code file per feature so regressions can be fixed in isolation.
+**Alternatives Rejected:**
+- **Keeping the old playback strip with all tools inline:** breaks layout parity and buries CapCut's core gestures.
+- **Auto-opening the Edit sheet on selection:** noisy; CapCut selects first, edits on demand.
+**Consequences:**
+- ✅ Layout parity with the reference at the shell level
+- ✅ Every visible action maps to a real ViewModel function; no decorative buttons
+- ⚠️ Tool discovery for CatByte extras depends on the Tools entry
+
+---
+
+## DEC-020: Honest Disabled State for Cloud/GPU Features
+**Date:** 2026-11-07
+**Status:** ✅ Decided (policy)
+**Context:** CapCut shows Reduce noise, Smooth slow-mo, AI UHD, Optical flow and a cloud AI toolset. CatByte's offline build has no neural denoiser, no optical-flow pipeline, no cloud account and no bundled models — but the features must still be visible for layout parity.
+**Decision:** Render the rows/toggles for parity, but keep them **disabled** with a short honest status ("Neural denoise needs the online AI engine", "Needs optical-flow interpolation (GPU)", "Needs an online AI model — unavailable in this offline build") instead of fake toggles that change nothing. The export GIF tab stays clickable but disables the Export button with an explanation (no GIF encoder is bundled). Dead toggles found during review (Volume ducking row, Audio sheet ducking/noise-reduction switches) were removed or disabled the same day.
+**Alternatives Rejected:**
+- **Fake toggles that store a flag with no render effect:** violates the no-placeholder rule and misleads users.
+- **Hiding the rows entirely:** breaks layout parity with the reference.
+**Consequences:**
+- ✅ Parity without deception; users see what exists and why it is off
+- ✅ Turning the features on later is a wiring change, not a UI redesign
+- ⚠️ Some screens show "unavailable" rows until cloud/GPU work lands
+
+---
+
+## DEC-021: Export Bitrate Selector Is a Real Encoder Setting
+**Date:** 2026-11-07
+**Status:** ✅ Decided (export pipeline)
+**Context:** The reference export drawer has a 5/10/20/50/100 bitrate slider. The initial implementation only used it for the size estimate, which made it a fake control.
+**Decision:** Thread the selected Mbps through `EditorViewModel.startExport`/`startBackgroundExportWithContext` → `ExportManager.export(..., videoBitrateBps)` → `DefaultEncoderFactory` with `VideoEncoderSettings.Builder().setBitrate(bps)`, in both the in-app and foreground-service export paths (bitrate travels via an intent extra). The storage precheck and the sheet estimate both use the chosen bitrate. Resolution labels were also fixed: 540p now maps to 540p (it silently produced 1080p before), and 480/540/720/1080/2K/4K are exact in `ExportPresets.heightFor` and `CanvasMath.shortSidePx`.
+**Alternatives Rejected:**
+- **Mapping bitrate to quality buckets (Low/Medium/High):** loses the exact Mbps contract CapCut shows.
+- **Leaving the slider estimate-only:** a control that lies.
+**Consequences:**
+- ✅ Slider changes the real encoded bitrate; estimate and precheck agree
+- ⚠️ Extreme values rely on the encoder fallback (Media3 may ignore unsupported settings rather than fail)
 
 ---
 
@@ -281,3 +328,6 @@
 | DEC-016 | Whisper.cpp Auto Captions | 🔴 Pending | P11 |
 | DEC-017 | Codec Capability Fallback Ladder | ✅ Decided | P8 |
 | DEC-018 | JVM Test Strategy (org.json + Robolectric sdk34) | ✅ Decided | Testing |
+| DEC-019 | CapCut Parity Editor Shell | ✅ Decided | Parity round 2026-11-07 |
+| DEC-020 | Honest Disabled State for Cloud/GPU Features | ✅ Decided | Parity round 2026-11-07 |
+| DEC-021 | Export Bitrate Selector Is a Real Encoder Setting | ✅ Decided | Export 2026-11-07 |

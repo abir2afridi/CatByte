@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,6 +76,7 @@ import coil.request.ImageRequest
 import coil.transform.CircleCropTransformation
 import com.example.R
 import com.example.data.KeyframeInterpolator
+import com.example.engine.backgroundArgbFor
 import com.example.model.AspectRatioType
 import com.example.model.BlendMode
 import com.example.model.EffectType
@@ -186,17 +188,18 @@ fun VideoCanvas(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.background),
+            .background(colors.background)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         // Outer Canvas Frame with sketched/clean border
         Box(
             modifier = Modifier
-                .fillMaxHeight()
+                .fillMaxSize()
                 .aspectRatio(targetAspect)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color.Black)
-                .sketchPencilBorder(strokeWidth = 2.dp, color = colors.border, cornerRadius = 14.dp, isPencilStyle = colors.isPencilSketch)
+                .background(Color(backgroundArgbFor(project.paperStyle)))
+                .sketchPencilBorder(strokeWidth = 1.8.dp, color = colors.border, cornerRadius = 14.dp, isPencilStyle = colors.isPencilSketch)
                 .onSizeChanged { canvasSize = it }
                 .pointerInput(isEyedropperActive) {
                     if (isEyedropperActive) {
@@ -235,8 +238,7 @@ fun VideoCanvas(
                         detectTapGestures { onTogglePlay() }
                     }
                 }
-                .testTag("video_canvas_preview")
-                .width(720.dp),
+                .testTag("video_canvas_preview"),
             contentAlignment = Alignment.Center
         ) {
             // Drafting Crop Marks in 4 corners
@@ -825,6 +827,7 @@ private fun RenderClipVisual(
             .fillMaxSize()
             .scale(keyScale)
             .rotate(keyRotation)
+            .graphicsLayer { alpha = keyOpacity }
             .scale(if (clip.isMirrored) -1f else 1f, 1f)
     ) {
         if (clip.uriString != null) {

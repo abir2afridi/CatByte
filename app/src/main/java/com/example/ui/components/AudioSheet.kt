@@ -155,16 +155,27 @@ fun AudioSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(360.dp)
-            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            .height(220.dp)
+            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .background(colors.surface)
-            .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 18.dp)
+            .border(1.dp, colors.borderSubtle.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .testTag("audio_sheet")
     ) {
-        TornPaperEdge(
-            paperColor = colors.surfaceElevated,
-            borderColor = colors.borderSubtle
-        )
+        // Drag handle indicator
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp, bottom = 2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(36.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(colors.textTertiary.copy(alpha = 0.4f))
+            )
+        }
 
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -393,10 +404,18 @@ fun AudioSheet(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Auto Audio Ducking", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Auto Audio Ducking", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                "Needs voice-over detection — unavailable offline",
+                                color = CapCutTextSecondary,
+                                fontSize = 9.sp
+                            )
+                        }
                         androidx.compose.material3.Switch(
-                            checked = true,
-                            onCheckedChange = { }
+                            checked = false,
+                            onCheckedChange = null,
+                            enabled = false
                         )
                     }
                     Row(
@@ -406,10 +425,18 @@ fun AudioSheet(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("AI Voice Noise Reduction", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("AI Voice Noise Reduction", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                "Neural denoise needs the online AI engine",
+                                color = CapCutTextSecondary,
+                                fontSize = 9.sp
+                            )
+                        }
                         androidx.compose.material3.Switch(
-                            checked = true,
-                            onCheckedChange = { }
+                            checked = false,
+                            onCheckedChange = null,
+                            enabled = false
                         )
                     }
 

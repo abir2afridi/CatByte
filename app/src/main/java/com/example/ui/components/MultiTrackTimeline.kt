@@ -93,6 +93,7 @@ fun MultiTrackTimeline(
     onTrackLock: (trackId: String, locked: Boolean) -> Unit = { _, _ -> },
     onTrackSolo: (trackId: String, solo: Boolean) -> Unit = { _, _ -> },
     onMoveOverlayTrack: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> },
+    onMoveAudioClip: (audioId: String, newStartMs: Long) -> Unit = { _, _ -> },
     onToggleAudioMute: (audioId: String, muted: Boolean) -> Unit = { _, _ -> },
     isMultiSelect: Boolean = false,
     selectedClipIds: Set<String> = emptySet(),
@@ -225,7 +226,7 @@ fun MultiTrackTimeline(
             // the track area on the right. The 31 dp spacer matches the ruler.
             Column(
                 modifier = Modifier
-                    .width(54.dp)
+                    .width(64.dp)
                     .fillMaxHeight()
                     .verticalScroll(trackScrollState)
             ) {
@@ -459,7 +460,9 @@ fun MultiTrackTimeline(
                                 project.audioTracks.forEach { audio ->
                                     TimelineAudioTrack(
                                         tracks = listOf(audio),
-                                        msToDp = msToDp
+                                        msToDp = msToDp,
+                                        onMoveClip = onMoveAudioClip,
+                                        selectedAudioId = null
                                     )
                                     Spacer(modifier = Modifier.height(5.dp))
                                 }

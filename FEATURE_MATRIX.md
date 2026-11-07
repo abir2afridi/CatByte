@@ -43,32 +43,32 @@
 | Duplicate | 🟢 VERIFIED | Works |
 | Reorder | 🟡 IMPLEMENTED-NOT VERIFIED | Long-press + drag; drop reorders the main track |
 | Ripple delete | 🟡 IMPLEMENTED-NOT VERIFIED | `deleteSelectedClip` → `TimelineEdits.delete(ripple = true)` on main, `false` on overlays; ViewModel test covers both |
-| Multi-select | 🟡 IMPLEMENTED-NOT VERIFIED | Timeline "MS" toggle + selection count bar; group overlay move/delete and overlay copy/paste are wired; main-track group move and paste-attributes pending |
+| Multi-select | 🟡 IMPLEMENTED-NOT VERIFIED | Timeline "MS" toggle + selection count bar; group overlay move/delete/copy/paste, main contiguous block move and paste-attributes wired; cut and main-track group paste pending |
 | Track mute/hide/lock | 🟡 IMPLEMENTED-NOT VERIFIED | Per-track mute/lock/solo persisted and applied to composition gain; locked tracks refuse moves/trims/deletes; audio row mutes per clip; device check pending |
 | Track reorder / z-order | 🟡 IMPLEMENTED-NOT VERIFIED | Overlay tracks reorder from the timeline header (top row renders last); persistence + ViewModel test; device check pending |
-| Audio rows (one per clip) | 🟡 IMPLEMENTED-NOT VERIFIED | Each audio clip is its own timeline row with mute; drag/move/fades + mixer still pending |
+| Audio rows (one per clip) | 🟡 IMPLEMENTED-NOT VERIFIED | Each audio clip is its own timeline row with mute + long-press drag (snap/clamp); drag-to-fades/mixer still pending |
 | Thumbnails strip | 🟡 IMPLEMENTED-NOT VERIFIED | Basic thumbnails |
 | Waveform | 🟡 IMPLEMENTED-NOT VERIFIED | Static waveform, need multi-resolution pyramids |
 | **Preview** | | |
 | Play/pause/seek/scrub | 🟢 VERIFIED | Works |
 | Loop | 🟢 VERIFIED | Works |
-| Fullscreen | 🔴 NOT STARTED | |
+| Fullscreen | 🟡 IMPLEMENTED-NOT VERIFIED | Transport fullscreen button hides all chrome (top bar, timeline, bars) with an exit overlay button; device check pending |
 | A/V sync | 🟡 IMPLEMENTED-NOT VERIFIED | ExoPlayer sync, drift < 1 frame not verified |
 | Canvas-correct rendering | 🟡 IMPLEMENTED-NOT VERIFIED | Aspect ratio handling exists |
 | Safe-area guides | 🔴 NOT STARTED | |
 | **Clip Tools** | | |
 | Trim | 🟢 VERIFIED | Works |
 | Split | 🟢 VERIFIED | Works |
-| Speed (0.1×–100×, presets + custom) | 🟡 IMPLEMENTED-NOT VERIFIED | Basic speed, no presets UI, no custom bezier |
-| Volume | 🟢 VERIFIED | Works |
+| Speed (0.1×–100×, presets + custom) | 🟡 IMPLEMENTED-NOT VERIFIED | CapCut-style Speed panel: Duration line, 0.1/1/2/5/10/100 presets, slider, curve presets; Change-audio-pitch flips `maintainPitch` (Media3 SpeedParameters); Smooth slow-mo honestly disabled (needs optical flow) |
+| Volume | 🟢 VERIFIED | CapCut-style panel: 0–1000% slider + Loudness adjustment (waveform-RMS normalisation, +12 dB cap, `AudioLoudness`, tested); Reduce noise honestly disabled (Cloud) |
 | Fade in/out | 🟡 IMPLEMENTED-NOT VERIFIED | Basic fade, UI missing |
 | Rotate | 🟢 VERIFIED | Works |
 | Flip | 🟢 VERIFIED | Works |
-| Crop (free + ratios) | 🔴 NOT STARTED | |
-| Scale/position/rotation via on-canvas gestures | 🔴 NOT STARTED | |
+| Crop (free + ratios) | 🟡 IMPLEMENTED-NOT VERIFIED | `CropSheet`: 1:1/9:16/16:9/4:5 presets + zoom/position sliders; computes a real centre crop via `CropMath` into the clip scale/pos transform that preview and export both read; source dims persisted + lazily probed |
+| Scale/position/rotation via on-canvas gestures | 🟡 IMPLEMENTED-NOT VERIFIED | Direct canvas pinch/rotate/pan wired; device re-check pending |
 | Fit/fill/blur-fill background | 🔴 NOT STARTED | |
 | Mirror | 🟢 VERIFIED | Works |
-| Replace | 🔴 NOT STARTED | |
+| Replace | 🟡 IMPLEMENTED-NOT VERIFIED | `replaceSelectedClipUri` swaps the source file in place and re-probes duration/dimensions, resetting trims/speed/loudness so preview and export line up |
 | Freeze frame | 🟡 IMPLEMENTED-NOT VERIFIED | Insert at playhead wired (`EditorViewModel`); device re-check pending |
 | Reverse | 🟡 IMPLEMENTED-NOT VERIFIED | Playback reversing wired; device re-check pending |
 | Extract audio | 🟡 IMPLEMENTED-NOT VERIFIED | Audio extraction from video clips wired; device re-check pending |
@@ -107,14 +107,15 @@
 | PiP video | 🟡 IMPLEMENTED-NOT VERIFIED | Overlay tracks render and drag along the timeline; adding/moving across tracks still manual |
 | Images | 🟡 IMPLEMENTED-NOT VERIFIED | Photo import exists (picker); overlay photo insertion pending |
 | Stickers (PNG/WebP/Lottie) | 🟡 IMPLEMENTED-NOT VERIFIED | Emoji stickers only |
-| Opacity | 🟡 IMPLEMENTED-NOT VERIFIED | Opacity field exists |
+| Opacity | 🟡 IMPLEMENTED-NOT VERIFIED | `OpacitySheet` (0–100%); main-track clips get a real `AlphaScale` effect in the export composition (after transitions); overlays keep keyframed opacity via compositor settings |
 | Blend modes (normal, multiply, screen, overlay, add) | 🟡 IMPLEMENTED-NOT VERIFIED | BlendMode enum exists, not wired to export |
 | **Export** | | |
-| 480p–4K (device-capability checked) | 🟢 VERIFIED | Ladder logic unit-tested (ExportMathTest 9/9): HEVC→H.264, size requested→1440p→1080p→720p→480p, never larger than requested; on-device probe pending instrumented run |
+| 480p–4K (device-capability checked) | 🟢 VERIFIED | Ladder logic unit-tested (ExportMathTest): HEVC→H.264, size requested→1440p→1080p→720p→480p, never larger than requested; 480/540/720/1080/2K/4K labels map to exact heights; on-device probe pending instrumented run |
 | 24/25/30/50/60 fps | 🟡 IMPLEMENTED-NOT VERIFIED | FPS presets exist; fps ladder 60→30→24 unit-tested in ExportMathTest |
 | H.264 (baseline) + HEVC (if supported) | 🟢 VERIFIED | CodecCapabilityChecker pins resolved mime via setVideoMimeType; rejected pinned codec retries once with Media3 default (DEC-017) |
-| Bitrate/quality presets | 🔴 NOT STARTED | |
+| Bitrate/quality presets | 🟡 IMPLEMENTED-NOT VERIFIED | Export sheet 5/10/20/50/100 Mbps slider selector feeds `DefaultEncoderFactory` + `VideoEncoderSettings.setBitrate()` in both the in-app and background export paths; storage precheck uses the chosen bitrate |
 | AAC audio | 🟡 IMPLEMENTED-NOT VERIFIED | Media3 default |
+| AI UHD + Optical flow export rows | 🟦 BLOCKED | Rendered for layout parity with honest "needs online AI / GPU pipeline" status; both stay disabled offline instead of faking results |
 | Real progress | 🟢 VERIFIED | ProgressHolder polling works |
 | Cancel | 🟢 VERIFIED | Cancel works |
 | Temp file → validate → publish to MediaStore | 🟡 IMPLEMENTED-NOT VERIFIED | MediaMetadataRetriever validation implemented (tracks, dims, duration ±1s) + MediaStore publish; needs device verify |
@@ -172,7 +173,7 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Copy/cut/paste/paste-attributes for clips | 🟡 IMPLEMENTED-NOT VERIFIED | Overlay copy + paste-at-playhead wired; cut, paste-attributes and main-track paste pending |
+| Copy/cut/paste/paste-attributes for clips | 🟡 IMPLEMENTED-NOT VERIFIED | Overlay copy + paste-at-playhead wired; paste-attributes (look/audio) wired; cut and main-track paste pending |
 | Multi-select with group move | 🔴 NOT STARTED | |
 | Clip grouping | 🔴 NOT STARTED | |
 | "Select all to right" | 🔴 NOT STARTED | |
@@ -283,7 +284,7 @@
 | Root cause from logs before changing code | 🔴 NOT STARTED | |
 | **Definition of Done (per task)** | | |
 | Code compiles in all variants | 🔴 NOT STARTED | |
-| Unit/instrumented tests exist and pass | 🟡 IMPLEMENTED-NOT VERIFIED | 306/306 JVM/Robolectric tests pass (32 suites, incl. 5 Compose UI tests); instrumented compiles, execution pending device |
+| Unit/instrumented tests exist and pass | 🟡 IMPLEMENTED-NOT VERIFIED | 309/309 JVM/Robolectric tests pass (32 suites, incl. 5 Compose UI tests); instrumented compiles, execution pending device |
 | Works in preview AND export (rendering features) | 🟡 IMPLEMENTED-NOT VERIFIED | Shared composition plan for preview/export; GL-only effects (masks/blends/shaders) not executed yet |
 | State persists and survives undo/redo/save/reload | 🟢 VERIFIED | `UndoJournal` persists atomically; autosave on every change; unit-tested |
 | Loading/error/empty states exist | 🟡 IMPLEMENTED-NOT VERIFIED | Basic empty states |

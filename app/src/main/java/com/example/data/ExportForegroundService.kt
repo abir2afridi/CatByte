@@ -36,6 +36,7 @@ class ExportForegroundService : Service() {
         const val EXTRA_RESOLUTION = "resolution"
         const val EXTRA_FPS = "fps"
         const val EXTRA_WATERMARK = "watermark"
+        const val EXTRA_BITRATE_MBPS = "bitrate_mbps"
         const val EXTRA_PROJECT_ID = "project_id"
     }
 
@@ -64,6 +65,7 @@ class ExportForegroundService : Service() {
         val resolution = intent?.getStringExtra(EXTRA_RESOLUTION) ?: "1080P"
         val fps = intent?.getIntExtra(EXTRA_FPS, 30) ?: 30
         val watermark = intent?.getBooleanExtra(EXTRA_WATERMARK, false) ?: false
+        val bitrateMbps = intent?.getIntExtra(EXTRA_BITRATE_MBPS, 10) ?: 10
         currentProjectId = intent?.getStringExtra(EXTRA_PROJECT_ID) ?: ""
 
         val project = com.example.data.db.ProjectJson.fromJson(projectJson) ?: return START_NOT_STICKY
@@ -109,7 +111,13 @@ class ExportForegroundService : Service() {
                     }
                 }
 
-                val result = exportManager?.export(project, resolution, fps, watermark)
+                val result = exportManager?.export(
+                    project,
+                    resolution,
+                    fps,
+                    watermark,
+                    bitrateMbps.coerceIn(1, 100) * 1_000_000
+                )
 
                 progressJob?.cancel()
 
@@ -276,7 +284,8 @@ object ExportServiceScheduler {
         project: com.example.model.VideoProject,
         resolution: String,
         fps: Int,
-        watermark: Boolean
+        watermark: Boolean,
+        bitrateMbps: Int = 10
     ) {
         val intent = Intent(context, ExportForegroundService::class.java).apply {
             action = ExportForegroundService.ACTION_START
@@ -284,6 +293,7 @@ object ExportServiceScheduler {
             putExtra(ExportForegroundService.EXTRA_RESOLUTION, resolution)
             putExtra(ExportForegroundService.EXTRA_FPS, fps)
             putExtra(ExportForegroundService.EXTRA_WATERMARK, watermark)
+            putExtra(ExportForegroundService.EXTRA_BITRATE_MBPS, bitrateMbps)
             putExtra(ExportForegroundService.EXTRA_PROJECT_ID, project.id)
         }
 

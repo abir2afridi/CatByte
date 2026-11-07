@@ -32,6 +32,7 @@ object CanvasMath {
         val cleaned = resolution.uppercase().replace("P", "").replace(" ", "").trim()
         return when (cleaned) {
             "480", "480I" -> 480
+            "540" -> 540
             "720" -> 720
             "1080" -> 1080
             "1440", "2K" -> 1440

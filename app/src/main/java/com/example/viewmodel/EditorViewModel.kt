@@ -45,6 +45,7 @@ import com.example.model.VideoTrack
 import com.example.data.KeyframeInterpolator
 import com.example.data.db.ProjectJson
 import com.example.engine.AspectMath
+import com.example.engine.AudioLoudness
 import com.example.engine.BeatGrid
 import com.example.engine.CaptionBridge
 import com.example.engine.ClipSplit
@@ -88,7 +89,14 @@ enum class ActiveToolSheet {
     MASK,
     TTS_VOICEOVER,
     CHROMA_KEY,
-    VOLUME_BOOST
+    VOLUME_BOOST,
+    CAPTIONS,
+    ANIMATIONS,
+    CROP,
+    OPACITY,
+    AI_TOOLS,
+    TIMELINE_TOOLS,
+    BACKGROUND
 }
 
 data class ExportUiState(
@@ -1434,6 +1442,142 @@ class EditorViewModel(
     }
 
     /**
+     * Moves an audio clip to a new start time. The drop snaps to neighbouring
+     * audio clips and clamps inside the project.
+     */
+    fun moveAudioClip(audioId: String, desiredStartMs: Long) {
+        updateProject { proj ->
+            val clip = proj.audioTracks.firstOrNull { it.id == audioId } ?: return@updateProject proj
+            val others = proj.audioTracks.filter { it.id != audioId }
+            val occupied = SnapEngine.occupiedRanges(
+                others.map { it.startTimelineMs to it.durationMs }
+            )
+            val snapped = SnapEngine.magneticStart(desiredStartMs, clip.durationMs, occupied)
+            val maxStart = (proj.totalDurationMs - clip.durationMs).coerceAtLeast(0L)
+            val start = snapped.coerceIn(0L, maxStart)
+            proj.copy(
+                audioTracks = proj.audioTracks.map { existing ->
+                    if (existing.id == audioId) existing.copy(startTimelineMs = start) else existing
+                }
+            )
+        }
+    }
+
+    /**
+     * Moves the selected main-track clips as one contiguous block by [delta]
+     * positions. A group keeps its internal order; neighbours close the gap.
+     */
+    fun moveSelectedMainClips(delta: Int) {
+        if (delta == 0) return
+        updateProject { proj ->
+            if (proj.isMainTrackLocked) return@updateProject proj
+            val ids = _selectedClipIds.value
+            if (ids.isEmpty()) return@updateProject proj
+            val selectedIndices = proj.clips
+                .withIndex()
+                .filter { it.value.id in ids }
+                .map { it.index }
+            if (selectedIndices.isEmpty()) return@updateProject proj
+
+            // Only a contiguous block can move as one group.
+            val isContiguous = selectedIndices.zipWithNext().all { (a, b) -> b == a + 1 }
+            if (!isContiguous) return@updateProject proj
+
+            val first = selectedIndices.first()
+            val last = selectedIndices.last()
+            val block = proj.clips.subList(first, last + 1)
+            val targetFirst = (first + delta).coerceIn(0, proj.clips.size - block.size)
+            if (targetFirst == first) return@updateProject proj
+
+            val clips = proj.clips.toMutableList()
+            clips.subList(first, last + 1).clear()
+            clips.addAll(targetFirst, block)
+            proj.copy(clips = clips)
+        }
+    }
+
+    /** Snapshot of the visual/audio attributes that "paste attributes" copies. */
+    private var attributeClipboard: ClipAttributeClipboard? = null
+
+    private data class ClipAttributeClipboard(
+        val filter: com.example.model.VideoFilter,
+        val brightness: Float,
+        val contrast: Float,
+        val saturation: Float,
+        val vignette: Float,
+        val hslAdjustments: List<com.example.model.HslAdjustment>,
+        val speed: Float,
+        val volume: Float,
+        val isMuted: Boolean
+    )
+
+    /** Copies the selected clip's look/audio attributes for paste-attributes. */
+    fun copySelectedClipAttributes() {
+        val project = _currentProject.value ?: return
+        val clip = project.allVideoClips.firstOrNull { it.id == _selectedClipId.value } ?: return
+        attributeClipboard = ClipAttributeClipboard(
+            filter = clip.filter,
+            brightness = clip.brightness,
+            contrast = clip.contrast,
+            saturation = clip.saturation,
+            vignette = clip.vignette,
+            hslAdjustments = clip.hslAdjustments,
+            speed = clip.speed,
+            volume = clip.volume,
+            isMuted = clip.isMuted
+        )
+    }
+
+    /** Applies the copied look/audio attributes to every selected clip. */
+    fun pasteClipAttributes() {
+        val clipboard = attributeClipboard ?: return
+        val ids = _selectedClipIds.value
+        if (ids.isEmpty()) return
+        updateProject { proj ->
+            proj.copy(
+                clips = proj.clips.map { clip ->
+                    if (clip.id in ids) {
+                        clip.copy(
+                            filter = clipboard.filter,
+                            brightness = clipboard.brightness,
+                            contrast = clipboard.contrast,
+                            saturation = clipboard.saturation,
+                            vignette = clipboard.vignette,
+                            hslAdjustments = clipboard.hslAdjustments,
+                            speed = clipboard.speed,
+                            volume = clipboard.volume,
+                            isMuted = clipboard.isMuted
+                        )
+                    } else {
+                        clip
+                    }
+                },
+                overlayTracks = proj.overlayTracks.map { track ->
+                    track.copy(
+                        clips = track.clips.map { clip ->
+                            if (clip.id in ids) {
+                                clip.copy(
+                                    filter = clipboard.filter,
+                                    brightness = clipboard.brightness,
+                                    contrast = clipboard.contrast,
+                                    saturation = clipboard.saturation,
+                                    vignette = clipboard.vignette,
+                                    hslAdjustments = clipboard.hslAdjustments,
+                                    speed = clipboard.speed,
+                                    volume = clipboard.volume,
+                                    isMuted = clipboard.isMuted
+                                )
+                            } else {
+                                clip
+                            }
+                        }
+                    )
+                }
+            )
+        }
+    }
+
+    /**
      * Trims the selected clip from an inline timeline handle.
      *
      * [ClipTrimHandle] owns the source maths; this only applies the result, so the
@@ -1469,6 +1613,7 @@ class EditorViewModel(
         try {
             AppLog.debug("EditorViewModel", "Fetching duration for uri=$uriString")
             val durationMs = MediaMetadata.durationMs(ctx, uri)
+            val info = runCatching { MediaMetadata.videoInfo(ctx, uri) }.getOrNull()
             AppLog.debug("EditorViewModel", "Fetching waveform for uri=$uriString")
             val waveform = MediaMetadata.waveform(ctx, uri, 48) ?: emptyList()
             val realTitle = title.takeIf { it.isNotBlank() }
@@ -1485,6 +1630,8 @@ class EditorViewModel(
                 durationMs = if (durationMs > 0) durationMs else 4000L,
                 originalDurationMs = if (durationMs > 0) durationMs else 4000L,
                 waveform = waveform.ifEmpty { emptyList() },
+                sourceWidth = info?.width ?: 0,
+                sourceHeight = info?.height ?: 0,
                 filter = VideoFilter.NONE
             )
             _isImporting.value = false
@@ -1554,6 +1701,8 @@ class EditorViewModel(
                     startTimelineMs = cursor,
                     durationMs = durationMs,
                     originalDurationMs = durationMs,
+                    sourceWidth = info.width,
+                    sourceHeight = info.height,
                     // Waveform decode is expensive; video clips use the default
                     // waveform until the user opens the Audio sheet.
                     waveform = emptyList(),
@@ -1630,7 +1779,7 @@ class EditorViewModel(
         updateProject(coalesceKey = "speed:$clipId") { proj ->
             proj.withUpdatedClip(clipId) { clip ->
                 val updatedClip = clip.copy(
-                    speed = speed.coerceIn(0.1f, 16f),
+                    speed = speed.coerceIn(0.1f, 100f),
                     speedCurve = SpeedCurve()
                 )
                 updatedClip.copy(durationMs = ClipTiming.presentationDurationMs(updatedClip))
@@ -1667,6 +1816,14 @@ class EditorViewModel(
         val clipId = _selectedClipId.value ?: return
         updateProject { proj ->
             proj.withUpdatedClip(clipId) { clip -> clip.copy(animationIn = animation) }
+        }
+    }
+
+    /** Keeps (default) or drops the source pitch when the clip is retimed. */
+    fun setClipMaintainPitch(maintain: Boolean) {
+        val clipId = _selectedClipId.value ?: return
+        updateProject { proj ->
+            proj.withUpdatedClip(clipId) { clip -> clip.copy(maintainPitch = maintain) }
         }
     }
 
@@ -1710,6 +1867,143 @@ class EditorViewModel(
         val clipId = _selectedClipId.value ?: return
         updateProject(coalesceKey = "volume:$clipId") { proj ->
             proj.withUpdatedClip(clipId) { clip -> clip.copy(volume = volume.coerceIn(0f, 10f)) }
+        }
+    }
+
+    /** Absolute opacity for the selected clip; keyframes still override it. */
+    fun setClipOpacity(opacity: Float) {
+        val clipId = _selectedClipId.value ?: return
+        updateProject(coalesceKey = "opacity:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(opacity = opacity.coerceIn(0f, 1f))
+            }
+        }
+    }
+
+    /**
+     * Absolute crop/zoom transform. Crop presets compute these values with
+     * [com.example.engine.CropMath]; storing the absolute scale (rather than a
+     * multiplier) keeps repeated preset taps idempotent.
+     */
+    fun setSelectedClipCrop(scale: Float, posX: Float, posY: Float) {
+        val clipId = _selectedClipId.value ?: return
+        updateProject(coalesceKey = "crop:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(
+                    scale = scale.coerceIn(1f, 5f),
+                    posX = posX.coerceIn(0f, 1f),
+                    posY = posY.coerceIn(0f, 1f)
+                )
+            }
+        }
+    }
+
+    fun resetSelectedClipCrop() = setSelectedClipCrop(1f, 0.5f, 0.5f)
+
+    /**
+     * Real loudness normalisation driven by the clip's decoded waveform. The
+     * resulting gain is written to [MediaClip.volume], which preview playback
+     * and the export GainProcessor both read, so the switch is not cosmetic.
+     */
+    fun setClipLoudnessAdjustment(enabled: Boolean) {
+        val clipId = _selectedClipId.value ?: return
+        updateProject(coalesceKey = "loudness:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                val canNormalise = AudioLoudness.canNormalise(clip.waveform)
+                val gain = if (enabled && canNormalise) {
+                    AudioLoudness.gainFor(clip.waveform)
+                } else {
+                    1f
+                }
+                clip.copy(
+                    volume = gain.coerceIn(0f, 10f),
+                    isLoudnessAdjusted = enabled && canNormalise
+                )
+            }
+        }
+    }
+
+    /**
+     * Probes media dimensions for projects imported before source-size
+     * persistence existed, so Crop's aspect presets use the real frame.
+     */
+    fun ensureSelectedClipSourceSize() {
+        val clipId = _selectedClipId.value ?: return
+        val clip = _currentProject.value?.allVideoClips?.find { it.id == clipId } ?: return
+        if (clip.sourceWidth > 0 && clip.sourceHeight > 0) return
+        val uriString = clip.uriString ?: return
+        val ctx = context ?: return
+        viewModelScope.launch {
+            val info = withContext(Dispatchers.IO) {
+                runCatching { MediaMetadata.videoInfo(ctx, Uri.parse(uriString)) }.getOrNull()
+            } ?: return@launch
+            if (info.width <= 0 || info.height <= 0) return@launch
+            updateProject { proj ->
+                proj.withUpdatedClip(clipId) {
+                    it.copy(sourceWidth = info.width, sourceHeight = info.height)
+                }
+            }
+        }
+    }
+
+    /**
+     * Lazily decodes the selected clip's waveform. Imported video clips start
+     * with an empty envelope for speed, so the Volume panel calls this before
+     * offering loudness normalisation.
+     */
+    fun ensureSelectedClipWaveform() {
+        val clipId = _selectedClipId.value ?: return
+        val clip = _currentProject.value?.allVideoClips?.find { it.id == clipId } ?: return
+        if (clip.waveform.isNotEmpty()) return
+        val uriString = clip.uriString ?: return
+        val ctx = context ?: return
+        viewModelScope.launch {
+            val waveform = withContext(Dispatchers.IO) {
+                runCatching { MediaMetadata.waveform(ctx, Uri.parse(uriString), 48) }.getOrNull()
+            } ?: return@launch
+            if (waveform.isEmpty()) return@launch
+            updateProject { proj ->
+                proj.withUpdatedClip(clipId) { it.copy(waveform = waveform) }
+            }
+        }
+    }
+
+    /**
+     * Replaces the selected clip's source file while keeping its position on
+     * the timeline. Duration, dimensions and the waveform are re-probed so the
+     * new media lines up in preview and export instead of keeping stale values.
+     */
+    fun replaceSelectedClipUri(uriString: String, title: String) {
+        val clipId = _selectedClipId.value ?: return
+        val ctx = context
+        viewModelScope.launch {
+            val info = if (ctx != null) {
+                runCatching { MediaMetadata.videoInfo(ctx, Uri.parse(uriString)) }.getOrNull()
+            } else {
+                null
+            }
+            val sourceMs = info?.durationMs?.takeIf { it > 0L } ?: 4_000L
+            val realTitle = title.takeIf { it.isNotBlank() }
+                ?: info?.displayName?.substringBeforeLast('.')?.takeIf { it.isNotBlank() }
+                ?: "Replaced clip"
+            updateProject { proj ->
+                proj.withUpdatedClip(clipId) { clip ->
+                    clip.copy(
+                        title = realTitle,
+                        uriString = uriString,
+                        originalDurationMs = sourceMs,
+                        durationMs = sourceMs,
+                        trimStartMs = 0L,
+                        trimEndMs = 0L,
+                        speed = 1f,
+                        speedCurve = SpeedCurve(),
+                        sourceWidth = info?.width ?: 0,
+                        sourceHeight = info?.height ?: 0,
+                        waveform = emptyList(),
+                        isLoudnessAdjusted = false
+                    )
+                }
+            }
         }
     }
 
@@ -2092,7 +2386,8 @@ class EditorViewModel(
 
     fun startExport(
         resolution: String = _defaultResolution.value,
-        fps: Int = _defaultFps.value
+        fps: Int = _defaultFps.value,
+        bitrateMbps: Int = 10
     ) {
         val project = _currentProject.value ?: return
         pausePlayback()
@@ -2121,7 +2416,13 @@ class EditorViewModel(
                         }
                     }
                 }
-                val result = exportManager.export(project, resolution, fps, _watermarkEnabled.value)
+                val result = exportManager.export(
+                    project,
+                    resolution,
+                    fps,
+                    _watermarkEnabled.value,
+                    (bitrateMbps.coerceIn(1, 100) * 1_000_000)
+                )
                 progressJob.cancel()
                 val renderWarnings = exportManager.progress.value.warnings
                 if (result != null) {
@@ -2186,7 +2487,8 @@ class EditorViewModel(
     fun startBackgroundExportWithContext(
         context: Context,
         resolution: String = _defaultResolution.value,
-        fps: Int = _defaultFps.value
+        fps: Int = _defaultFps.value,
+        bitrateMbps: Int = 10
     ) {
         val project = _currentProject.value ?: return
         pausePlayback()
@@ -2199,7 +2501,14 @@ class EditorViewModel(
             fps = fps
         )
 
-        ExportServiceScheduler.startExport(context, project, resolution, fps, _watermarkEnabled.value)
+        ExportServiceScheduler.startExport(
+            context,
+            project,
+            resolution,
+            fps,
+            _watermarkEnabled.value,
+            bitrateMbps.coerceIn(1, 100)
+        )
     }
 
     /** Stops an in-flight render and closes the export sheet. */
@@ -2285,6 +2594,11 @@ class EditorViewModel(
             } else {
                 0L
             }
+            val info = if (ctx != null) {
+                runCatching { MediaMetadata.videoInfo(ctx, Uri.parse(uriString)) }.getOrNull()
+            } else {
+                null
+            }
             val durationMs = if (probedMs > 0L) probedMs else 4000L
             val newClip = MediaClip(
                 id = "pip_${UUID.randomUUID().toString().take(8)}",
@@ -2293,6 +2607,8 @@ class EditorViewModel(
                 startTimelineMs = currentPos,
                 durationMs = durationMs,
                 originalDurationMs = durationMs,
+                sourceWidth = info?.width ?: 0,
+                sourceHeight = info?.height ?: 0,
                 scale = 0.5f,
                 posX = 0.5f,
                 posY = 0.5f

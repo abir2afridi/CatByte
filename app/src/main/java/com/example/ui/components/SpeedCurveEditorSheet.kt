@@ -148,16 +148,27 @@ fun SpeedCurveEditorSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(600.dp)
-            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            .height(250.dp)
+            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .background(colors.surface)
-            .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 18.dp)
+            .border(1.dp, colors.borderSubtle.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .testTag("speed_curve_editor_sheet")
     ) {
-        TornPaperEdge(
-            paperColor = colors.surfaceElevated,
-            borderColor = colors.borderSubtle
-        )
+        // Drag handle indicator
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp, bottom = 2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(36.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(colors.textTertiary.copy(alpha = 0.4f))
+            )
+        }
 
         Column(modifier = Modifier.padding(16.dp)) {
             Row(

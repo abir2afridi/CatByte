@@ -74,31 +74,34 @@ fun TimelineTrackHeaders(rows: List<TimelineHeaderRow>) {
                 .height(row.heightDp)
                 .fillMaxWidth()
                 .background(colors.surface)
-                .padding(horizontal = 3.dp, vertical = 1.dp)
+                .padding(horizontal = 4.dp, vertical = 2.dp)
         ) {
             Column(
                 modifier = Modifier.fillMaxHeight(),
-                verticalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.SpaceEvenly,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
                     Icon(
                         imageVector = row.icon,
                         contentDescription = row.title,
-                        tint = colors.textSecondary,
-                        modifier = Modifier.size(11.dp)
+                        tint = colors.accentCyan,
+                        modifier = Modifier.size(12.dp)
                     )
                     Text(
                         text = row.title,
                         color = colors.textPrimary,
-                        fontSize = 7.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
-                        modifier = Modifier.padding(start = 2.dp)
+                        modifier = Modifier.padding(start = 3.dp)
                     )
                 }
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (row.canMute) {
@@ -131,12 +134,7 @@ fun TimelineTrackHeaders(rows: List<TimelineHeaderRow>) {
                             activeColor = colors.accentCyan
                         )
                     }
-                }
-                if (row.canReorder) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    if (row.canReorder) {
                         HeaderToggle(
                             selected = true,
                             on = Icons.Default.KeyboardArrowUp,
@@ -172,7 +170,7 @@ private fun HeaderToggle(
     val colors = PencilTheme.colors
     Box(
         modifier = Modifier
-            .size(17.dp)
+            .size(18.dp)
             .clip(RoundedCornerShape(4.dp))
             .background(if (selected) colors.surfaceElevated else colors.surfaceVariant)
             .clickable { onClick() }

@@ -1,13 +1,5 @@
 package com.example.ui.components
 
-import android.content.Context
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,7 +7,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,253 +14,310 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.FastRewind
-import androidx.compose.material.icons.filled.Flip
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ContentCut
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.RotateRight
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import com.example.data.SampleDataProvider
-import com.example.model.AspectRatioType
-import com.example.model.AudioClip
-import com.example.model.BlendMode
-import com.example.model.ClipAnimation
-import com.example.model.EasingCurve
-import com.example.model.EffectType
-import com.example.model.HslAdjustment
-import com.example.model.HslChannel
-import com.example.model.Keyframe
-import com.example.model.KeyframeProperty
-import com.example.model.MaskData
-import com.example.model.MaskType
-import com.example.model.MediaClip
+import com.example.data.SpeedRampEngine
 import com.example.model.SpeedCurve
 import com.example.model.SpeedCurvePreset
-import com.example.model.TextAnimationType
-import com.example.model.TextFontStyle
-import com.example.model.TextOverlay
-import com.example.model.TransitionType
-import com.example.model.VideoFilter
-import com.example.ui.theme.CapCutBorder
-import com.example.ui.theme.CapCutBorderSubtle
-import com.example.ui.theme.CapCutCyan
-import com.example.ui.theme.CapCutDarkBackground
-import com.example.ui.theme.CapCutGreen
-import com.example.ui.theme.CapCutPink
-import com.example.ui.theme.CapCutPurple
-import com.example.ui.theme.CapCutRed
-import com.example.ui.theme.CapCutSurface
-import com.example.ui.theme.CapCutSurfaceElevated
-import com.example.ui.theme.CapCutSurfaceVariant
-import com.example.ui.theme.CapCutTextPrimary
-import com.example.ui.theme.CapCutTextSecondary
-import com.example.ui.theme.CapCutYellow
 import com.example.ui.theme.PencilTheme
-import com.example.ui.theme.SharpenedPencilTip
-import com.example.ui.theme.TornPaperEdge
-import com.example.ui.theme.WashiTapeCorner
-import com.example.ui.theme.WashiTapeSticker
-import com.example.ui.theme.pencilHatching
-import com.example.ui.theme.sketchPencilBorder
-import com.example.viewmodel.ExportUiState
+import java.util.Locale
 
+/**
+ * CapCut-style Speed panel: duration line, 0.1x-100x presets, Smooth slow-mo
+ * (needs GPU optical flow), Change audio pitch and the velocity-curve presets.
+ *
+ * Change audio pitch is real: it flips
+ * [com.example.model.MediaClip.maintainPitch], which the render graph passes to
+ * Media3's [androidx.media3.common.SpeedParameters].
+ */
 @Composable
 fun SpeedSheet(
     currentSpeed: Float,
+    clipDurationMs: Long = 0L,
+    isChangePitch: Boolean = false,
     onSpeedSelected: (Float) -> Unit,
-    onSelectSpeedCurve: ((com.example.model.SpeedCurve) -> Unit)? = null,
+    onSelectSpeedCurve: ((SpeedCurve) -> Unit)? = null,
+    onChangePitch: (Boolean) -> Unit = {},
     onClose: () -> Unit
 ) {
     val colors = PencilTheme.colors
-    var speedVal by remember { mutableFloatStateOf(currentSpeed) }
+    var speedVal by remember(currentSpeed) { mutableFloatStateOf(currentSpeed) }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            .height(318.dp)
+            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .background(colors.surface)
-            .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 18.dp)
+            .border(1.dp, colors.borderSubtle.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .testTag("speed_sheet")
     ) {
-        TornPaperEdge(
-            paperColor = colors.surfaceElevated,
-            borderColor = colors.borderSubtle
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp, bottom = 2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(36.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(colors.textTertiary.copy(alpha = 0.4f))
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Speed",
+                color = colors.textPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+            IconButton(onClick = onClose, modifier = Modifier.size(30.dp)) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = "Done",
+                    tint = colors.textPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("Duration", color = colors.textSecondary, fontSize = 11.sp)
+            Text(
+                text = formatDuration(clipDurationMs),
+                color = colors.textPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        Slider(
+            value = speedVal.coerceIn(0.1f, 100f),
+            onValueChange = {
+                speedVal = it
+                onSpeedSelected(it)
+            },
+            valueRange = 0.1f..100f,
+            colors = SliderDefaults.colors(
+                thumbColor = Color.White,
+                activeTrackColor = colors.accentCyan,
+                inactiveTrackColor = colors.surfaceElevated
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
         )
 
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("⚡", fontSize = 16.sp)
-                    Text("Speed & Velocity Curves", color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                }
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.textSecondary)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("0.1x", color = colors.textTertiary, fontSize = 10.sp)
             Text(
-                text = "${String.format("%.1f", speedVal)}x",
+                String.format(Locale.US, "%.2fx", speedVal),
                 color = colors.accentCyan,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Black,
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
             )
+            Text("100x", color = colors.textTertiary, fontSize = 10.sp)
+        }
 
-            Slider(
-                value = speedVal,
-                onValueChange = {
-                    speedVal = it
-                    onSpeedSelected(it)
-                },
-                valueRange = 0.2f..5.0f,
-                steps = 47,
-                colors = SliderDefaults.colors(
-                    thumbColor = colors.border,
-                    activeTrackColor = colors.accentCyan,
-                    inactiveTrackColor = colors.surfaceElevated
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
+        Spacer(modifier = Modifier.height(4.dp))
 
-            // Speed Presets
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                listOf(0.5f, 1.0f, 1.5f, 2.0f, 3.0f).forEach { s ->
-                    val isSelected = kotlin.math.abs(speedVal - s) < 0.05f
-                    Box(
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf(0.1f to null, 1f to null, 2f to null, 5f to "Pro", 10f to null, 100f to null)
+                .forEach { (preset, badge) ->
+                    val selected = kotlin.math.abs(speedVal - preset) < 0.01f
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (isSelected) colors.accentCyan.copy(alpha = 0.25f) else colors.surfaceElevated)
-                            .pencilHatching(
-                                color = if (isSelected) colors.accentCyan.copy(alpha = 0.15f) else Color.Transparent,
-                                spacing = 5.dp,
-                                enabled = colors.isPencilSketch
-                            )
-                            .sketchPencilBorder(
-                                strokeWidth = if (isSelected) 1.6.dp else 1.dp,
-                                color = if (isSelected) colors.accentCyan else colors.borderSubtle,
-                                cornerRadius = 6.dp,
-                                isPencilStyle = colors.isPencilSketch
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(if (selected) colors.accentCyan.copy(alpha = 0.18f) else colors.surfaceElevated)
+                            .border(
+                                1.dp,
+                                if (selected) colors.accentCyan else colors.borderSubtle,
+                                RoundedCornerShape(9.dp)
                             )
                             .clickable {
-                                speedVal = s
-                                onSpeedSelected(s)
+                                speedVal = preset
+                                onSpeedSelected(preset)
                             }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                            .testTag("speed_preset_${preset.toString().replace('.', '_')}")
                     ) {
                         Text(
-                            text = "${s}x",
-                            color = if (isSelected) colors.accentCyan else colors.textPrimary,
-                            fontSize = 12.sp,
+                            text = if (preset == 0.1f) "0.1x" else "${preset.toInt()}x",
+                            color = if (selected) colors.accentCyan else colors.textPrimary,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
+                        if (badge != null) {
+                            Text(badge, color = colors.accentYellow, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
-            }
+        }
 
-            Spacer(modifier = Modifier.height(14.dp))
-            Text("Velocity Curves (Beat Sync Presets)", color = colors.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                com.example.model.SpeedCurvePreset.entries.forEach { preset ->
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(colors.surfaceElevated)
-                            .sketchPencilBorder(
-                                strokeWidth = 1.2.dp,
-                                color = colors.borderSubtle,
-                                cornerRadius = 8.dp
-                            )
-                            .clickable {
-                                val curve = com.example.data.SpeedRampEngine.getPresetCurve(preset)
-                                onSelectSpeedCurve?.invoke(curve)
-                            }
-                            .padding(horizontal = 10.dp, vertical = 8.dp)
-                    ) {
-                        Text(preset.displayName, color = colors.accentCyan, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    }
+        SpeedToggleRow(
+            title = "Smooth slow-mo",
+            subtitle = "Needs optical-flow interpolation (GPU)",
+            checked = false,
+            enabled = false,
+            badge = "Pro",
+            onCheckedChange = {}
+        )
+        SpeedToggleRow(
+            title = "Change audio pitch",
+            subtitle = "Turn off to keep the original voice pitch",
+            checked = isChangePitch,
+            enabled = true,
+            onCheckedChange = onChangePitch
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = "Speed curve",
+            color = colors.textSecondary,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            SpeedCurvePreset.entries.forEach { preset ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(colors.surfaceElevated)
+                        .border(1.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
+                        .clickable {
+                            val curve = SpeedRampEngine.getPresetCurve(preset)
+                            onSelectSpeedCurve?.invoke(curve)
+                        }
+                        .padding(horizontal = 9.dp, vertical = 6.dp)
+                        .testTag("speed_curve_${preset.name.lowercase()}")
+                ) {
+                    Text(preset.displayName, color = colors.accentCyan, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SpeedToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    enabled: Boolean,
+    badge: String? = null,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val colors = PencilTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(
+                    title,
+                    color = if (enabled) colors.textPrimary else colors.textTertiary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (badge != null) {
+                    Text(
+                        badge,
+                        color = colors.accentYellow,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(colors.accentYellow.copy(alpha = 0.14f))
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
+            Text(subtitle, color = colors.textTertiary, fontSize = 9.sp, maxLines = 1)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = colors.accentCyan,
+                uncheckedThumbColor = colors.textTertiary,
+                uncheckedTrackColor = colors.surfaceElevated
+            ),
+            modifier = Modifier.testTag("speed_toggle_${title.lowercase().replace(' ', '_')}")
+        )
+    }
+}
+
+private fun formatDuration(ms: Long): String {
+    if (ms <= 0L) return "--:--.-"
+    val totalTenths = (ms + 50L) / 100L
+    val minutes = totalTenths / 600L
+    val seconds = (totalTenths / 10L) % 60L
+    val tenths = totalTenths % 10L
+    return String.format(Locale.US, "%02d:%02d.%d", minutes, seconds, tenths)
 }

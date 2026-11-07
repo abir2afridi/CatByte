@@ -11,7 +11,7 @@ The P1/P2/P3 roadmap from `README.md` splits into two halves:
 
 This document covers the first half: the modules added to `com.example.engine`,
 the wiring that now reaches the editor UI, and the work that still needs a GPU
-surface, a camera or model files. Total suite is **306 tests, 0 failures**.
+surface, a camera or model files. Total suite is **309 tests, 0 failures**.
 
 ## What was added
 
@@ -243,7 +243,7 @@ surface for the GL compositor, no Bangla font binaries or ASR model.
 - `ProjectJsonTest` +1: track flags and clip mute survive the JSON round trip.
 - `TimelineTrackControlsTest` (new, Robolectric Compose): mute/lock/solo header taps report the right control.
 
-Total suite after this addendum: **306 tests, 0 failures** (32 suites). Debug APK rebuilt (25.77 MB).
+Total suite after this addendum: **309 tests, 0 failures** (32 suites). Debug APK rebuilt (25.77 MB).
 
 Still environment-blocked: no device/emulator for instrumented runs, no EGL/GLES
 surface for the GL compositor, no Bangla font binaries or ASR model.
@@ -282,7 +282,7 @@ surface for the GL compositor, no Bangla font binaries or ASR model.
   jumps, overlay track reorder.
 - `ProjectJsonTest` +1: markers survive the JSON round trip.
 
-Total suite after this addendum: **306 tests, 0 failures** (32 suites).
+Total suite after this addendum: **309 tests, 0 failures** (32 suites).
 Still environment-blocked: no device/emulator for instrumented runs, no EGL/GLES
 surface for the GL compositor, no Bangla font binaries or ASR model.
 
@@ -311,7 +311,7 @@ surface for the GL compositor, no Bangla font binaries or ASR model.
 - `TimelineEditsTest` +2: group delete ripple + group delete lift.
 - `EditorWorkflowTest` +2: group delete/move and overlay clipboard paste offsets.
 
-Total suite after this addendum: **306 tests, 0 failures** (32 suites).
+Total suite after this addendum: **309 tests, 0 failures** (32 suites).
 
 ## Addendum — import speed, preview surface, aspect, responsive editor (2026-11-06, bugfix pass)
 
@@ -350,4 +350,31 @@ Total suite after this addendum: **306 tests, 0 failures** (32 suites).
 ### Tests
 - `AspectMathTest` (4): landscape, portrait, square/4:5, unknown dimensions.
 
-Total suite after this addendum: **306 tests, 0 failures** (32 suites).
+Total suite after this addendum: **309 tests, 0 failures** (32 suites).
+
+## Addendum — audio drag, main-block move, paste attributes (2026-11-07)
+
+### Audio
+- `TimelineAudioTrack` is now interactive: long-press drag moves the clip along
+  its own row, with magnetic snapping and project-bounds clamping through
+  `EditorViewModel.moveAudioClip`. Mute remains on the row header, so the chip
+  surface stays free for the drag gesture.
+
+### Multi-select
+- Main-track contiguous blocks can now move as one group:
+  `EditorViewModel.moveSelectedMainClips(delta)` keeps the block's internal order
+  and closes the gap left behind.
+- `SelectionControlsBar` gained **◀ Block / Block ▶** for main-track groups and
+  **Copy style / Paste style** for paste-attributes.
+
+### Paste attributes
+- `copySelectedClipAttributes()` snapshots look/audio attributes (filter,
+  brightness, contrast, saturation, vignette, HSL, speed, volume, mute).
+- `pasteClipAttributes()` applies them to every selected clip on the main track
+  or overlay tracks.
+
+### Tests
+- `EditorWorkflowTest` +3: audio clip snap/clamp, contiguous main-block move,
+  paste-attributes to the whole selection.
+
+Total suite after this addendum: **309 tests, 0 failures** (32 suites).

@@ -151,6 +151,7 @@ object ProjectJson {
         put("trimEndMs", clip.trimEndMs)
         put("speed", clip.speed.toDouble())
         put("speedCurve", speedCurveToJson(clip.speedCurve))
+        put("maintainPitch", clip.maintainPitch)
         put("volume", clip.volume.toDouble())
         put("isMuted", clip.isMuted)
         put("filter", clip.filter.name)
@@ -187,6 +188,9 @@ object ProjectJson {
         put("posY", clip.posY.toDouble())
         put("opacity", clip.opacity.toDouble())
         put("isReversed", clip.isReversed)
+        put("sourceWidth", clip.sourceWidth)
+        put("sourceHeight", clip.sourceHeight)
+        put("isLoudnessAdjusted", clip.isLoudnessAdjusted)
         put("chromaKey", JSONObject().apply {
             put("isEnabled", clip.chromaKey.isEnabled)
             put("keyColorHex", clip.chromaKey.keyColorHex)
@@ -211,6 +215,7 @@ object ProjectJson {
         speed = json.optDouble("speed", 1.0).toFloat(),
         speedCurve = json.optJSONObject("speedCurve")?.let { speedCurveFromJson(it) }
             ?: SpeedCurve(),
+        maintainPitch = json.optBoolean("maintainPitch", true),
         volume = json.optDouble("volume", 1.0).toFloat(),
         isMuted = json.optBoolean("isMuted", false),
         filter = parseEnum(json.optString("filter"), VideoFilter.NONE),
@@ -240,6 +245,9 @@ object ProjectJson {
         posY = json.optDouble("posY", 0.5).toFloat(),
         opacity = json.optDouble("opacity", 1.0).toFloat(),
         isReversed = json.optBoolean("isReversed", false),
+        sourceWidth = json.optInt("sourceWidth", 0),
+        sourceHeight = json.optInt("sourceHeight", 0),
+        isLoudnessAdjusted = json.optBoolean("isLoudnessAdjusted", false),
         chromaKey = json.optJSONObject("chromaKey")?.let { cj ->
             com.example.model.ChromaKeyData(
                 isEnabled = cj.optBoolean("isEnabled", false),

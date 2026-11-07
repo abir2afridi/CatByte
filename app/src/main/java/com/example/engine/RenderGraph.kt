@@ -300,12 +300,20 @@ object RenderGraphBuilder {
         )
     }
 
-    private fun backgroundArgb(paperStyle: String): Long = when (paperStyle.lowercase()) {
-        "blueprint" -> 0xFF0B1E33
-        "sepia" -> 0xFF2A2118
-        "charcoal" -> 0xFF141414
-        else -> 0xFF000000
-    }
+    private fun backgroundArgb(paperStyle: String): Long = backgroundArgbFor(paperStyle)
+}
+
+/**
+ * Canvas background for a project's paper style. Shared by the preview canvas
+ * and the render graph so the swatch in the Background panel is the same
+ * colour the rest of the pipeline reads.
+ */
+fun backgroundArgbFor(paperStyle: String): Long = when (paperStyle.lowercase()) {
+    "blueprint", "architect blueprint" -> 0xFF0B1E33
+    "sepia", "parchment sketchbook" -> 0xFF2A2118
+    "charcoal", "dark slate chalkboard" -> 0xFF141414
+    "drafting grid" -> 0xFF1A1A1E
+    else -> 0xFF000000
 }
 
 /** Convenience: sample the graph at a timeline position. */

@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Filter
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Mood
 import androidx.compose.material.icons.filled.Pause
@@ -100,10 +101,17 @@ import com.example.R
 import com.example.engine.Shortcuts
 import com.example.model.VideoProject
 import com.example.ui.components.AdjustmentsSheet
+import com.example.ui.components.AiToolsSheet
+import com.example.ui.components.AnimationSheet
 import com.example.ui.components.AudioSheet
+import com.example.ui.components.BackgroundSheet
 import com.example.ui.components.BlendModeSheet
 import com.example.ui.components.CanvasRatioSheet
-import com.example.ui.components.PlaybackControlsStrip
+import com.example.ui.components.CaptionsSheet
+import com.example.ui.components.CropSheet
+import com.example.ui.components.EditorSearchEntry
+import com.example.ui.components.FeatureSearchDialog
+import com.example.ui.components.OpacitySheet
 import com.example.ui.components.SelectionControlsBar
 import com.example.ui.components.EditClipSheet
 import com.example.ui.components.EffectsSheet
@@ -112,6 +120,7 @@ import com.example.ui.components.FiltersSheet
 import com.example.ui.components.KeyframeSheet
 import com.example.ui.components.MaskSheet
 import com.example.ui.components.ChromaKeySheet
+import com.example.ui.components.TimelineToolsSheet
 import com.example.ui.components.VolumeSheet
 import com.example.ui.components.MultiTrackTimeline
 import com.example.ui.components.SpeedSheet
@@ -155,10 +164,14 @@ fun EditorScreen(
     var showTtsDialog by remember { mutableStateOf(false) }
     var ttsInputText by remember { mutableStateOf("") }
     var isMultiSelect by remember { mutableStateOf(false) }
+    var showFeatureSearch by remember { mutableStateOf(false) }
+    var isPreviewFullscreen by remember { mutableStateOf(false) }
 
     // Intercept back button if any sheet is open
     BackHandler {
-        if (activeSheet != ActiveToolSheet.NONE) {
+        if (isPreviewFullscreen) {
+            isPreviewFullscreen = false
+        } else if (activeSheet != ActiveToolSheet.NONE) {
             viewModel.setActiveSheet(ActiveToolSheet.NONE)
         } else if (showTtsDialog) {
             showTtsDialog = false
@@ -214,7 +227,24 @@ fun EditorScreen(
         }
     }
 
+    // Replaces the selected clip's source file (CapCut "Replace").
+    val replaceMediaLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.replaceSelectedClipUri(uri.toString(), "")
+        }
+    }
+
     val currentClip = project?.allVideoClips?.find { it.id == selectedClipId }
+    LaunchedEffect(activeSheet, selectedClipId) {
+        if (activeSheet == ActiveToolSheet.VOLUME_BOOST) {
+            viewModel.ensureSelectedClipWaveform()
+        }
+        if (activeSheet == ActiveToolSheet.CROP) {
+            viewModel.ensureSelectedClipSourceSize()
+        }
+    }
     val isEyedropperActive by viewModel.isEyedropperActive.collectAsState()
     val isTransformActive = activeSheet == ActiveToolSheet.EDIT_CLIP || activeSheet == ActiveToolSheet.KEYFRAME
     val currentText = project?.textOverlays?.find { it.id == selectedTextId }
@@ -283,17 +313,20 @@ fun EditorScreen(
             }
     ) {
         // 1. Top Bar
-        EditorTopBar(
-            project = project!!,
-            canUndo = canUndo,
-            canRedo = canRedo,
-            onBack = onBackToHome,
-            onUndo = { viewModel.undo() },
-            onRedo = { viewModel.redo() },
-            onOpenFormat = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
-            onExport = { viewModel.setActiveSheet(ActiveToolSheet.EXPORT_MODAL) },
-            onOpenSettings = onOpenSettings
-        )
+        if (!isPreviewFullscreen) {
+            EditorTopBar(
+                project = project!!,
+                canUndo = canUndo,
+                canRedo = canRedo,
+                onBack = onBackToHome,
+                onUndo = { viewModel.undo() },
+                onRedo = { viewModel.redo() },
+                onOpenFormat = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
+                onExport = { viewModel.setActiveSheet(ActiveToolSheet.EXPORT_MODAL) },
+                onOpenSettings = onOpenSettings,
+                onSearch = { showFeatureSearch = true }
+            )
+        }
 
         // 2. Video Preview Canvas
         val playerManager = androidx.compose.runtime.remember(context) {
@@ -321,25 +354,25 @@ fun EditorScreen(
         // Background export needs the notification permission on Android 13+.
         // A denial must not block the export (the foreground service runs
         // either way; only the progress notification stays hidden).
-        var pendingBackgroundExport by remember { mutableStateOf<Pair<String, Int>?>(null) }
+        var pendingBackgroundExport by remember { mutableStateOf<Triple<String, Int, Int>?>(null) }
         val notificationPermissionLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission()
         ) { _ ->
-            pendingBackgroundExport?.let { (res, fps) ->
-                viewModel.startBackgroundExportWithContext(context, res, fps)
+            pendingBackgroundExport?.let { (res, fps, bitrate) ->
+                viewModel.startBackgroundExportWithContext(context, res, fps, bitrate)
             }
             pendingBackgroundExport = null
         }
-        val startBackgroundExport: (resolution: String, fps: Int) -> Unit = { res, fps ->
+        val startBackgroundExport: (resolution: String, fps: Int, bitrateMbps: Int) -> Unit = { res, fps, bitrate ->
             viewModel.setActiveSheet(ActiveToolSheet.NONE)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED
             ) {
-                pendingBackgroundExport = res to fps
+                pendingBackgroundExport = Triple(res, fps, bitrate)
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else {
-                viewModel.startBackgroundExportWithContext(context, res, fps)
+                viewModel.startBackgroundExportWithContext(context, res, fps, bitrate)
             }
         }
 
@@ -373,51 +406,77 @@ fun EditorScreen(
                     modifier = Modifier.fillMaxSize()
                 )
             }
+
+            if (isPreviewFullscreen) {
+                IconButton(
+                    onClick = { isPreviewFullscreen = false },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .testTag("editor_exit_fullscreen")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FullscreenExit,
+                        contentDescription = "Exit fullscreen",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
         }
 
-        // 3. Playback Controls & Quick Split Strip
-        PlaybackControlsStrip(
-            isPlaying = isPlaying,
-            zoom = timelineZoom,
-            magneticSnap = magneticSnap,
-            onTogglePlay = { viewModel.togglePlayback() },
-            onStepBackward = { viewModel.stepBackward() },
-            onStepForward = { viewModel.stepForward() },
-            onQuickSplit = splitAtPlayhead,
-            onBeatSync = { viewModel.autoCutToBeat() },
-            onAddMarker = { viewModel.addMarker() },
-            onPreviousMarker = { viewModel.jumpToMarker(-1) },
-            onNextMarker = { viewModel.jumpToMarker(1) },
-            markerCount = project?.markers?.size ?: 0,
-            onToggleMultiSelect = {
-                isMultiSelect = !isMultiSelect
-                if (!isMultiSelect) viewModel.clearSelection()
-            },
-            isMultiSelect = isMultiSelect,
-            onToggleMagneticSnap = { viewModel.toggleMagneticSnap() },
-            onZoomChanged = { viewModel.setTimelineZoom(it) },
-            selectedClip = currentClip,
-            currentPositionMs = currentPositionMs,
-            onToggleKeyframe = { viewModel.toggleKeyframeAtPlayhead() }
-        )
+        // 3. CapCut transport row: fullscreen, play, transition, undo, redo.
+        if (!isPreviewFullscreen) {
+            EditorTransportRow(
+                isPlaying = isPlaying,
+                canUndo = canUndo,
+                canRedo = canRedo,
+                onTogglePlay = { viewModel.togglePlayback() },
+                onFullscreen = { isPreviewFullscreen = true },
+                onTransition = {
+                    val clipId = selectedClipId
+                    if (clipId == null) {
+                        Toast.makeText(context, "Select a clip to add a transition", Toast.LENGTH_SHORT).show()
+                    } else {
+                        activeTransitionClipId = clipId
+                        viewModel.setActiveSheet(ActiveToolSheet.TRANSITIONS_PICKER)
+                    }
+                },
+                onUndo = { viewModel.undo() },
+                onRedo = { viewModel.redo() }
+            )
+        }
 
+        if (!isPreviewFullscreen) {
         // Group actions for multi-selection.
         val selectedOverlayClips = remember(project, selectedClipIds) {
             project?.overlayTracks?.flatMap { it.clips }
                 ?.filter { it.id in selectedClipIds }
                 ?: emptyList()
         }
+        val selectedMainClips = remember(project, selectedClipIds) {
+            project?.clips?.filter { it.id in selectedClipIds } ?: emptyList()
+        }
+        val canMoveMainBlock = selectedMainClips.size > 1
         if (selectedClipIds.size > 1) {
             SelectionControlsBar(
                 selectedCount = selectedClipIds.size,
                 isMultiSelect = isMultiSelect,
                 canMoveOverlays = selectedOverlayClips.isNotEmpty(),
+                canMoveMainBlock = canMoveMainBlock,
                 canPaste = overlayClipboard.isNotEmpty(),
                 onMoveLeft = { viewModel.moveSelectedOverlays(-100L) },
                 onMoveRight = { viewModel.moveSelectedOverlays(100L) },
+                onMoveBlockLeft = { viewModel.moveSelectedMainClips(-1) },
+                onMoveBlockRight = { viewModel.moveSelectedMainClips(1) },
                 onDelete = { viewModel.deleteSelectedClips() },
                 onCopy = { viewModel.copySelectedOverlays() },
                 onPaste = { viewModel.pasteOverlays() },
+                onCopyAttributes = { viewModel.copySelectedClipAttributes() },
+                onPasteAttributes = { viewModel.pasteClipAttributes() },
                 onClear = {
                     viewModel.clearSelection()
                     isMultiSelect = false
@@ -434,6 +493,10 @@ fun EditorScreen(
         }
 
         // 4. Multi-Track Timeline
+        EditorTimecodeRow(
+            currentPositionMs = currentPositionMs,
+            totalDurationMs = project?.totalDurationMs ?: 0L
+        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -450,7 +513,6 @@ fun EditorScreen(
                 onSeek = { viewModel.seekTo(it) },
                 onSelectClip = {
                     viewModel.selectClip(it)
-                    viewModel.setActiveSheet(ActiveToolSheet.EDIT_CLIP)
                 },
                 onSelectText = {
                     viewModel.selectText(it)
@@ -475,6 +537,7 @@ fun EditorScreen(
                 onTrackLock = { trackId, locked -> viewModel.setTrackLocked(trackId, locked) },
                 onTrackSolo = { trackId, solo -> viewModel.setTrackSolo(trackId, solo) },
                 onMoveOverlayTrack = { from, to -> viewModel.moveOverlayTrack(from, to) },
+                onMoveAudioClip = { audioId, startMs -> viewModel.moveAudioClip(audioId, startMs) },
                 onToggleAudioMute = { audioId, muted -> viewModel.setAudioClipMuted(audioId, muted) },
                 onZoomChange = { viewModel.setTimelineZoom(it) },
                 onToggleClipSelection = { viewModel.toggleClipSelection(it) },
@@ -520,8 +583,11 @@ fun EditorScreen(
                 ActiveToolSheet.SPEED -> {
                     SpeedSheet(
                         currentSpeed = currentClip?.speed ?: 1.0f,
+                        clipDurationMs = currentClip?.durationMs ?: 0L,
+                        isChangePitch = currentClip?.maintainPitch == false,
                         onSpeedSelected = { viewModel.setClipSpeed(it) },
                         onSelectSpeedCurve = { viewModel.setClipSpeedCurve(it) },
+                        onChangePitch = { changePitch -> viewModel.setClipMaintainPitch(!changePitch) },
                         onClose = {
                             viewModel.setEyedropperActive(false)
                             viewModel.setActiveSheet(ActiveToolSheet.NONE)
@@ -662,11 +728,15 @@ fun EditorScreen(
                         projectLengthMs = project?.totalDurationMs ?: 60_000L,
                         onSelectAspectRatio = { viewModel.setAspectRatio(it) },
                         onToggleWatermark = { viewModel.toggleWatermark(it) },
-                        onStartExport = { res, fps, _ -> viewModel.startExport(res, fps) },
+                        onStartExport = { res, fps, _, bitrate ->
+                            viewModel.startExport(res, fps, bitrate)
+                        },
                         onCancelExport = { viewModel.cancelExport() },
                         onDismiss = { viewModel.dismissExport() },
                         onShareExport = { platform -> viewModel.shareExportMessage(platform) },
-                        onStartBackgroundExport = { res, fps, _ -> startBackgroundExport(res, fps) }
+                        onStartBackgroundExport = { res, fps, _, bitrate ->
+                            startBackgroundExport(res, fps, bitrate)
+                        }
                     )
                 }
                 ActiveToolSheet.KEYFRAME -> {
@@ -735,8 +805,13 @@ fun EditorScreen(
                 ActiveToolSheet.VOLUME_BOOST -> {
                     VolumeSheet(
                         currentVolume = currentClip?.volume ?: 1.0f,
+                        isLoudnessAdjusted = currentClip?.isLoudnessAdjusted == true,
+                        canNormaliseLoudness = currentClip?.waveform?.isNotEmpty() == true,
                         onVolumeChange = { vol ->
                             viewModel.setClipVolume(vol)
+                        },
+                        onToggleLoudnessAdjustment = { enabled ->
+                            viewModel.setClipLoudnessAdjustment(enabled)
                         },
                         onClose = {
                             viewModel.setEyedropperActive(false)
@@ -744,24 +819,291 @@ fun EditorScreen(
                         }
                     )
                 }
+                ActiveToolSheet.CAPTIONS -> {
+                    CaptionsSheet(
+                        onAutoCaptions = { viewModel.addAutoCaptions() },
+                        onImportCaptions = { importCaptionsLauncher.launch(arrayOf("*/*")) },
+                        onExportSrt = {
+                            val content = viewModel.exportSubtitles(toVtt = false)
+                            if (content == null) {
+                                Toast.makeText(context, "No captions to export yet", Toast.LENGTH_LONG).show()
+                            } else {
+                                shareSubtitleExport(context, project!!.id, content)
+                            }
+                        },
+                        onExportVtt = {
+                            val content = viewModel.exportSubtitles(toVtt = true)
+                            if (content == null) {
+                                Toast.makeText(context, "No captions to export yet", Toast.LENGTH_LONG).show()
+                            } else {
+                                shareSubtitleExport(context, project!!.id, content)
+                            }
+                        },
+                        onAddText = {
+                            viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR)
+                        },
+                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                    )
+                }
+                ActiveToolSheet.ANIMATIONS -> {
+                    AnimationSheet(
+                        current = currentClip?.animationIn ?: com.example.model.ClipAnimation.NONE,
+                        onSelect = { viewModel.setClipAnimation(it) },
+                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                    )
+                }
+                ActiveToolSheet.CROP -> {
+                    CropSheet(
+                        sourceWidth = currentClip?.sourceWidth ?: 0,
+                        sourceHeight = currentClip?.sourceHeight ?: 0,
+                        currentScale = currentClip?.scale ?: 1.0f,
+                        currentPosX = currentClip?.posX ?: 0.5f,
+                        currentPosY = currentClip?.posY ?: 0.5f,
+                        onApply = { scale, posX, posY ->
+                            viewModel.setSelectedClipCrop(scale, posX, posY)
+                        },
+                        onReset = { viewModel.resetSelectedClipCrop() },
+                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                    )
+                }
+                ActiveToolSheet.OPACITY -> {
+                    OpacitySheet(
+                        currentOpacity = currentClip?.opacity ?: 1.0f,
+                        onOpacityChange = { viewModel.setClipOpacity(it) },
+                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                    )
+                }
+                ActiveToolSheet.AI_TOOLS -> {
+                    AiToolsSheet(
+                        onSelect = { name ->
+                            Toast.makeText(
+                                context,
+                                "$name needs an online AI model — unavailable in this offline build",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        },
+                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                    )
+                }
+                ActiveToolSheet.TIMELINE_TOOLS -> {
+                    TimelineToolsSheet(
+                        isMultiSelect = isMultiSelect,
+                        magneticSnap = magneticSnap,
+                        zoom = timelineZoom,
+                        markerCount = project?.markers?.size ?: 0,
+                        hasSelectedClip = selectedClipId != null,
+                        onBeatSync = { viewModel.autoCutToBeat() },
+                        onAddMarker = { viewModel.addMarker() },
+                        onPreviousMarker = { viewModel.jumpToMarker(-1) },
+                        onNextMarker = { viewModel.jumpToMarker(1) },
+                        onToggleMultiSelect = {
+                            isMultiSelect = !isMultiSelect
+                            if (!isMultiSelect) viewModel.clearSelection()
+                        },
+                        onToggleMagneticSnap = { viewModel.toggleMagneticSnap() },
+                        onZoomChanged = { viewModel.setTimelineZoom(it) },
+                        onToggleKeyframe = { viewModel.toggleKeyframeAtPlayhead() },
+                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                    )
+                }
+                ActiveToolSheet.BACKGROUND -> {
+                    BackgroundSheet(
+                        currentPaperStyle = project!!.paperStyle,
+                        onSelectBackground = { viewModel.setPaperStyle(it) },
+                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                    )
+                }
                 ActiveToolSheet.NONE -> {}
             }
         } else {
-            // Bottom Action Toolbar
-            CapCutBottomActionBar(
-                onSplit = splitAtPlayhead,
-                onAudio = { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY) },
-                onText = { viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR) },
-                onOverlay = {
-                    addOverlayLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
-                },
-                onEffects = { viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY) },
-                onFilters = { viewModel.setActiveSheet(ActiveToolSheet.FILTERS_LIBRARY) },
-                onFormat = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
-                onAdjust = { viewModel.setActiveSheet(ActiveToolSheet.ADJUSTMENTS) },
-                onStickers = { viewModel.setActiveSheet(ActiveToolSheet.STICKERS_PICKER) }
-            )
+            // Bottom Action Toolbar: CapCut's clip context bar while a clip is
+            // selected, otherwise the global tool bar.
+            if (selectedClipId != null && !isMultiSelect) {
+                ClipActionBar(
+                    onBack = { viewModel.clearSelection() },
+                    onSplit = splitAtPlayhead,
+                    onVolume = { viewModel.setActiveSheet(ActiveToolSheet.VOLUME_BOOST) },
+                    onAnimations = { viewModel.setActiveSheet(ActiveToolSheet.ANIMATIONS) },
+                    onEffects = { viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY) },
+                    onDelete = { viewModel.deleteSelectedClip() },
+                    onSpeed = { viewModel.setActiveSheet(ActiveToolSheet.SPEED) },
+                    onBeats = { viewModel.autoCutToBeat() },
+                    onCrop = { viewModel.setActiveSheet(ActiveToolSheet.CROP) },
+                    onDuplicate = { viewModel.duplicateSelectedClip() },
+                    onReplace = {
+                        replaceMediaLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                        )
+                    },
+                    onOverlay = {
+                        addOverlayLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                        )
+                    },
+                    onAdjust = { viewModel.setActiveSheet(ActiveToolSheet.ADJUSTMENTS) },
+                    onStickers = { viewModel.setActiveSheet(ActiveToolSheet.STICKERS_PICKER) },
+                    onAspectRatio = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
+                    onBackground = { viewModel.setActiveSheet(ActiveToolSheet.BACKGROUND) },
+                    onOpacity = { viewModel.setActiveSheet(ActiveToolSheet.OPACITY) },
+                    onFreeze = { viewModel.freezeFrameAtPlayhead() },
+                    onReverse = { viewModel.reverseSelectedClip() },
+                    onExtractAudio = { viewModel.extractAudioFromSelectedClip() },
+                    onMore = { viewModel.setActiveSheet(ActiveToolSheet.EDIT_CLIP) },
+                    onAiTools = { viewModel.setActiveSheet(ActiveToolSheet.AI_TOOLS) }
+                )
+            } else {
+                CapCutBottomActionBar(
+                    onEdit = {
+                        if (selectedClipId != null) {
+                            viewModel.setActiveSheet(ActiveToolSheet.EDIT_CLIP)
+                        } else {
+                            Toast.makeText(context, "Select a clip to edit", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onAudio = { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY) },
+                    onText = { viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR) },
+                    onEffects = { viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY) },
+                    onOverlay = {
+                        addOverlayLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                        )
+                    },
+                    onCaptions = { viewModel.setActiveSheet(ActiveToolSheet.CAPTIONS) },
+                    onStickers = { viewModel.setActiveSheet(ActiveToolSheet.STICKERS_PICKER) },
+                    onFilters = { viewModel.setActiveSheet(ActiveToolSheet.FILTERS_LIBRARY) },
+                    onAdjust = { viewModel.setActiveSheet(ActiveToolSheet.ADJUSTMENTS) },
+                    onRatio = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
+                    onBackground = { viewModel.setActiveSheet(ActiveToolSheet.BACKGROUND) },
+                    onTools = { viewModel.setActiveSheet(ActiveToolSheet.TIMELINE_TOOLS) }
+                )
+            }
         }
+        } // end fullscreen check
+    }
+
+    if (showFeatureSearch) {
+        val searchEntries = listOf(
+            EditorSearchEntry("Split clip", "Cut at the playhead", "cut scissors") { splitAtPlayhead() },
+            EditorSearchEntry("Volume", "Gain, loudness, reduce noise", "audio sound loud") {
+                if (selectedClipId != null) viewModel.setActiveSheet(ActiveToolSheet.VOLUME_BOOST)
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Speed", "Retime, curves, audio pitch", "slow fast velocity") {
+                if (selectedClipId != null) viewModel.setActiveSheet(ActiveToolSheet.SPEED)
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Crop", "Zoom and reframe a clip", "frame aspect") {
+                if (selectedClipId != null) viewModel.setActiveSheet(ActiveToolSheet.CROP)
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Opacity", "Blend the clip over the canvas", "transparent alpha") {
+                if (selectedClipId != null) viewModel.setActiveSheet(ActiveToolSheet.OPACITY)
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Animations", "Clip entry motion", "zoom swipe bounce spin") {
+                if (selectedClipId != null) viewModel.setActiveSheet(ActiveToolSheet.ANIMATIONS)
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Audio studio", "Music, SFX, mic, text to speech", "sound track voice") {
+                viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY)
+            },
+            EditorSearchEntry("Text", "Titles and subtitle editing", "caption title font") {
+                viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR)
+            },
+            EditorSearchEntry("Captions", "Auto captions, import and export", "subtitle srt vtt") {
+                viewModel.setActiveSheet(ActiveToolSheet.CAPTIONS)
+            },
+            EditorSearchEntry("Effects", "Timeline visual effects", "fx") {
+                viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY)
+            },
+            EditorSearchEntry("Filters", "Colour looks", "grade lut") {
+                if (selectedClipId != null) viewModel.setActiveSheet(ActiveToolSheet.FILTERS_LIBRARY)
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Adjust", "Brightness, contrast, colour", "exposure saturation") {
+                if (selectedClipId != null) viewModel.setActiveSheet(ActiveToolSheet.ADJUSTMENTS)
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Aspect ratio", "Canvas size and paper style", "format 9:16 16:9") {
+                viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO)
+            },
+            EditorSearchEntry("Background", "Canvas background colour", "colour backdrop") {
+                viewModel.setActiveSheet(ActiveToolSheet.BACKGROUND)
+            },
+            EditorSearchEntry("Stickers", "Emoji and sticker overlays", "emoji") {
+                viewModel.setActiveSheet(ActiveToolSheet.STICKERS_PICKER)
+            },
+            EditorSearchEntry("Keyframes", "Animate transform and opacity", "animation") {
+                if (selectedClipId != null) viewModel.setActiveSheet(ActiveToolSheet.KEYFRAME)
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Blend mode", "How the clip mixes with the track below", "multiply screen") {
+                if (selectedClipId != null) viewModel.setActiveSheet(ActiveToolSheet.BLEND_MODE)
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Mask", "Shape masks and feathering", "vignette shape") {
+                if (selectedClipId != null) viewModel.setActiveSheet(ActiveToolSheet.MASK)
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Chroma key", "Green-screen removal with eyedropper", "green screen") {
+                if (selectedClipId != null) viewModel.setActiveSheet(ActiveToolSheet.CHROMA_KEY)
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Transition", "Join two clips with an effect", "dissolve fade") {
+                val clipId = selectedClipId
+                if (clipId == null) {
+                    Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+                } else {
+                    activeTransitionClipId = clipId
+                    viewModel.setActiveSheet(ActiveToolSheet.TRANSITIONS_PICKER)
+                }
+            },
+            EditorSearchEntry("Timeline tools", "Markers, beat sync, snap, zoom", "multi select") {
+                viewModel.setActiveSheet(ActiveToolSheet.TIMELINE_TOOLS)
+            },
+            EditorSearchEntry("AI tools", "Cloud features and their status", "ai remix remove bg") {
+                viewModel.setActiveSheet(ActiveToolSheet.AI_TOOLS)
+            },
+            EditorSearchEntry("Export", "Render the project", "save share mp4") {
+                viewModel.setActiveSheet(ActiveToolSheet.EXPORT_MODAL)
+            },
+            EditorSearchEntry("Add media", "Import video or image clips", "import gallery") {
+                addMediaLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                )
+            },
+            EditorSearchEntry("Replace clip", "Swap the selected clip's source", "change media") {
+                if (selectedClipId != null) {
+                    replaceMediaLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                    )
+                } else {
+                    Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+                }
+            },
+            EditorSearchEntry("Extract audio", "Copy clip audio onto an audio track", "detach sound") {
+                if (selectedClipId != null) viewModel.extractAudioFromSelectedClip()
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Freeze frame", "Hold the current frame", "still pause") {
+                if (selectedClipId != null) viewModel.freezeFrameAtPlayhead()
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Reverse", "Play the clip backwards", "backward") {
+                if (selectedClipId != null) viewModel.reverseSelectedClip()
+                else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+            },
+            EditorSearchEntry("Beat sync", "Cut to detected beats", "music rhythm") {
+                viewModel.autoCutToBeat()
+            },
+            EditorSearchEntry("Add marker", "Drop a labelled timeline marker", "flag") {
+                viewModel.addMarker()
+            }
+        )
+        FeatureSearchDialog(
+            entries = searchEntries,
+            onDismiss = { showFeatureSearch = false }
+        )
     }
 
     if (showTtsDialog) {

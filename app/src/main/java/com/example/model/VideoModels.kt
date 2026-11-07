@@ -205,6 +205,8 @@ data class MediaClip(
     val trimEndMs: Long = 0L,
     val speed: Float = 1.0f,
     val speedCurve: SpeedCurve = SpeedCurve(),
+    /** Keep the original pitch when the clip is retimed (CapCut's default). */
+    val maintainPitch: Boolean = true,
     val volume: Float = 1.0f,
     val isMuted: Boolean = false,
     val filter: VideoFilter = VideoFilter.NONE,
@@ -229,7 +231,13 @@ data class MediaClip(
     val posY: Float = 0.5f,
     val opacity: Float = 1.0f,
     val isReversed: Boolean = false,
-    val chromaKey: ChromaKeyData = ChromaKeyData()
+    val chromaKey: ChromaKeyData = ChromaKeyData(),
+
+    /** Source pixel dimensions, 0 when unknown (colour clips, unprobed media). */
+    val sourceWidth: Int = 0,
+    val sourceHeight: Int = 0,
+    /** Set when the loudness-adjustment switch normalised this clip's gain. */
+    val isLoudnessAdjusted: Boolean = false
 )
 
 data class VideoTrack(

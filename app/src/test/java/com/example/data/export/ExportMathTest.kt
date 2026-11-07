@@ -18,10 +18,13 @@ class ExportMathTest {
     @Test
     fun `heightFor maps all known labels`() {
         assertEquals(360, ExportPresets.heightFor("360P"))
+        assertEquals(480, ExportPresets.heightFor("480P"))
+        assertEquals(540, ExportPresets.heightFor("540P"))
         assertEquals(720, ExportPresets.heightFor("720P"))
         assertEquals(1080, ExportPresets.heightFor("1080P"))
         assertEquals(1080, ExportPresets.heightFor("1080p"))
         assertEquals(1080, ExportPresets.heightFor("1080"))
+        assertEquals(1440, ExportPresets.heightFor("2K"))
         assertEquals(2160, ExportPresets.heightFor("2160P"))
         assertEquals(2160, ExportPresets.heightFor("4K"))
         assertEquals(1080, ExportPresets.heightFor("garbage"))

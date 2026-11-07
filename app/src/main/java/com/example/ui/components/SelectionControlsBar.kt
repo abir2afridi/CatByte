@@ -34,12 +34,17 @@ fun SelectionControlsBar(
     selectedCount: Int,
     isMultiSelect: Boolean,
     canMoveOverlays: Boolean,
+    canMoveMainBlock: Boolean,
     canPaste: Boolean,
     onMoveLeft: () -> Unit,
     onMoveRight: () -> Unit,
+    onMoveBlockLeft: () -> Unit = {},
+    onMoveBlockRight: () -> Unit = {},
     onDelete: () -> Unit,
     onCopy: () -> Unit,
     onPaste: () -> Unit,
+    onCopyAttributes: () -> Unit = {},
+    onPasteAttributes: () -> Unit = {},
     onClear: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -83,6 +88,18 @@ fun SelectionControlsBar(
             testTag = "selection_move_right"
         )
         SelectionButton(
+            text = "◀ Block",
+            enabled = canMoveMainBlock,
+            onClick = onMoveBlockLeft,
+            testTag = "selection_block_left"
+        )
+        SelectionButton(
+            text = "Block ▶",
+            enabled = canMoveMainBlock,
+            onClick = onMoveBlockRight,
+            testTag = "selection_block_right"
+        )
+        SelectionButton(
             text = "Delete",
             enabled = true,
             onClick = onDelete,
@@ -99,6 +116,18 @@ fun SelectionControlsBar(
             enabled = canPaste,
             onClick = onPaste,
             testTag = "selection_paste"
+        )
+        SelectionButton(
+            text = "Copy style",
+            enabled = true,
+            onClick = onCopyAttributes,
+            testTag = "selection_copy_attributes"
+        )
+        SelectionButton(
+            text = "Paste style",
+            enabled = true,
+            onClick = onPasteAttributes,
+            testTag = "selection_paste_attributes"
         )
         SelectionButton(
             text = "Clear",

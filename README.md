@@ -10,7 +10,7 @@ export — all on the device, with no account and no cloud render.
 [Architecture](#architecture) · [Testing](#testing) · [Roadmap](#roadmap) ·
 [Documentation](#documentation)
 
-> **Honest status:** the export path is solid and 306 JVM/Robolectric tests
+> **Honest status:** the export path is solid and 309 JVM/Robolectric tests
 > pass, but the "CapCut feel" still needs a real GL compositor, bundled Bangla
 > fonts and on-device models. What is done and what is not is tracked in
 > [`docs/M1-M4-ENGINE.md`](docs/M1-M4-ENGINE.md) and
@@ -28,7 +28,7 @@ export — all on the device, with no account and no cloud render.
 | **Languages** | English + Bengali UI (full key parity), Bangla digit formatting |
 | **APK** | ~25.8 MB debug build, no native libraries yet |
 | **Plan progress** | ~62% — export core complete, device verification pending (`STATUS.md`) |
-| **Tests** | 306 JVM/Robolectric tests, 0 failures — no instrumented/device run yet |
+| **Tests** | 309 JVM/Robolectric tests, 0 failures — no instrumented/device run yet |
 | **CI** | GitHub Actions: lint, unit tests and debug APK (`.github/workflows/ci.yml`) |
 
 Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not built**
@@ -44,9 +44,10 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 | Autosave | 🟡 | Saves on every change; debounce + journal pending |
 | Undo / redo | ✅ | Gesture coalescing; persisted atomically so a crash keeps history |
 | Multi-track timeline (video, overlay, audio, text, effects) | ✅ | Free pan, pinch zoom, vertical track scroll, one row per overlay + audio track, track reorder, inline trim handles, split, ripple delete, main reorder + overlay/cross-track drag + multi-select |
+| Audio row drag + per-clip mute | 🟡 | One timeline row per audio clip; long-press drag with magnetic snap + project clamp; drag/fades/mixer wiring pending |
 | Snapping (playhead, clip edges, audio/text/effect bounds, beats, markers) | ✅ | Priority order lives in the engine, not in the UI; detected beats are lower priority, markers higher; beat ticks and marker pins are drawn |
-| Drag-and-drop clip move | 🟡 | Main-track long-press reorder and overlay start-time drag (magnetic + bounds-clamped, cross-track); audio row drag pending |
-| Multi-select + group ops | 🟡 | Timeline MS toggle + selection bar; overlay group move/delete + overlay copy/paste wired; main-track group move and paste-attributes pending |
+| Drag-and-drop clip move | 🟡 | Main-track long-press reorder and overlay start-time drag (magnetic + bounds-clamped, cross-track); audio row drag wired |
+| Multi-select + group ops | 🟡 | Timeline MS toggle + selection bar; overlay group move/delete + overlay copy/paste wired; main-track contiguous block move + paste-attributes wired; cut and main-track paste pending |
 | Markers | 🟡 | Add/jump/move-to-playhead/remove and snap are wired; rename/recolour/delete UI pending |
 | Draggable playhead + free timeline pan | ✅ | Needle drags with edge auto-scroll; any timeline touch pauses playback; content centers under the playhead during playback |
 | Keyframes (position, scale, rotation, opacity, volume) | ✅ | Sheet + interpolation + easing curves |
@@ -57,6 +58,10 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 | Transitions (11 types) | 🟡 | Rendered through Media3, not true two-frame compositing |
 | Text overlays, animations, TTS voice-over | ✅ | Bangla shaping not verified on device |
 | Preview surface | ✅ | Composition preview when available; ExoPlayer fallback renders a real video surface instead of a frozen still |
+| CapCut-style editor shell | ✅ | Top bar (close, search, trial badge, AI UHD menu, export pill), transport row (fullscreen / play / transition / undo / redo), timecode strip, clip context action bar, bottom tool nav (Edit…Background + Tools) |
+| Editor feature search | ✅ | Top-bar search jumps to 29 real panels/actions (split, volume, crop, captions, markers, …) |
+| Clip panels: Volume, Speed, Crop, Opacity, Animations, Captions, Background, Timeline tools, AI tools | ✅ | One sheet per tool; cloud/GPU-only entries state why they are disabled instead of faking toggles |
+| Clip actions: split, duplicate, replace, freeze, reverse, extract audio, crop, opacity, loudness | ✅ | Replace re-probes duration/dimensions; loudness normalisation is waveform-driven (`AudioLoudness`); crop writes a real transform via `CropMath` |
 
 ### Audio
 | Feature | State | Notes |
@@ -64,22 +69,27 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 | Multi-track music, volume, fades, waveform | ✅ | |
 | Voice-over recording | ✅ | MediaRecorder based |
 | Beat detection | 🟡 | Detector, beat-magnetic snapping, beat ticks and auto-cut-to-beat are wired; source beats map through trim/start/speed; editable beat grid pending |
-| Audio rows + per-clip mute | 🟡 | One timeline row per audio clip with mute; drag, fades and mixer controls pending |
+| Audio rows + per-clip mute | 🟡 | One timeline row per audio clip with long-press drag (magnetic + clamp) and mute; per-clip volume/fades UI + mixer wiring pending |
 | Limiter, ducking, EQ, loudness (LUFS), noise reduction | 🟡 | Maths implemented and tested in the engine; not wired to the mixer |
 
 ### Export
 | Feature | State | Notes |
 |---|---|---|
-| 480p–4K, 24–60 fps | ✅ | Capability ladder unit-tested (HEVC→H.264, size/fps downgrade) |
+| 480p–4K, 24–60 fps | ✅ | 480/540/720/1080/2K/4K map to exact heights; capability ladder unit-tested (HEVC→H.264, size/fps downgrade) |
+| Bitrate selector (5–100 Mbps) | ✅ | Real encoder setting: `DefaultEncoderFactory` + `VideoEncoderSettings.setBitrate()` in foreground and background exports; storage precheck follows it |
 | H.264 + HEVC, AAC | ✅ | Encoder rejection retries once with the default encoder |
 | Progress, cancel, validation, MediaStore save | ✅ | Duration/dimension validation before success |
 | Background export (foreground service) | ✅ | Typed `mediaProcessing` / `dataSync` notification |
-| Platform presets, audio-only (.m4a), GIF | 🟡 | Preset chips + size estimate wired; audio-only and GIF export not built |
+| Platform presets, audio-only (.m4a), GIF | 🟡 | MP4 export + audio-only presets wired; the GIF tab is shown for parity but export stays disabled (no GIF encoder bundled) and says so |
 | HDR tone-map, 10-bit output | 🔴 | 10-bit sources detected by the proxy policy only |
 
 ### Not built yet
 - **GL compositor** — 35 GLSL effect sources and the transition weights exist in
-  `com.example.engine`, but no EGL surface executes them yet.
+  `com.example.engine`, but no EGL surface executes them yet. The canvas
+  background colour is saved and read by the render graph, but the live
+  compositor still draws a black canvas.
+- **GIF export** — the export sheet shows the GIF tab for parity, but no GIF
+  encoder is bundled, so it stays disabled with an explanation.
 - **Bangla fonts and shaping** — UI strings are translated; OFL fonts are not
   bundled and conjunct shaping has no golden-image test.
 - **On-device AI** — auto-reframe crop maths and silence detection are ready;
@@ -102,7 +112,7 @@ needed for the desktop prototype.
 # Install on a connected device/emulator
 ./gradlew :app:installDebug
 
-# Unit tests (306 tests, incl. Robolectric Compose gestures)
+# Unit tests (332 tests, incl. Robolectric Compose gestures)
 ./gradlew :app:testDebugUnitTest
 
 # Lint (CI runs it on every push/PR)
@@ -185,7 +195,7 @@ app/src/main/java/com/example/
 ./gradlew :app:testDebugUnitTest --rerun
 ```
 
-- **306 JVM/Robolectric tests, 0 failures**: timing, snapping, timeline geometry, undo journal,
+- **309 JVM/Robolectric tests, 0 failures**: timing, snapping, timeline geometry, undo journal,
   render graph, transitions, LUTs, captions, audio maths, Bangla text, device
   policy, export math, JSON round-trip, editor workflow, localization parity,
   inline trim maths, track mute/lock/solo persistence, and 2 Compose UI test
@@ -200,8 +210,8 @@ app/src/main/java/com/example/
 1. Run the instrumented export probe on a real device and record it in
    `TEST_REPORT.md`.
 2. Free drag of clips across tracks (main-track reorder and overlay start-time
-   and cross-track drag are wired; audio row drag and main-track group move
-   remain).
+   and cross-track drag are wired; audio row drag is wired; remaining work is
+   audio fades/mixer wiring and paste-attributes polish).
 3. Execute the shader library in a GL compositor shared by preview and export.
 4. Bundle Bangla OFL fonts and add golden-image shaping tests.
 5. Finish captions and the export sheet (SRT/VTT import/export, readable

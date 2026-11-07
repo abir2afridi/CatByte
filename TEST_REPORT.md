@@ -4,13 +4,18 @@
 **Scope:** P8 export hardening round (codec capability ladder, typed foreground service, background export UX, Bangla localization parity, test infrastructure).
 **Format:** Per `docs+\plan.md` §13 (FINAL REPORT structure: A–I).
 
-> **Latest snapshot (2026-11-06):** 306/306 JVM/Robolectric tests pass across 31
+> **Latest snapshot (2026-11-07):** 332/332 JVM/Robolectric tests pass across 35
 > suites, including 4 Robolectric Compose gesture tests (`TimelineGestureTest`),
-> a track-header control test (`TimelineTrackControlsTest`) and inline trim /
-> beat-mapping maths. Debug APK is 26.22 MB. CI
-> (`.github/workflows/ci.yml`) runs lint, unit tests and `assembleDebug`. The
-> numbers in sections D–E below are the historical 2026-11-01 P8 snapshot;
-> section E notes the new gesture suite.
+> the new `AudioLoudnessTest` (7), `ClipAnimationMathTest` (8) and
+> `ClipAppearanceTest` (8) suites, and expanded resolution/background asserts in
+> `ExportMathTest` / `RenderGraphTest`. Debug APK is 25.43 MB, lint has 0
+> errors. This round also made the export bitrate selector a real encoder
+> setting (`VideoEncoderSettings.setBitrate`), fixed 540p mapping (was silently
+> 1080p), and wired the CapCut parity shell (top bar, transport, clip bar,
+> Volume/Speed/Crop/Opacity/Animations/Captions/Background/AI-tools panels,
+> editor search). CI (`.github/workflows/ci.yml`) runs lint, unit tests and
+> `assembleDebug`. The numbers in sections D–E below are the historical
+> 2026-11-01 P8 snapshot; the 2026-11-06 note above describes the gesture suite.
 
 ---
 

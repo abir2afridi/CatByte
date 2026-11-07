@@ -140,11 +140,11 @@ fun TimelinePlayhead(
             },
         contentAlignment = Alignment.TopCenter
     ) {
-        // Timestamp badge
+        // Timestamp badge inside ruler space
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = (-19).dp)
+                .offset(y = 1.dp)
                 .clip(RoundedCornerShape(3.dp))
                 .background(colors.surfaceElevated)
                 .border(
@@ -167,7 +167,7 @@ fun TimelinePlayhead(
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = 10.dp)
+                .offset(y = 15.dp)
                 .width(if (dragging) 3.dp else 2.dp)
                 .fillMaxHeight()
                 .background(colors.playhead)
@@ -177,13 +177,14 @@ fun TimelinePlayhead(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .size(width = 10.dp, height = 14.dp)
+                    .offset(y = 12.dp)
+                    .size(width = 10.dp, height = 12.dp)
                     .clip(RoundedCornerShape(3.dp))
                     .background(colors.playhead)
                     .border(1.dp, colors.accentCyan, RoundedCornerShape(3.dp))
             )
         } else {
-            SharpenedPencilTip(modifier = Modifier.align(Alignment.TopCenter))
+            SharpenedPencilTip(modifier = Modifier.align(Alignment.TopCenter).offset(y = 12.dp))
         }
     }
 }

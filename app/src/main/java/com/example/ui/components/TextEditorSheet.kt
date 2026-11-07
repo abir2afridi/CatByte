@@ -148,7 +148,7 @@ fun TextEditorSheet(
     captionExportCount: Int = 0,
     onClose: () -> Unit
 ) {
-    var textInput by remember { mutableStateOf(textOverlay?.text ?: "Viral TikTok Text 🔥") }
+    var textInput by remember { mutableStateOf(textOverlay?.text ?: "Text Overlay") }
     var fontStyle by remember { mutableStateOf(textOverlay?.fontStyle ?: TextFontStyle.CAPCUT_BOLD) }
     var selectedColor by remember { mutableLongStateOf(textOverlay?.color ?: 0xFFFFFFFF) }
     var animation by remember { mutableStateOf(textOverlay?.animation ?: TextAnimationType.POP_UP) }
@@ -157,20 +157,32 @@ fun TextEditorSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(360.dp)
-            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            .height(230.dp)
+            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .background(colors.surface)
-            .sketchPencilBorder(strokeWidth = 1.6.dp, color = colors.border, cornerRadius = 18.dp)
+            .border(1.dp, colors.borderSubtle.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .testTag("text_editor_sheet")
     ) {
-        TornPaperEdge(
-            paperColor = colors.surfaceElevated,
-            borderColor = colors.borderSubtle
-        )
+        // Drag handle indicator
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp, bottom = 2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(36.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(colors.textTertiary.copy(alpha = 0.4f))
+            )
+        }
 
         Column(
             modifier = Modifier
-                .padding(16.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 6.dp)
                 .verticalScroll(rememberScrollState())
         ) {
             Row(
@@ -178,168 +190,153 @@ fun TextEditorSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Add & Style Text", color = CapCutTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (textOverlay != null) "Edit Text" else "Add Text",
+                    color = colors.textPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     if (onAutoCaptions != null) {
-                        Button(
-                            onClick = { onAutoCaptions.invoke() },
-                            colors = ButtonDefaults.buttonColors(containerColor = colors.accentYellow),
-                            shape = RoundedCornerShape(6.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                            modifier = Modifier.height(30.dp)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colors.accentYellow.copy(alpha = 0.2f))
+                                .border(1.dp, colors.accentYellow, RoundedCornerShape(6.dp))
+                                .clickable { onAutoCaptions.invoke() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text("Auto Captions 🤖", fontSize = 10.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                            Text("🤖 Captions", fontSize = 10.sp, color = colors.accentYellow, fontWeight = FontWeight.Bold)
                         }
-                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    if (onImportCaptions != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colors.surfaceElevated)
+                                .border(1.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
+                                .clickable { onImportCaptions.invoke() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("📥 Import", fontSize = 10.sp, color = colors.textPrimary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (onExportCaptions != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colors.surfaceElevated)
+                                .border(1.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
+                                .clickable { onExportCaptions.invoke() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("📤 SRT ($captionExportCount)", fontSize = 10.sp, color = colors.accentCyan, fontWeight = FontWeight.Bold)
+                        }
                     }
                     if (textOverlay != null) {
-                        IconButton(onClick = onDeleteText) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = CapCutRed)
+                        IconButton(onClick = onDeleteText, modifier = Modifier.size(30.dp)) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFFF3B30), modifier = Modifier.size(18.dp))
                         }
                     }
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = CapCutTextSecondary)
+                    IconButton(onClick = onClose, modifier = Modifier.size(30.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.textSecondary, modifier = Modifier.size(18.dp))
                     }
                 }
             }
 
-        OutlinedTextField(
-            value = textInput,
-            onValueChange = { textInput = it },
-            placeholder = { Text("Enter text...", color = CapCutTextSecondary) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = CapCutCyan,
-                unfocusedBorderColor = CapCutBorder,
-                focusedTextColor = CapCutTextPrimary,
-                unfocusedTextColor = CapCutTextPrimary,
-                focusedContainerColor = CapCutSurfaceElevated,
-                unfocusedContainerColor = CapCutSurfaceElevated
-            )
-        )
+            Spacer(modifier = Modifier.height(4.dp))
 
-        if (onImportCaptions != null || onExportCaptions != null) {
-            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedTextField(
+                value = textInput,
+                onValueChange = { textInput = it },
+                placeholder = { Text("Enter text...", color = colors.textTertiary, fontSize = 12.sp) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = colors.accentCyan,
+                    unfocusedBorderColor = colors.borderSubtle,
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary,
+                    focusedContainerColor = colors.surfaceElevated,
+                    unfocusedContainerColor = colors.surfaceElevated
+                )
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (onImportCaptions != null) {
-                    Button(
-                        onClick = { onImportCaptions.invoke() },
-                        colors = ButtonDefaults.buttonColors(containerColor = colors.accentYellow),
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                        modifier = Modifier.weight(1f).height(34.dp)
-                    ) {
-                        Text("Import SRT / VTT 📥", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
-                    }
-                }
-                if (onExportCaptions != null) {
-                    OutlinedButton(
-                        onClick = { onExportCaptions.invoke() },
-                        enabled = captionExportCount > 0,
-                        shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (captionExportCount > 0) CapCutCyan else CapCutBorder
-                        ),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                        modifier = Modifier.weight(1f).height(34.dp)
+                // Font styles
+                Text("Style:", color = colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                TextFontStyle.values().forEach { style ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (fontStyle == style) colors.accentCyan.copy(alpha = 0.2f) else colors.surfaceElevated)
+                            .border(1.dp, if (fontStyle == style) colors.accentCyan else colors.borderSubtle, RoundedCornerShape(6.dp))
+                            .clickable { fontStyle = style }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            if (captionExportCount > 0) "Export SRT ($captionExportCount)" else "Export SRT",
-                            fontSize = 11.sp,
-                            color = if (captionExportCount > 0) CapCutCyan else CapCutTextSecondary,
+                            text = style.displayName,
+                            color = if (fontStyle == style) colors.accentCyan else colors.textPrimary,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(10.dp))
-        Text("Font Style", color = CapCutTextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(vertical = 4.dp)
-        ) {
-            items(TextFontStyle.values()) { style ->
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(if (fontStyle == style) CapCutCyan else CapCutSurfaceElevated)
-                        .clickable { fontStyle = style }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Color presets
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = style.displayName,
-                        color = if (fontStyle == style) Color.Black else CapCutTextPrimary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(6.dp))
-        Text("Color", color = CapCutTextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.padding(vertical = 4.dp)
-        ) {
-            listOf(0xFFFFFFFF, 0xFFFFD166, 0xFF00E5FF, 0xFFFF3358, 0xFFFF006E, 0xFF06D6A0, 0xFF000000).forEach { colorLong ->
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(Color(colorLong))
-                        .border(
-                            width = if (selectedColor == colorLong) 2.dp else 1.dp,
-                            color = if (selectedColor == colorLong) CapCutCyan else CapCutBorder,
-                            shape = CircleShape
+                    listOf(0xFFFFFFFF, 0xFFFFD166, 0xFF00E5FF, 0xFFFF3358, 0xFF06D6A0, 0xFF000000).forEach { colorLong ->
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(Color(colorLong))
+                                .border(
+                                    width = if (selectedColor == colorLong) 2.dp else 1.dp,
+                                    color = if (selectedColor == colorLong) colors.accentCyan else colors.borderSubtle,
+                                    shape = CircleShape
+                                )
+                                .clickable { selectedColor = colorLong }
                         )
-                        .clickable { selectedColor = colorLong }
-                )
-            }
-        }
+                    }
+                }
 
-        Spacer(modifier = Modifier.height(6.dp))
-        Text("Animation", color = CapCutTextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(vertical = 4.dp)
-        ) {
-            items(TextAnimationType.values()) { anim ->
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(if (animation == anim) CapCutYellow else CapCutSurfaceElevated)
-                        .clickable { animation = anim }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                // Apply button
+                Button(
+                    onClick = {
+                        onAddOrUpdateText(textInput, fontStyle, selectedColor, animation)
+                        onClose()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.accentCyan),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                    modifier = Modifier.height(34.dp)
                 ) {
-                    Text(
-                        text = anim.displayName,
-                        color = if (animation == anim) Color.Black else CapCutTextPrimary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Apply", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-        Button(
-            onClick = {
-                onAddOrUpdateText(textInput, fontStyle, selectedColor, animation)
-                onClose()
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = CapCutCyan),
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Apply to Timeline", color = Color.Black, fontWeight = FontWeight.Bold)
         }
     }
-}
 }

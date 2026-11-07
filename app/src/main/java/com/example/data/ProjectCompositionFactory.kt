@@ -12,6 +12,7 @@ import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.GainProcessor
 import androidx.media3.common.util.Size
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.AlphaScale
 import androidx.media3.effect.MatrixTransformation
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.Presentation
@@ -23,6 +24,7 @@ import androidx.media3.transformer.Effects
 import com.example.data.export.ColorGradeEffect
 import com.example.data.export.ExportPresets
 import com.example.data.export.FilterMapper
+import com.example.engine.ClipAnimationMath
 import com.example.data.export.HslColorEffect
 import com.example.data.export.TimelineCanvasOverlay
 import com.example.data.export.TransitionMapper
@@ -281,7 +283,7 @@ object ProjectCompositionFactory {
                 clip.volume
             }
         }
-        return gain.coerceIn(0f, 2f)
+        return gain.coerceIn(0f, 10f)
     }
 
     private fun buildVideoItem(
@@ -323,6 +325,11 @@ object ProjectCompositionFactory {
                 // neighbour, so preview and export share one decision.
                 transitionDurationMs = (layer.transitionIn?.durationUs ?: 0L) / 1000L
             )
+            // CapCut's Opacity control blends the whole clip over the canvas.
+            // Applied after the transition so the slider's value survives.
+            if (clip.opacity < 0.999f) {
+                videoEffects += AlphaScale(clip.opacity.coerceIn(0f, 1f))
+            }
         }
 
         val audioProcessors = mutableListOf<AudioProcessor>()
@@ -344,7 +351,7 @@ object ProjectCompositionFactory {
             builder.setSpeed(
                 SpeedParameters(
                     ClipSpeedProvider(clip, sourceLengthMs * 1000L),
-                    /* shouldMaintainPitch= */ true
+                    /* shouldMaintainPitch= */ clip.maintainPitch
                 )
             )
         }
@@ -467,8 +474,9 @@ private class ClipTransformEffect(private val clip: MediaClip) : MatrixTransform
 
     override fun getMatrix(presentationTimeUs: Long): Matrix {
         val timeMs = presentationTimeUs / 1000L
-        val scale = KeyframeInterpolator.getScale(clip, timeMs).coerceAtLeast(0.01f)
-        val rotation = KeyframeInterpolator.getRotation(clip, timeMs)
+        val animation = ClipAnimationMath.transformAt(clip.animationIn, timeMs)
+        val scale = KeyframeInterpolator.getScale(clip, timeMs).coerceAtLeast(0.01f) * animation.scale
+        val rotation = KeyframeInterpolator.getRotation(clip, timeMs) + animation.rotationDeg
         val posX = KeyframeInterpolator.getPosX(clip, timeMs).coerceIn(0f, 1f)
         val posY = KeyframeInterpolator.getPosY(clip, timeMs).coerceIn(0f, 1f)
 
@@ -479,8 +487,8 @@ private class ClipTransformEffect(private val clip: MediaClip) : MatrixTransform
         if (abs(rotation) > 0.001f) {
             matrix.postRotate(rotation, 0f, 0f)
         }
-        val translateX = (posX - 0.5f) * 2f
-        val translateY = (0.5f - posY) * 2f
+        val translateX = (posX - 0.5f) * 2f + animation.translateX
+        val translateY = (0.5f - posY) * 2f + animation.translateY
         if (abs(translateX) > 0.0001f || abs(translateY) > 0.0001f) {
             matrix.postTranslate(translateX, translateY)
         }
@@ -489,6 +497,7 @@ private class ClipTransformEffect(private val clip: MediaClip) : MatrixTransform
 
     override fun isNoOp(inputWidth: Int, inputHeight: Int): Boolean =
         clip.keyframes.isEmpty() &&
+            clip.animationIn == com.example.model.ClipAnimation.NONE &&
             abs(clip.scale - 1f) < 0.0001f &&
             abs(clip.rotation) < 0.0001f &&
             !clip.isMirrored &&

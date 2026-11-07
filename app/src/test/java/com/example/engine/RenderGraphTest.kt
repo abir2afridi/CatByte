@@ -53,6 +53,7 @@ class RenderGraphTest {
         assertEquals(1080 to 1080, CanvasMath.canvasSize(AspectRatioType.RATIO_1_1, "1080P"))
         assertEquals(1080 to 1350, CanvasMath.canvasSize(AspectRatioType.RATIO_4_5, "1080P"))
         assertEquals(2160, CanvasMath.shortSidePx("4K"))
+        assertEquals(540, CanvasMath.shortSidePx("540P"))
         assertEquals(1080, CanvasMath.shortSidePx("unknown"))
     }
 
@@ -147,5 +148,9 @@ class RenderGraphTest {
     fun `paper style sets the background`() {
         val graph = RenderGraphBuilder.build(project(listOf(clip("a")), paperStyle = "Blueprint"))
         assertEquals(0xFF0B1E33, graph.backgroundArgb)
+        val drafting = RenderGraphBuilder.build(project(listOf(clip("a")), paperStyle = "Drafting Grid"))
+        assertEquals(0xFF1A1A1E, drafting.backgroundArgb)
+        val parchment = RenderGraphBuilder.build(project(listOf(clip("a")), paperStyle = "Parchment Sketchbook"))
+        assertEquals(0xFF2A2118, parchment.backgroundArgb)
     }
 }

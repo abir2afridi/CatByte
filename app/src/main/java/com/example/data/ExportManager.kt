@@ -8,10 +8,12 @@ import androidx.media3.common.audio.GainProcessor
 import androidx.media3.common.audio.SpeedProvider
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
+import androidx.media3.transformer.VideoEncoderSettings
 import com.example.data.export.CodecCapabilityChecker
 import com.example.engine.AudioMath
 import com.example.engine.ExportPresets as EngineExportPresets
@@ -74,7 +76,9 @@ class ExportManager(private val context: Context) {
         project: VideoProject,
         resolution: String,
         fps: Int,
-        watermarkEnabled: Boolean = false
+        watermarkEnabled: Boolean = false,
+        /** Requested video bitrate in bits per second, 0 = encoder default. */
+        videoBitrateBps: Int = 0
     ): ExportOutput? = withContext(Dispatchers.Main) {
         val mediaClips = project.allVideoClips.filter { !it.uriString.isNullOrBlank() }
         if (mediaClips.isEmpty()) {
@@ -114,7 +118,13 @@ class ExportManager(private val context: Context) {
 
         // Storage precheck: estimate = bitrate x duration x 1.1, using the
         // resolved output size (never larger than what the user asked for).
-        val estimatedSize = estimateExportSize(project, target.width, target.height, target.fps)
+        val estimatedSize = estimateExportSize(
+            project,
+            target.width,
+            target.height,
+            target.fps,
+            videoBitrateBps
+        )
         val availableSpace = context.getExternalFilesDir(null)?.usableSpace ?: 0L
         if (availableSpace < estimatedSize) {
             _progress.value = ExportProgress(
@@ -163,13 +173,13 @@ class ExportManager(private val context: Context) {
         }
 
         val composition = built.composition
-        var run = runTransformer(composition, outputFile, target.mime)
+        var run = runTransformer(composition, outputFile, target.mime, videoBitrateBps)
         // If a pinned codec was rejected by the encoder, retry once with the
         // default codec path instead of failing the whole export.
         if (run.result == null && target.mime != null && isEncoderRelatedFailure(run.failure)) {
             AppLog.warn("ExportManager", "Codec ${target.mime} was rejected; retrying with the default encoder")
             _progress.value = _progress.value.copy(progress = 0f, stage = "Retrying with the default encoder...")
-            run = runTransformer(composition, outputFile, null)
+            run = runTransformer(composition, outputFile, null, videoBitrateBps)
         }
         val exportResult = run.result
         if (exportResult == null) {
@@ -293,7 +303,13 @@ class ExportManager(private val context: Context) {
      * Estimates export size from the same bits-per-pixel ladder the export sheet
      * uses, so the storage pre-check and the UI estimate cannot disagree.
      */
-    private fun estimateExportSize(project: VideoProject, width: Int, height: Int, fps: Int): Long {
+    private fun estimateExportSize(
+        project: VideoProject,
+        width: Int,
+        height: Int,
+        fps: Int,
+        videoBitrateBps: Int = 0
+    ): Long {
         val safeFps = fps.coerceAtLeast(24)
         val preset = if (project.aspectRatio.ratioWidth <= project.aspectRatio.ratioHeight) {
             EngineExportPresets.portrait(
@@ -310,8 +326,13 @@ class ExportManager(private val context: Context) {
                 fps = safeFps
             )
         }
+        val effective = if (videoBitrateBps > 0) {
+            preset.copy(videoBitrateKbps = (videoBitrateBps / 1_000).coerceAtLeast(1))
+        } else {
+            preset
+        }
         // 1.1 safety margin covers container overhead and encoder variance.
-        return (EngineExportPresets.estimateBytes(preset, project.totalDurationMs) * 1.1).toLong()
+        return (EngineExportPresets.estimateBytes(effective, project.totalDurationMs) * 1.1).toLong()
     }
 
     /**
@@ -348,12 +369,28 @@ class ExportManager(private val context: Context) {
     private suspend fun runTransformer(
         composition: Composition,
         outputFile: File,
-        videoMime: String? = null
+        videoMime: String? = null,
+        videoBitrateBps: Int = 0
     ): TransformerRun = coroutineScope {
         var outcome = TransformerRun()
 
+        // CapCut's Bitrate selector is a real encoder setting, not an estimate
+        // label: pin the requested bitrate when the user picked one.
+        val encoderFactory = if (videoBitrateBps > 0) {
+            DefaultEncoderFactory.Builder(context)
+                .setRequestedVideoEncoderSettings(
+                    VideoEncoderSettings.Builder()
+                        .setBitrate(videoBitrateBps)
+                        .build()
+                )
+                .build()
+        } else {
+            null
+        }
+
         val newTransformer = Transformer.Builder(context)
             .apply { videoMime?.let { mime -> setVideoMimeType(mime) } }
+            .apply { encoderFactory?.let { factory -> setEncoderFactory(factory) } }
             .build()
         transformer = newTransformer
 

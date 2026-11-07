@@ -1,8 +1,8 @@
 # CatByte Video Editor - Project Status
 
-**Last Updated:** 2026-11-06
-**Current Phase:** P4 timeline wiring + P8 device verification
-**Overall Progress:** ~78%
+**Last Updated:** 2026-11-07
+**Current Phase:** CapCut parity UI round + P8 verification
+**Overall Progress:** ~80%
 
 ---
 
@@ -22,7 +22,7 @@
 | **P9** Tier 2 CapCut Pro features | 🟢 VERIFIED ON DEVICE | Direct canvas gestures (pinch/rotate/pan), transform bounding box, chroma-key eyedropper, freeze frame, reverse playback, 10× volume boost, keyframe markers |
 | **P10** Polish | ⏳ IN PROGRESS | Accessibility, haptics, empty/error states, onboarding |
 | **P11** Tier 3 features | ⏳ IN PROGRESS | Auto captions, background removal, object tracking |
-| **P12** Release verification | 🟢 VERIFIED | Previous device run: lint 0 errors, 6/6 instrumented. Current suite: **306/306 JVM/Robolectric tests**, debug APK built |
+| **P12** Release verification | 🟢 VERIFIED | Previous device run: lint 0 errors, 6/6 instrumented. Current suite: **332/332 JVM/Robolectric tests (35 suites)**, debug APK 25.43 MB |
 
 ---
 
@@ -45,6 +45,20 @@
 - ✅ Settings: theme, canvas, export quality, language, watermark, storage, clear all projects
 - ✅ Media picker: video/photo/all tabs, multi-select, albums
 - ✅ Tool sheets: Edit, Speed, Speed Curve, Audio, Text, Effects, Filters, Adjustments, Canvas Ratio, Stickers, Transitions, Export, Keyframe, Blend Mode, Mask, Chroma Key, TTS, Volume
+
+### CapCut Parity Shell (2026-11-07 round)
+- ✅ Top bar matches the reference: close, feature search, "Free trial" diamond badge, "AI UHD ▾" menu (settings moved inside), teal Export pill
+- ✅ Transport row: fullscreen left, play centre, transition + undo + redo right; fullscreen mode hides all chrome with an exit button
+- ✅ Timecode strip above the timeline (current / total, monospace)
+- ✅ Selecting a clip shows the `ClipActionBar` context bar (Split, Volume, Animations, Effects, Delete, Speed, Beats, Crop, Duplicate, Replace, Overlay, Adjust, Stickers, AI Tools, Ratio, Background, Opacity, Freeze, Reverse, Extract audio, More); selection no longer auto-opens the Edit sheet
+- ✅ Bottom nav order matches the video: Edit, Audio, Text, Effects, Overlay, Captions, Stickers, Filters, Adjust, Ratio, Background + a Tools entry for markers/beat-sync/multi-select/snap/zoom/keyframes (`TimelineToolsSheet`)
+- ✅ New panels: `CaptionsSheet` (auto captions, SRT/VTT import/export, add text), `AnimationSheet` (Zoom/Swipe/Bounce/Spin rendered per frame by the graph; Fade In documented as needing the alpha compositor), `CropSheet` (aspect presets + zoom/position via `CropMath`), `OpacitySheet`, `AiToolsSheet` (every cloud feature listed with its honest status), `BackgroundSheet` (paper-style swatches)
+- ✅ Editor-wide feature search dialog with 29 entries that jump to real actions
+- ✅ CapCut Volume panel: 0–1000% slider, Reduce noise (honestly disabled, Cloud badge), Loudness adjustment (real waveform-RMS normalisation, +12 dB cap — `AudioLoudness`, unit-tested)
+- ✅ CapCut Speed panel: Duration line, 0.1×/1×/2×/5×/10×/100× presets, Smooth slow-mo honestly disabled (Pro badge), Change-audio-pitch → `maintainPitch` (Media3 `SpeedParameters`), speed-curve presets
+- ✅ Export drawer: video/GIF tabs (GIF honestly disabled with an explanation), AI UHD card (disabled with status), slider-style Resolution/Frame-rate/Bitrate selectors, Optical flow row (honest), estimated size
+- ✅ Export bitrate selector is real: 5–100 Mbps → `DefaultEncoderFactory` + `VideoEncoderSettings.setBitrate()` in both in-app and background export paths; 540p maps to 540p (was silently 1080p)
+- ✅ "Cover" chip on the first main-track clip thumbnail
 
 ### Project Operations
 - ✅ Create (9:16, 16:9, 1:1, 4:5 presets)
@@ -74,7 +88,8 @@
 - ✅ Markers: labelled/coloured markers persist, snap as high-priority magnets, render on the ruler; add / jump next / jump prev / move-to-playhead / remove are wired
 - ✅ Vertical scroll: track rows scroll independently of the ruler (left gutter and tracks share one vertical scroll state)
 - ✅ Overlay track reorder: header up/down changes track order = render order
-- ✅ Audio rows: one row per audio clip, each with a real mute toggle (audio drag + fades later)
+- ✅ Audio rows: one row per audio clip, each with a real mute toggle and long-press drag (magnetic + clamp)
+- 🟡 Audio fades/mixer: per-clip volume/fades fields exist; mixer wiring pending
 
 ### Preview & Canvas Gestures
 - ✅ ExoPlayer playback with composition preview
@@ -127,15 +142,15 @@
 - ❌ **60 fps scroll guarantee**: no LRU bitmap pool or multi-resolution waveform pyramids
 - 🟡 **Editable beat grid**: beat ticks + snap guide + marker pins are drawn; an editable beat grid row is pending
 - ❌ **Markers with labels/colours, jump-to-marker, marker-based snapping** — labels/jump/snap wired; full marker sheet (rename/recolour/delete UI) pending
-- ❌ **Multi-select, group move/delete, copy/paste** (engine `TimelineEdits.deleteAll`/`shiftGroup` exists and is wired for overlays; main-track group move and paste-attributes pending)
+- 🟡 **Multi-select, group move/delete, copy/paste**: overlay group move/delete/copy/paste + main contiguous block move + paste-attributes wired; main-track group move and cut/paste still pending
 - ❌ **Decoder pool with priority/eviction**
 
 ### Clip Tools
 - ❌ **Alignment guides with snap haptics**
-- 🟡 **Crop**: `CropMath` implemented and unit-tested; on-canvas crop UI still pending
+- ✅ **Crop**: `CropMath` presets + zoom/position in `CropSheet`, written to the clip transform that preview and export read; free-form corner-drag crop UI still pending
 - ❌ **Detach audio** (extraction exists; detaching onto its own track is separate)
-- ❌ **Fit/fill/blur-fill background**
-- ❌ **Replace clip**
+- 🟡 **Background colour**: paper-style picker persists and feeds the render graph; the live GL compositor still draws a black canvas, so it is not visible in preview/export yet
+- ✅ **Replace clip**: swaps the source in place and re-probes duration/dimensions
 - ✅ On-canvas move/scale/rotate, freeze frame, reverse, extract audio, speed curves
 
 ### Text
@@ -163,6 +178,8 @@
 - ❌ **Mixed PCM audio render from the same graph** (speed/pitch, fades, volume, limiter)
 - ❌ **On-device probe this round**: instrumented codec/E2E test compiles but no device is attached
 - ❌ **HDR tone-map / 10-bit output**
+- ❌ **GIF writer**: the export sheet shows the GIF tab for parity; export stays disabled because no GIF encoder is bundled
+- ✅ **Bitrate selector** (5–100 Mbps) applied via `DefaultEncoderFactory`/`VideoEncoderSettings` in both export paths; 540p maps to 540p
 - ✅ Export validation, storage precheck, codec fallback ladder, typed foreground service
 
 ### Testing & Quality Gates
@@ -171,7 +188,7 @@
 - ❌ **Golden-frame rendering tests**
 - ❌ **Soak/fuzz tests** (random edits, 30-min playback, 10 exports)
 - ❌ **Local check script reliability**: scripts exist but include spotless/detekt steps that are not configured
-- ✅ **Unit tests**: 306/306 across 32 suites, including 5 Robolectric Compose UI tests
+- ✅ **Unit tests**: 332/332 across 35 suites, including 5 Robolectric Compose UI tests and the new `AudioLoudnessTest` / `ClipAnimationMathTest` / `ClipAppearanceTest` suites
 - ✅ **CI**: `.github/workflows/ci.yml` runs lint, unit tests and `assembleDebug` on pushes/PRs
 - ✅ **TEST_REPORT.md**: exists with the P8 device round and current snapshot
 
@@ -179,7 +196,7 @@
 
 ## Known Issues / Blockers
 
-1. **No GL compositor** — masks, blends, chroma and shader effects cannot be executed without an EGL/GLES surface. Engine maths is ready; the renderer is the blocker.
+1. **No GL compositor** — masks, blends, chroma and shader effects cannot be executed without an EGL/GLES surface. Engine maths is ready; the renderer is the blocker. The canvas background colour shares the same fate (saved, but the live compositor draws black).
 2. **No device/emulator in this environment** — all verification is JVM/Robolectric + compile/assemble. Instrumented codec tests and a real export E2E run remain pending.
 3. **Bangla text not verified** — no bundled fonts and no golden-image shaping tests.
 4. **No ASR model** — auto-caption timing/cue logic is real, but word recognition needs model binaries and a size/licence decision.
@@ -191,7 +208,7 @@
 ## Next 5 Tasks (Priority Order)
 
 1. **On-device E2E export run**: execute a full synthetic fixture export on a connected device and record it in `TEST_REPORT.md`.
-2. **Main-track group move + paste-attributes**: finish multi-select for the main track and add effect/filter paste.
+2. **Marker sheet + editable beat grid**: rename/recolour/delete markers and drag beats.
 3. **Editable beat grid + marker sheet**: drag beats/markers, rename/recolour/delete markers.
 4. **Custom GL compositor**: execute `MaskMath`, `BlendMath`, `ChromaKey` and `EffectShaders` in one GL pipeline shared by preview and export.
 5. **Release verification**: signed release build, size report and one device smoke pass.
@@ -220,6 +237,9 @@
 | DEC-016 | Whisper.cpp Auto Captions | 🔴 Pending | P11 |
 | DEC-017 | Codec Capability Fallback Ladder | ✅ Decided | P8 - 2026-11-01 |
 | DEC-018 | JVM Test Strategy (org.json + Robolectric sdk34) | ✅ Decided | Testing - 2026-11-01 |
+| DEC-019 | CapCut Parity Editor Shell | ✅ Decided | Parity round - 2026-11-07 |
+| DEC-020 | Honest Disabled State for Cloud/GPU Features | ✅ Decided | Parity round - 2026-11-07 |
+| DEC-021 | Export Bitrate Selector Is a Real Encoder Setting | ✅ Decided | Export - 2026-11-07 |
 
 ---
 
@@ -228,16 +248,16 @@
 ```bash
 # Compile debug
 ./gradlew :app:compileDebugKotlin
-# Result: BUILD SUCCESSFUL (2026-11-06; only pre-existing deprecation warnings)
+# Result: BUILD SUCCESSFUL (2026-11-07; only pre-existing deprecation warnings)
 
 # Assemble debug APK + instrumented test compile
 ./gradlew :app:assembleDebug
-# Result: BUILD SUCCESSFUL - app-debug.apk 25.77 MB (2026-11-06)
+# Result: BUILD SUCCESSFUL - app-debug.apk 25.43 MB (2026-11-07)
 
 # Run unit tests
 ./gradlew :app:testDebugUnitTest
-- ✅ Verify with `scripts/check.ps1` (lint + 306 unit tests + assembleDebug) or `scripts/check.sh`
-# Result: BUILD SUCCESSFUL - 306 tests, 0 failed, 0 skipped, 32 suites
+- ✅ Verify with `scripts/check.ps1` (lint + 332 unit tests + assembleDebug) or `scripts/check.sh`
+# Result: BUILD SUCCESSFUL - 332 tests, 0 failed, 0 skipped, 35 suites (2026-11-07)
 # (XML results under app/build/test-results/testDebugUnitTest/)
 
 # Compose gesture tests (Robolectric)
@@ -250,7 +270,7 @@
 
 # Lint
 ./gradlew :app:lintDebug
-# Result: BUILD SUCCESSFUL - 0 errors, 157 warnings (2026-11-06); CI runs it
+# Result: BUILD SUCCESSFUL - 0 errors, 173 warnings (2026-11-07); CI runs it
 ```
 
 ---
