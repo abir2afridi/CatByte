@@ -7,7 +7,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
@@ -241,15 +243,17 @@ fun VideoCanvas(
                 .testTag("video_canvas_preview"),
             contentAlignment = Alignment.Center
         ) {
-            // Drafting Crop Marks in 4 corners
-            DraftingCropCorners(
-                modifier = Modifier
-                    .matchParentSize()
-                    .padding(6.dp),
-                strokeColor = colors.accentCyan.copy(alpha = 0.7f),
-                lineLength = 14.dp,
-                strokeWidth = 1.6.dp
-            )
+            if (colors.isPencilSketch) {
+                // Drafting Crop Marks in 4 corners for Pencil theme
+                DraftingCropCorners(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .padding(6.dp),
+                    strokeColor = colors.accentCyan.copy(alpha = 0.7f),
+                    lineLength = 14.dp,
+                    strokeWidth = 1.6.dp
+                )
+            }
 
             if (colors.isPencilSketch) {
                 // Drafting Washi Tape mounting strips on top corners for Pencil theme
@@ -866,17 +870,7 @@ private fun RenderClipVisual(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            val startColor = Color(clip.gradientColors.firstOrNull() ?: 0xFF1E2640)
-            val endColor = Color(clip.gradientColors.lastOrNull() ?: 0xFF0D1B2A)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            listOf(startColor, endColor)
-                        )
-                    )
-            )
+            CapCutMeadowCanvas(modifier = Modifier.fillMaxSize())
         }
 
         // Active visual effects
@@ -1100,3 +1094,98 @@ private fun RenderTransitionEffect(
         TransitionType.DISSOLVE, TransitionType.ZOOM_IN, TransitionType.NONE -> {}
     }
 }
+
+/**
+ * Realistic CapCut meadow and blue sky canvas for default sample clip rendering,
+ * matching the user's reference image (blue sky, fluffy white clouds, glowing sun, green grass).
+ */
+@Composable
+fun CapCutMeadowCanvas(
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // 1. Blue sky gradient
+        val skyBrush = Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF1976D2), // Deep sky blue top
+                Color(0xFF42A5F5), // Bright blue sky mid
+                Color(0xFF90CAF9), // Horizon sky light blue
+                Color(0xFFE3F2FD)  // Atmospheric haze
+            ),
+            startY = 0f,
+            endY = h * 0.62f
+        )
+        drawRect(brush = skyBrush, size = androidx.compose.ui.geometry.Size(w, h * 0.62f))
+
+        // 2. Bright Sun with glowing halo
+        val sunCenter = Offset(w * 0.28f, h * 0.18f)
+        drawCircle(
+            color = Color.White.copy(alpha = 0.40f),
+            radius = w * 0.18f,
+            center = sunCenter
+        )
+        drawCircle(
+            color = Color.White.copy(alpha = 0.70f),
+            radius = w * 0.11f,
+            center = sunCenter
+        )
+        drawCircle(
+            color = Color(0xFFFFFDE7),
+            radius = w * 0.065f,
+            center = sunCenter
+        )
+
+        // 3. Fluffy white clouds
+        val cloudColor = Color.White.copy(alpha = 0.90f)
+
+        // Left cloud group
+        drawCircle(color = cloudColor, radius = w * 0.12f, center = Offset(w * 0.14f, h * 0.22f))
+        drawCircle(color = cloudColor, radius = w * 0.14f, center = Offset(w * 0.26f, h * 0.20f))
+        drawCircle(color = cloudColor, radius = w * 0.10f, center = Offset(w * 0.36f, h * 0.24f))
+
+        // Right cloud group
+        drawCircle(color = cloudColor, radius = w * 0.11f, center = Offset(w * 0.58f, h * 0.16f))
+        drawCircle(color = cloudColor, radius = w * 0.15f, center = Offset(w * 0.74f, h * 0.13f))
+        drawCircle(color = cloudColor, radius = w * 0.12f, center = Offset(w * 0.88f, h * 0.18f))
+
+        // 4. Distant green hills
+        val hillPath = Path().apply {
+            moveTo(0f, h * 0.56f)
+            cubicTo(w * 0.25f, h * 0.50f, w * 0.45f, h * 0.54f, w * 0.65f, h * 0.48f)
+            cubicTo(w * 0.80f, h * 0.44f, w * 0.92f, h * 0.50f, w, h * 0.52f)
+            lineTo(w, h)
+            lineTo(0f, h)
+            close()
+        }
+        drawPath(
+            path = hillPath,
+            brush = Brush.verticalGradient(
+                colors = listOf(Color(0xFF558B2F), Color(0xFF33691E)),
+                startY = h * 0.46f,
+                endY = h
+            )
+        )
+
+        // 5. Foreground green grass meadow (lush blades & field)
+        val meadowPath = Path().apply {
+            moveTo(0f, h * 0.50f)
+            cubicTo(w * 0.20f, h * 0.44f, w * 0.50f, h * 0.52f, w * 0.75f, h * 0.45f)
+            cubicTo(w * 0.88f, h * 0.41f, w * 0.95f, h * 0.46f, w, h * 0.48f)
+            lineTo(w, h)
+            lineTo(0f, h)
+            close()
+        }
+        drawPath(
+            path = meadowPath,
+            brush = Brush.verticalGradient(
+                colors = listOf(Color(0xFF689F38), Color(0xFF2E7D32), Color(0xFF1B5E20)),
+                startY = h * 0.41f,
+                endY = h
+            )
+        )
+    }
+}
+

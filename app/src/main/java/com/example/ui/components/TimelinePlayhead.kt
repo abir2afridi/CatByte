@@ -2,16 +2,13 @@ package com.example.ui.components
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -23,13 +20,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.engine.SnapCandidate
 import com.example.engine.SnapEngine
 import com.example.engine.TimelineGeometry
@@ -37,13 +32,8 @@ import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.SharpenedPencilTip
 
 /**
- * Draggable playhead needle.
- *
- * It is rendered *outside* the horizontal scroll container and positioned from
- * `scrollPx`, so dragging it never fights the timeline pan. Drag deltas are
- * accumulated from a fixed anchor instead of reading the needle's own moving
- * position — the old code added the moving position to the touch offset, which
- * made the pencil jump and refuse to follow the finger.
+ * Draggable playhead needle matching the reference CapCut screenshot:
+ * A clean, solid 2dp white vertical line passing through ruler and tracks.
  */
 @Composable
 fun TimelinePlayhead(
@@ -64,8 +54,6 @@ fun TimelinePlayhead(
     val density = LocalDensity.current
     val safeZoom = zoom.coerceAtLeast(0.01f)
 
-    // Reading scrollState here (not in the coordinator) keeps scroll-driven
-    // recomposition scoped to the needle instead of the whole timeline.
     val scrollPx = scrollState.value
     val xDp = TimelineGeometry.screenXDp(
         positionMs = positionMs,
@@ -92,7 +80,7 @@ fun TimelinePlayhead(
             .width((TimelineGeometry.PLAYHEAD_HIT_HALF_DP * 2f).dp)
             .fillMaxHeight()
             .offset(x = (xDp - TimelineGeometry.PLAYHEAD_HIT_HALF_DP).dp)
-            .graphicsLayer { scaleX = if (dragging) 1.08f else 1f }
+            .graphicsLayer { scaleX = if (dragging) 1.05f else 1f }
             .pointerInput(totalMs, fps) {
                 detectDragGestures(
                     onDragStart = {
@@ -140,50 +128,34 @@ fun TimelinePlayhead(
             },
         contentAlignment = Alignment.TopCenter
     ) {
-        // Timestamp badge inside ruler space
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = 1.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(colors.surfaceElevated)
-                .border(
-                    0.8.dp,
-                    if (!colors.isPencilSketch) colors.accentCyan else colors.border,
-                    RoundedCornerShape(3.dp)
-                )
-                .padding(horizontal = 4.dp, vertical = 1.dp)
-        ) {
-            Text(
-                text = String.format("%.1fs", positionMs / 1000f),
-                color = if (!colors.isPencilSketch) colors.accentCyan else colors.textPrimary,
-                fontSize = 8.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace
-            )
-        }
-
-        // Needle / pencil body
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = 15.dp)
-                .width(if (dragging) 3.dp else 2.dp)
-                .fillMaxHeight()
-                .background(colors.playhead)
-        )
-
         if (!colors.isPencilSketch) {
+            // CapCut Solid White Center Needle
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .offset(y = 12.dp)
-                    .size(width = 10.dp, height = 12.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(colors.playhead)
-                    .border(1.dp, colors.accentCyan, RoundedCornerShape(3.dp))
+                    .width(if (dragging) 2.5.dp else 2.dp)
+                    .fillMaxHeight()
+                    .background(Color.White)
+            )
+
+            // Small rounded top anchor cap
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .size(width = 4.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(bottomStart = 2.dp, bottomEnd = 2.dp))
+                    .background(Color.White)
             )
         } else {
+            // Pencil theme
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = 15.dp)
+                    .width(2.dp)
+                    .fillMaxHeight()
+                    .background(colors.playhead)
+            )
             SharpenedPencilTip(modifier = Modifier.align(Alignment.TopCenter).offset(y = 12.dp))
         }
     }

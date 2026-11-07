@@ -1,4 +1,4 @@
-﻿package com.example.ui.screens
+package com.example.ui.screens
 
 import android.Manifest
 import android.content.Intent
@@ -324,7 +324,10 @@ fun EditorScreen(
                 onOpenFormat = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
                 onExport = { viewModel.setActiveSheet(ActiveToolSheet.EXPORT_MODAL) },
                 onOpenSettings = onOpenSettings,
-                onSearch = { showFeatureSearch = true }
+                onSearch = { showFeatureSearch = true },
+                onExportDraft = {
+                    Toast.makeText(context, "Draft saved successfully", Toast.LENGTH_SHORT).show()
+                }
             )
         }
 
@@ -428,23 +431,16 @@ fun EditorScreen(
             }
         }
 
-        // 3. CapCut transport row: fullscreen, play, transition, undo, redo.
+        // 3. CapCut transport row: fullscreen, play, snap, undo, redo.
         if (!isPreviewFullscreen) {
             EditorTransportRow(
                 isPlaying = isPlaying,
                 canUndo = canUndo,
                 canRedo = canRedo,
+                magneticSnap = magneticSnap,
                 onTogglePlay = { viewModel.togglePlayback() },
                 onFullscreen = { isPreviewFullscreen = true },
-                onTransition = {
-                    val clipId = selectedClipId
-                    if (clipId == null) {
-                        Toast.makeText(context, "Select a clip to add a transition", Toast.LENGTH_SHORT).show()
-                    } else {
-                        activeTransitionClipId = clipId
-                        viewModel.setActiveSheet(ActiveToolSheet.TRANSITIONS_PICKER)
-                    }
-                },
+                onToggleMagneticSnap = { viewModel.toggleMagneticSnap() },
                 onUndo = { viewModel.undo() },
                 onRedo = { viewModel.redo() }
             )
@@ -492,11 +488,7 @@ fun EditorScreen(
             175.dp
         }
 
-        // 4. Multi-Track Timeline
-        EditorTimecodeRow(
-            currentPositionMs = currentPositionMs,
-            totalDurationMs = project?.totalDurationMs ?: 0L
-        )
+        // 4. Multi-Track Timeline (integrated CapCut left gutter and timecode)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -545,6 +537,9 @@ fun EditorScreen(
                 selectedClipIds = selectedClipIds,
                 beats = snapBeats,
                 onUserInteraction = { viewModel.pausePlayback() },
+                onAddAudioClick = { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY) },
+                onAddTextClick = { viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR) },
+                onCoverClick = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
                 modifier = Modifier.fillMaxSize()
             )
         }

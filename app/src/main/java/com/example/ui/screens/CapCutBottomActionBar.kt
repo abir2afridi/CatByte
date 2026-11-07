@@ -1,7 +1,6 @@
-﻿package com.example.ui.screens
+package com.example.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -17,13 +16,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.ContentCut
-import androidx.compose.material.icons.filled.Filter
-import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Mood
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Tune
@@ -34,19 +28,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.components.CapCutIconCaptions
+import com.example.ui.components.CapCutIconEffectsStar
+import com.example.ui.components.CapCutIconFilters
+import com.example.ui.components.CapCutIconOverlay
 import com.example.ui.theme.PencilTheme
 
 /**
- * CapCut bottom navigation. Order follows the reference walkthrough:
- * Edit, Audio, Text, Effects, Overlay, Captions, Stickers, Filters, Adjust,
- * Ratio, Background. A final Tools entry keeps our extra timeline utilities
- * (markers, beat sync, multi-select, snap, zoom) reachable without changing the
- * reference layout.
+ * CapCut workspace bottom navigation bar matching the reference image:
+ * Edit (Scissors), Audio (Music Note), Text (T), Effects (Star outline),
+ * Overlay (Overlapping frames), Captions (Subtitle card), Filters (Venn diagram circles).
+ *
+ * Clean, borderless icon design on sleek dark studio background.
  */
 @Composable
 internal fun CapCutBottomActionBar(
@@ -63,71 +62,157 @@ internal fun CapCutBottomActionBar(
     onBackground: () -> Unit,
     onTools: () -> Unit
 ) {
-    val colors = PencilTheme.colors
+    val barBackground = Color(0xFF121215)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
-            .background(colors.surface)
-            .border(width = 0.8.dp, color = colors.borderSubtle.copy(alpha = 0.5f))
+            .height(68.dp)
+            .background(barBackground)
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        BottomActionItem(Icons.Default.ContentCut, "Edit", "edit", onEdit)
-        BottomActionItem(Icons.Default.MusicNote, "Audio", "audio", onAudio)
-        BottomActionItem(Icons.Default.TextFields, "Text", "text", onText)
-        BottomActionItem(Icons.Default.AutoAwesome, "Effects", "effects", onEffects)
-        BottomActionItem(Icons.Default.Layers, "Overlay", "overlay", onOverlay)
-        BottomActionItem(Icons.Default.ClosedCaption, "Captions", "captions", onCaptions)
-        BottomActionItem(Icons.Default.Mood, "Stickers", "stickers", onStickers)
-        BottomActionItem(Icons.Default.Filter, "Filters", "filters", onFilters)
-        BottomActionItem(Icons.Default.Tune, "Adjust", "adjust", onAdjust)
-        BottomActionItem(Icons.Default.AspectRatio, "Ratio", "ratio", onRatio)
-        BottomActionItem(Icons.Default.Wallpaper, "Background", "background", onBackground)
-        BottomActionItem(Icons.Default.Build, "Tools", "tools", onTools)
+        // 1. Edit (Scissors)
+        BottomActionItemVector(
+            icon = Icons.Default.ContentCut,
+            label = "Edit",
+            tag = "edit",
+            onClick = onEdit
+        )
+
+        // 2. Audio (Music Note)
+        BottomActionItemVector(
+            icon = Icons.Default.MusicNote,
+            label = "Audio",
+            tag = "audio",
+            onClick = onAudio
+        )
+
+        // 3. Text (T)
+        BottomActionItemVector(
+            icon = Icons.Default.TextFields,
+            label = "Text",
+            tag = "text",
+            onClick = onText
+        )
+
+        // 4. Effects (Star outline)
+        BottomActionItemCustom(
+            label = "Effects",
+            tag = "effects",
+            onClick = onEffects
+        ) {
+            CapCutIconEffectsStar(tint = Color.White, size = 25.dp)
+        }
+
+        // 5. Overlay (Overlapping frames)
+        BottomActionItemCustom(
+            label = "Overlay",
+            tag = "overlay",
+            onClick = onOverlay
+        ) {
+            CapCutIconOverlay(tint = Color.White, size = 25.dp)
+        }
+
+        // 6. Captions (Subtitle box)
+        BottomActionItemCustom(
+            label = "Captions",
+            tag = "captions",
+            onClick = onCaptions
+        ) {
+            CapCutIconCaptions(tint = Color.White, size = 25.dp)
+        }
+
+        // 7. Filters (Venn diagram 3 circles)
+        BottomActionItemCustom(
+            label = "Filters",
+            tag = "filters",
+            onClick = onFilters
+        ) {
+            CapCutIconFilters(tint = Color.White, size = 25.dp)
+        }
+
+        // Additional tools when scrolled
+        BottomActionItemVector(
+            icon = Icons.Default.Tune,
+            label = "Adjust",
+            tag = "adjust",
+            onClick = onAdjust
+        )
+
+        BottomActionItemVector(
+            icon = Icons.Default.AspectRatio,
+            label = "Ratio",
+            tag = "ratio",
+            onClick = onRatio
+        )
+
+        BottomActionItemVector(
+            icon = Icons.Default.Wallpaper,
+            label = "Background",
+            tag = "background",
+            onClick = onBackground
+        )
+
+        BottomActionItemVector(
+            icon = Icons.Default.Build,
+            label = "Tools",
+            tag = "tools",
+            onClick = onTools
+        )
     }
 }
 
 @Composable
-internal fun BottomActionItem(
+internal fun BottomActionItemVector(
     icon: ImageVector,
     label: String,
     tag: String,
     onClick: () -> Unit
 ) {
-    val colors = PencilTheme.colors
+    BottomActionItemCustom(
+        label = label,
+        tag = tag,
+        onClick = onClick
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = Color.White,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
 
+@Composable
+internal fun BottomActionItemCustom(
+    label: String,
+    tag: String,
+    onClick: () -> Unit,
+    iconContent: @Composable () -> Unit
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(8.dp))
             .clickable { onClick() }
-            .padding(horizontal = 6.dp, vertical = 5.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp)
             .testTag("bottom_action_$tag")
     ) {
         Box(
-            modifier = Modifier
-                .size(30.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(colors.surfaceElevated.copy(alpha = 0.55f)),
+            modifier = Modifier.size(26.dp),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = colors.textPrimary,
-                modifier = Modifier.size(19.dp)
-            )
+            iconContent()
         }
-        Spacer(modifier = Modifier.height(3.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = label,
-            color = colors.textSecondary,
-            fontSize = 10.sp,
+            color = Color.White.copy(alpha = 0.92f),
+            fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1
         )

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -22,29 +23,55 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.TextOverlay
-import com.example.ui.theme.PencilTheme
 
-/** Text / subtitle track. */
+/** Text / subtitle track matching CapCut. */
 @Composable
 fun TimelineTextTrack(
     texts: List<TextOverlay>,
     selectedTextId: String?,
     msToDp: Float,
-    onSelectText: (String) -> Unit
+    onSelectText: (String) -> Unit,
+    onAddTextClick: () -> Unit = {}
 ) {
-    val colors = PencilTheme.colors
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(32.dp)
-            .background(colors.timelineTrack)
+            .height(34.dp)
+            .background(Color(0xFF101014))
             .padding(vertical = 2.dp)
     ) {
+        if (texts.isEmpty()) {
+            Row(
+                modifier = Modifier
+                    .width(280.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF1D1E22))
+                    .clickable { onAddTextClick() }
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add text",
+                    tint = Color(0xFF8E8E93),
+                    modifier = Modifier.size(15.dp)
+                )
+                Text(
+                    text = "Add text",
+                    color = Color(0xFF8E8E93),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
         texts.forEach { item ->
             val isSelected = item.id == selectedTextId
             val startOffsetDp = (item.startTimelineMs * msToDp).dp
@@ -56,10 +83,10 @@ fun TimelineTextTrack(
                     .width(widthDp)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(6.dp))
-                    .background(colors.accentYellow.copy(alpha = if (isSelected) 0.5f else 0.25f))
+                    .background(Color(0xFFFFB300).copy(alpha = if (isSelected) 0.5f else 0.3f))
                     .border(
-                        width = if (isSelected) 2.dp else 1.2.dp,
-                        color = colors.accentYellow,
+                        width = if (isSelected) 1.8.dp else 0.8.dp,
+                        color = Color(0xFFFFB300),
                         shape = RoundedCornerShape(6.dp)
                     )
                     .clickable { onSelectText(item.id) }
@@ -73,14 +100,14 @@ fun TimelineTextTrack(
                     Icon(
                         imageVector = Icons.Default.TextFields,
                         contentDescription = "Text",
-                        tint = colors.accentYellow,
+                        tint = Color(0xFFFFD54F),
                         modifier = Modifier.size(13.dp)
                     )
                     Text(
                         text = item.text,
-                        color = colors.textPrimary,
+                        color = Color.White,
                         fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.Medium,
                         maxLines = 1
                     )
                 }

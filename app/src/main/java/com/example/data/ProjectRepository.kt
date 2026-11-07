@@ -87,12 +87,25 @@ class ProjectRepository(context: Context? = null) {
         resolution: String = "1080P",
         fps: Int = 30
     ): VideoProject {
+        val defaultClips = if (initialClips.isEmpty()) {
+            listOf(
+                MediaClip(
+                    id = "clip_sample_meadow",
+                    title = "Meadow & Sky",
+                    durationMs = 16000L,
+                    originalDurationMs = 16000L,
+                    waveform = listOf(0.4f, 0.7f, 0.9f, 0.6f, 0.8f, 0.5f, 0.85f, 0.65f, 0.7f, 0.55f, 0.8f, 0.4f)
+                )
+            )
+        } else {
+            initialClips
+        }
         val project = VideoProject(
             id = "proj_${UUID.randomUUID().toString().take(8)}",
             title = title,
             aspectRatio = aspectRatio,
             paperStyle = paperStyle,
-            clips = initialClips,
+            clips = defaultClips,
             resolution = resolution,
             fps = fps,
             lastModified = System.currentTimeMillis()

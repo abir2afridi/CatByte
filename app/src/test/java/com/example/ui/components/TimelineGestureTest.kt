@@ -150,13 +150,13 @@ class TimelineGestureTest {
             }
         }
 
-        // The playhead sits at viewport x=0 (behind the 54 dp track header),
-        // so grab its 44 dp hit target just to the right of the header.
+        // The playhead sits at viewport x=0 (behind the 96 dp track header),
+        // so grab its hit target just to the right of the header.
         compose.onNodeWithTag("multi_track_timeline").performTouchInput {
-            down(Offset(56f, 120f))
-            moveTo(Offset(70f, 120f))
-            moveTo(Offset(90f, 120f))
-            moveTo(Offset(130f, 120f))
+            down(Offset(98f, 120f))
+            moveTo(Offset(115f, 120f))
+            moveTo(Offset(135f, 120f))
+            moveTo(Offset(175f, 120f))
             up()
         }
         compose.waitForIdle()

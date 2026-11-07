@@ -3,7 +3,6 @@ package com.example.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
@@ -28,16 +27,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.engine.SnapCandidate
 import com.example.engine.TimelineGeometry
-import com.example.ui.theme.PencilTheme
+import com.example.model.TimelineMarker
 
 /**
- * Time ruler with tap-and-drag scrubbing.
- *
- * Dragging the ruler is a deliberate seek gesture, so it consumes the pointer
- * and the surrounding scroll view is free to pan everywhere else. Tick x
- * positions are converted from dp to pixels before drawing (the old code drew
- * dp values directly into a pixel canvas, which compressed the ruler on every
- * high-density phone).
+ * CapCut-exact time ruler matching the reference screenshot:
+ * Clean ticks with stamped second text (00:00 · 00:01 · 00:02) and subtle center dots.
  */
 @Composable
 fun TimelineRuler(
@@ -49,13 +43,12 @@ fun TimelineRuler(
     snapThresholdFrames: Long,
     scrollState: ScrollState,
     beats: List<Long> = emptyList(),
-    markers: List<com.example.model.TimelineMarker> = emptyList(),
+    markers: List<TimelineMarker> = emptyList(),
     onSeek: (Long) -> Unit,
     onScrubStart: () -> Unit,
     onScrubEnd: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val colors = PencilTheme.colors
     val density = LocalDensity.current
     val safeZoom = zoom.coerceAtLeast(0.01f)
 
@@ -76,8 +69,7 @@ fun TimelineRuler(
         modifier = modifier
             .fillMaxWidth()
             .height(28.dp)
-            .background(colors.surfaceElevated)
-            .border(width = 0.8.dp, color = colors.borderSubtle)
+            .background(Color(0xFF101014))
             .testTag("timeline_ruler")
             .pointerInput(totalMs, fps) {
                 awaitEachGesture {
@@ -105,8 +97,6 @@ fun TimelineRuler(
                         drag(down.id) { change ->
                             change.consume()
                             seekAtX(change.position.x)
-                            // Keep scrubbing past the viewport edge: nudge the
-                            // timeline so the finger can keep walking the ruler.
                             TimelineAutoScroll.atContentPx(
                                 contentPx = change.position.x,
                                 density = density.density,
@@ -123,76 +113,77 @@ fun TimelineRuler(
             val h = size.height
             val pxPerMs = TimelineGeometry.dpPerMs(safeZoom) * density.density
 
-            // Brass bottom edge
-            drawLine(
-                color = colors.border.copy(alpha = 0.4f),
-                start = Offset(0f, h),
-                end = Offset(size.width, h),
-                strokeWidth = 1.2f
-            )
-
-            // 200 ms graduations, 500 ms half marks, 1 s major marks.
+            // 100ms small ticks, 500ms dots, 1s marks
             var timeMs = 0L
-            while (timeMs <= totalMs + 4_000L) {
+            while (timeMs <= totalMs + 8_000L) {
                 val x = timeMs * pxPerMs
                 val isSecond = timeMs % 1_000L == 0L
                 val isHalfSecond = timeMs % 500L == 0L
-                val tickHeight = when {
-                    isSecond -> h * 0.55f
-                    isHalfSecond -> h * 0.38f
-                    else -> h * 0.22f
+
+                if (isSecond) {
+                    // Small top tick for second
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.5f),
+                        start = Offset(x, 0f),
+                        end = Offset(x, h * 0.25f),
+                        strokeWidth = 1.2f
+                    )
+                } else if (isHalfSecond) {
+                    // Center dot between seconds: "·"
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.45f),
+                        radius = 1.4f * density.density,
+                        center = Offset(x, h * 0.45f)
+                    )
+                } else if (timeMs % 100L == 0L) {
+                    // Subtle tick
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.18f),
+                        start = Offset(x, 0f),
+                        end = Offset(x, h * 0.14f),
+                        strokeWidth = 0.8f
+                    )
                 }
-                val tickColor = when {
-                    isSecond -> colors.border
-                    isHalfSecond -> colors.textSecondary.copy(alpha = 0.6f)
-                    else -> colors.borderSubtle.copy(alpha = 0.7f)
-                }
-                drawLine(
-                    color = tickColor,
-                    start = Offset(x, 0f),
-                    end = Offset(x, tickHeight),
-                    strokeWidth = if (isSecond) 1.5f else 0.9f
-                )
-                timeMs += 200L
+
+                timeMs += 100L
             }
 
-            // Detected beats: tall cyan/amber ticks so the beat grid is visible,
-            // which is what makes beat sync and auto-cut feel intentional.
+            // Detected beats
             beats.forEach { beat ->
                 val x = beat * pxPerMs
                 drawLine(
-                    color = colors.accentCyan.copy(alpha = 0.75f),
+                    color = Color(0xFF00F2FE).copy(alpha = 0.75f),
                     start = Offset(x, h * 0.10f),
                     end = Offset(x, h),
                     strokeWidth = 1.6f * density.density
                 )
             }
 
-            // Markers: amber pins with a label, above the graduations.
+            // Timeline markers
             markers.forEach { marker ->
                 val x = marker.atMs * pxPerMs
                 drawLine(
                     color = Color(marker.colorArgb),
                     start = Offset(x, 0f),
-                    end = Offset(x, h * 0.78f),
+                    end = Offset(x, h * 0.85f),
                     strokeWidth = 2f * density.density
                 )
             }
         }
 
-        // Stamped second markings
+        // Stamped second markings: 00:00, 00:01, 00:02...
         var labelMs = 0L
-        while (labelMs <= totalMs + 4_000L) {
+        while (labelMs <= totalMs + 8_000L) {
             val sec = labelMs / 1_000L
             Text(
                 text = String.format("%02d:%02d", sec / 60, sec % 60),
-                color = colors.textPrimary,
-                fontSize = 9.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
+                color = Color.White.copy(alpha = 0.92f),
+                fontSize = 10.sp,
+                fontFamily = FontFamily.SansSerif,
+                fontWeight = FontWeight.Normal,
                 modifier = Modifier.offset(
-                    x = (labelMs * TimelineGeometry.dpPerMs(safeZoom)).dp + 2.dp,
-                    y = 13.dp
+                    x = (labelMs * TimelineGeometry.dpPerMs(safeZoom)).dp + 1.dp,
+                    y = 8.dp
                 )
             )
             labelMs += labelStepMs
