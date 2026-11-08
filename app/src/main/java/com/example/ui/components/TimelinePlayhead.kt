@@ -129,7 +129,7 @@ fun TimelinePlayhead(
         contentAlignment = Alignment.TopCenter
     ) {
         if (!colors.isPencilSketch) {
-            // CapCut Solid White Center Needle
+            // CapCut White Needle Line
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -138,13 +138,13 @@ fun TimelinePlayhead(
                     .background(Color.White)
             )
 
-            // Small rounded top anchor cap
+            // Yellow/Gold Top Pointer Cap
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .size(width = 4.dp, height = 5.dp)
-                    .clip(RoundedCornerShape(bottomStart = 2.dp, bottomEnd = 2.dp))
-                    .background(Color.White)
+                    .size(width = 12.dp, height = 11.dp)
+                    .clip(RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp))
+                    .background(Color(0xFFFFB300))
             )
         } else {
             // Pencil theme

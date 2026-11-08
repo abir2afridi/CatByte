@@ -276,7 +276,15 @@ fun VideoCanvas(
                     tapeLabel = "DRAFT"
                 )
             }
-            if (player != null) {
+            val isSampleClip = activeClip != null && activeClip.uriString == null && activeClip.drawableResId == null
+            if (isSampleClip) {
+                RenderClipVisual(
+                    clip = activeClip!!,
+                    activeEffects = activeEffects,
+                    pulseAlpha = pulseAlphaState.value,
+                    currentClipLocalMs = clipLocalTimeMs
+                )
+            } else if (player != null) {
                 // One surface: composition preview when available, otherwise the
                 // ExoPlayer fallback playlist. The fallback must still render a
                 // real video surface, or playback advances the audio/timeline
