@@ -113,6 +113,59 @@ class EditorWorkflowTest {
     }
 
     @Test
+    fun `split cuts in and out points on the same source with no gap`() {
+        val viewModel = vmWithOneClip()
+        viewModel.seekTo(1200L)
+        viewModel.splitClipAtPlayhead()
+
+        val clips = viewModel.currentProject.value?.clips.orEmpty()
+        // Clip A: in = original in, out = playhead. Clip B: in = playhead.
+        assertEquals(0L, clips[0].trimStartMs)
+        assertEquals(1200L, clips[0].trimEndMs)
+        assertEquals(1200L, clips[1].trimStartMs)
+        assertEquals(3000L, clips[1].trimEndMs)
+        // Contiguous on the magnetic track.
+        assertEquals(0L, clips[0].startTimelineMs)
+        assertEquals(1200L, clips[1].startTimelineMs)
+    }
+
+    @Test
+    fun `trimming one clip ripples the magnetic main track both ways`() {
+        val viewModel = newViewModel()
+        val project = VideoProject(
+            id = "p9",
+            title = "Ripple",
+            clips = listOf(
+                MediaClip(
+                    id = "a", title = "A",
+                    durationMs = 3_000L, originalDurationMs = 5_000L,
+                    trimStartMs = 0L, trimEndMs = 3_000L
+                ),
+                MediaClip(
+                    id = "b", title = "B",
+                    startTimelineMs = 3_000L,
+                    durationMs = 2_000L, originalDurationMs = 2_000L
+                )
+            )
+        )
+        viewModel.openProject(project)
+        viewModel.selectClip("a")
+
+        // Inward: clip A shortens, B shifts left to stay attached.
+        viewModel.trimSelectedClipEdge(ClipTrimHandle.Edge.END, -1_000L, 30)
+        var clips = viewModel.currentProject.value!!.clips
+        assertEquals(2_010L, clips[0].durationMs)
+        assertEquals(2_010L, clips[1].startTimelineMs)
+
+        // Outward: the hidden footage returns, B shifts back right.
+        viewModel.trimSelectedClipEdge(ClipTrimHandle.Edge.END, 1_000L, 30)
+        clips = viewModel.currentProject.value!!.clips
+        assertEquals(3_000L, clips[0].durationMs)
+        assertEquals(3_000L, clips[0].trimEndMs)
+        assertEquals(3_000L, clips[1].startTimelineMs)
+    }
+
+    @Test
     fun `split inside the first 100ms does nothing`() {
         val viewModel = vmWithOneClip()
         viewModel.seekTo(50L)

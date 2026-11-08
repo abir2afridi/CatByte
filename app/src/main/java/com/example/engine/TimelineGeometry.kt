@@ -63,6 +63,19 @@ object TimelineGeometry {
         return (anchorMs + dragDp / dpPerMs(zoom)).roundToLong().coerceAtLeast(0L)
     }
 
+    /**
+     * Converts a horizontal drag distance in pixels to timeline milliseconds.
+     *
+     * [dpPerMs] must be the *scale itself* (`TimelineGeometry.dpPerMs(zoom)`),
+     * NOT the zoom factor — the callers hold `msToDp` and pass it straight in.
+     * Treating it as a zoom and converting again would shrink the scale by
+     * 1000/65 and make every trim run ~15x faster than the finger.
+     */
+    fun dragPxToMs(dragPx: Float, density: Float, dpPerMs: Float): Long {
+        if (density <= 0f || dpPerMs <= 0f) return 0L
+        return (dragPx / density / dpPerMs).roundToLong()
+    }
+
     /** Screen-space x of a timeline position, given the current scroll offset. */
     fun screenXDp(
         positionMs: Long,

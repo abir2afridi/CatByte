@@ -45,12 +45,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.PencilTheme
 
 /**
  * Context action bar shown while a clip is selected, matching the CapCut
@@ -87,14 +87,18 @@ internal fun ClipActionBar(
     onMore: () -> Unit,
     onAiTools: () -> Unit
 ) {
-    val colors = PencilTheme.colors
+    // The editor shell is intentionally dark regardless of the app theme, so
+    // this bar uses the same studio palette as CapCutBottomActionBar instead of
+    // PencilTheme (which is white in light mode).
+    val barBackground = Color(0xFF121215)
+    val barBorder = Color(0xFF262830)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
-            .background(colors.surface)
-            .border(width = 0.8.dp, color = colors.borderSubtle.copy(alpha = 0.5f))
+            .background(barBackground)
+            .border(width = 0.8.dp, color = barBorder)
             .testTag("clip_action_bar"),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -108,7 +112,7 @@ internal fun ClipActionBar(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back to tools",
-                tint = colors.textPrimary,
+                tint = Color.White,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -153,8 +157,6 @@ private fun ClipActionItem(
     tag: String,
     onClick: () -> Unit
 ) {
-    val colors = PencilTheme.colors
-
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -167,13 +169,13 @@ private fun ClipActionItem(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = colors.textPrimary,
+            tint = Color.White,
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.height(3.dp))
         Text(
             text = label,
-            color = colors.textSecondary,
+            color = Color(0xFFA1A5B0),
             fontSize = 9.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1

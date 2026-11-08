@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -59,7 +58,9 @@ fun TimelineOverlayTrack(
     msToDp: Float,
     onSelectClip: (String) -> Unit,
     onMoveClip: (clipId: String, newStartMs: Long, trackShift: Int) -> Unit = { _, _, _ -> },
-    onTrimClip: (clipId: String, edge: ClipTrimHandle.Edge, deltaMs: Long) -> Unit = { _, _, _ -> },
+    onTrimStart: (clipId: String, edge: ClipTrimHandle.Edge) -> Unit = { _, _ -> },
+    onTrimPreview: (clipId: String, edge: ClipTrimHandle.Edge, deltaMs: Long) -> Unit = { _, _, _ -> },
+    onTrimEnd: (clipId: String, edge: ClipTrimHandle.Edge) -> Unit = { _, _ -> },
     fps: Int = 30,
     isLocked: Boolean = false,
     trackIndex: Int = 0,
@@ -193,28 +194,34 @@ fun TimelineOverlayTrack(
                         edge = ClipTrimHandle.Edge.START,
                         color = colors.handle,
                         modifier = Modifier.align(Alignment.CenterStart),
-                        onCommit = { deltaPx ->
-                            val deltaDp = deltaPx / density.density
-                            val deltaMs = if (msToDp > 0f) {
-                                (deltaDp / msToDp).roundToLong()
-                            } else {
-                                0L
-                            }
-                            if (deltaMs != 0L) onTrimClip(clip.id, ClipTrimHandle.Edge.START, deltaMs)
+                        onDragStart = {
+                            onTrimStart(clip.id, ClipTrimHandle.Edge.START)
+                        },
+                        onDragDelta = { deltaPx ->
+                            val deltaMs = TimelineGeometry.dragPxToMs(
+                                deltaPx, density.density, msToDp
+                            )
+                            onTrimPreview(clip.id, ClipTrimHandle.Edge.START, deltaMs)
+                        },
+                        onCommit = {
+                            onTrimEnd(clip.id, ClipTrimHandle.Edge.START)
                         }
                     )
                     TimelineTrimHandle(
                         edge = ClipTrimHandle.Edge.END,
                         color = colors.handle,
                         modifier = Modifier.align(Alignment.CenterEnd),
-                        onCommit = { deltaPx ->
-                            val deltaDp = deltaPx / density.density
-                            val deltaMs = if (msToDp > 0f) {
-                                (deltaDp / msToDp).roundToLong()
-                            } else {
-                                0L
-                            }
-                            if (deltaMs != 0L) onTrimClip(clip.id, ClipTrimHandle.Edge.END, deltaMs)
+                        onDragStart = {
+                            onTrimStart(clip.id, ClipTrimHandle.Edge.END)
+                        },
+                        onDragDelta = { deltaPx ->
+                            val deltaMs = TimelineGeometry.dragPxToMs(
+                                deltaPx, density.density, msToDp
+                            )
+                            onTrimPreview(clip.id, ClipTrimHandle.Edge.END, deltaMs)
+                        },
+                        onCommit = {
+                            onTrimEnd(clip.id, ClipTrimHandle.Edge.END)
                         }
                     )
                 }
@@ -223,45 +230,3 @@ fun TimelineOverlayTrack(
     }
 }
 
-/** Inline edge handle: drag horizontally and commit the delta on release. */
-@Composable
-internal fun TimelineTrimHandle(
-    edge: ClipTrimHandle.Edge,
-    color: androidx.compose.ui.graphics.Color,
-    modifier: Modifier = Modifier,
-    onCommit: (Float) -> Unit
-) {
-    var accumulated by remember { mutableFloatStateOf(0f) }
-    Box(
-        modifier = modifier
-            .fillMaxHeight()
-            .width(10.dp)
-            .background(
-                color,
-                RoundedCornerShape(
-                    topStart = if (edge == ClipTrimHandle.Edge.START) 6.dp else 0.dp,
-                    bottomStart = if (edge == ClipTrimHandle.Edge.START) 6.dp else 0.dp,
-                    topEnd = if (edge == ClipTrimHandle.Edge.END) 6.dp else 0.dp,
-                    bottomEnd = if (edge == ClipTrimHandle.Edge.END) 6.dp else 0.dp
-                )
-            )
-            .pointerInput(edge) {
-                detectDragGestures(
-                    onDragStart = {
-                        accumulated = 0f
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        accumulated += dragAmount.x
-                    },
-                    onDragEnd = {
-                        onCommit(accumulated)
-                        accumulated = 0f
-                    },
-                    onDragCancel = {
-                        accumulated = 0f
-                    }
-                )
-            }
-    )
-}

@@ -119,6 +119,21 @@ object TimelineEdits {
     }
 
     /**
+     * Re-lays a magnetic track contiguously. The list order is the edit order,
+     * so trimming one clip ripples every following clip instead of leaving a
+     * gap or overlap. Absolute tracks (overlay/audio/text) are never passed
+     * here because they keep their own positions.
+     */
+    fun magneticReflow(spans: List<ClipSpan>): List<ClipSpan> {
+        var at = 0L
+        return spans.map { span ->
+            val placed = span.copy(startMs = at)
+            at += span.durationMs
+            placed
+        }
+    }
+
+    /**
      * Deletes a clip. With [ripple] the gap closes (main-track default); without
      * it the hole stays so overlay/audio clips keep their absolute timing.
      */

@@ -312,7 +312,7 @@ fun EditorScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.background)
+            .background(Color(0xFF0C0C0F))
             .statusBarsPadding()
             .focusRequester(shortcutFocus)
             .focusable()
@@ -388,8 +388,9 @@ fun EditorScreen(
 
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f, fill = false)
+                .weight(0.85f, fill = false)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center
         ) {
             androidx.compose.runtime.CompositionLocalProvider(
                 com.example.ui.components.LocalVideoPlayer provides previewPlayer
@@ -529,8 +530,15 @@ fun EditorScreen(
                 onMoveOverlayClipToTrack = { clipId, trackId, startMs ->
                     viewModel.moveClipToTrack(clipId, trackId, startMs)
                 },
-                onTrimClip = { edge, deltaMs ->
-                    viewModel.trimSelectedClipEdge(edge, deltaMs, project?.fps ?: 30)
+                onTrimStart = { clipId, edge ->
+                    viewModel.beginTrimClip(clipId, edge)
+                },
+                onTrimPreview = { _, _, deltaMs ->
+                    // Live: applies against the drag-start snapshot, idempotent.
+                    viewModel.updateTrimClip(deltaMs, project?.fps ?: 30)
+                },
+                onTrimEnd = { _, _ ->
+                    viewModel.endTrimClip()
                 },
                 onTrackMute = { trackId, muted -> viewModel.setTrackMuted(trackId, muted) },
                 onTrackLock = { trackId, locked -> viewModel.setTrackLocked(trackId, locked) },
@@ -551,8 +559,8 @@ fun EditorScreen(
             )
         }
 
-        // Spacer absorbing extra vertical space between Timeline and Bottom Action Bar
-        Spacer(modifier = Modifier.weight(1f))
+        // Balanced spacer to lift timeline and transport controls slightly higher up (CapCut balance)
+        Spacer(modifier = Modifier.weight(0.15f))
 
         // 5. Bottom Action Bar
         Box(
@@ -560,7 +568,7 @@ fun EditorScreen(
                 .fillMaxWidth()
                 .background(Color(0xFF121215))
                 .navigationBarsPadding()
-                .padding(bottom = 16.dp, top = 6.dp)
+                .padding(top = 6.dp)
         ) {
             if (selectedClipId != null && !isMultiSelect) {
                 ClipActionBar(
@@ -801,27 +809,7 @@ fun EditorScreen(
                         }
                     )
                 }
-                ActiveToolSheet.EXPORT_MODAL -> {
-                    ExportDialog(
-                        exportState = exportState,
-                        defaultResolution = project?.resolution ?: "1080P",
-                        defaultFps = project?.fps ?: 30,
-                        watermarkEnabled = watermarkEnabled,
-                        currentAspectRatio = project?.aspectRatio ?: com.example.model.AspectRatioType.RATIO_16_9,
-                        projectLengthMs = project?.totalDurationMs ?: 60_000L,
-                        onSelectAspectRatio = { viewModel.setAspectRatio(it) },
-                        onToggleWatermark = { viewModel.toggleWatermark(it) },
-                        onStartExport = { res, fps, _, bitrate ->
-                            viewModel.startExport(res, fps, bitrate)
-                        },
-                        onCancelExport = { viewModel.cancelExport() },
-                        onDismiss = { viewModel.dismissExport() },
-                        onShareExport = { platform -> viewModel.shareExportMessage(platform) },
-                        onStartBackgroundExport = { res, fps, _, bitrate ->
-                            startBackgroundExport(res, fps, bitrate)
-                        }
-                    )
-                }
+
                 ActiveToolSheet.KEYFRAME -> {
                     KeyframeSheet(
                         clip = currentClip,
@@ -996,8 +984,31 @@ fun EditorScreen(
                         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
                     )
                 }
+                ActiveToolSheet.EXPORT_MODAL -> {}
                 ActiveToolSheet.NONE -> {}
             }
+        }
+
+        if (activeSheet == ActiveToolSheet.EXPORT_MODAL) {
+            ExportDialog(
+                exportState = exportState,
+                defaultResolution = project?.resolution ?: "1080P",
+                defaultFps = project?.fps ?: 30,
+                watermarkEnabled = watermarkEnabled,
+                currentAspectRatio = project?.aspectRatio ?: com.example.model.AspectRatioType.RATIO_16_9,
+                projectLengthMs = project?.totalDurationMs ?: 60_000L,
+                onSelectAspectRatio = { viewModel.setAspectRatio(it) },
+                onToggleWatermark = { viewModel.toggleWatermark(it) },
+                onStartExport = { res, fps, _, bitrate ->
+                    viewModel.startExport(res, fps, bitrate)
+                },
+                onCancelExport = { viewModel.cancelExport() },
+                onDismiss = { viewModel.setActiveSheet(ActiveToolSheet.NONE) },
+                onShareExport = { platform -> viewModel.shareExportMessage(platform) },
+                onStartBackgroundExport = { res, fps, _, bitrate ->
+                    startBackgroundExport(res, fps, bitrate)
+                }
+            )
         }
     }
 

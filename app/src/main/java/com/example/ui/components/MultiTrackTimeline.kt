@@ -68,7 +68,9 @@ fun MultiTrackTimeline(
     onMoveOverlayClip: (clipId: String, newStartMs: Long) -> Unit = { _, _ -> },
     onMoveOverlayClipToTrack: (clipId: String, targetTrackId: String, newStartMs: Long) -> Unit = { _, _, _ -> },
     onZoomChange: (Float) -> Unit = {},
-    onTrimClip: (edge: ClipTrimHandle.Edge, deltaMs: Long) -> Unit = { _, _ -> },
+    onTrimStart: (clipId: String, edge: ClipTrimHandle.Edge) -> Unit = { _, _ -> },
+    onTrimPreview: (clipId: String, edge: ClipTrimHandle.Edge, deltaMs: Long) -> Unit = { _, _, _ -> },
+    onTrimEnd: (clipId: String, edge: ClipTrimHandle.Edge) -> Unit = { _, _ -> },
     onTrackMute: (trackId: String, muted: Boolean) -> Unit = { _, _ -> },
     onTrackLock: (trackId: String, locked: Boolean) -> Unit = { _, _ -> },
     onTrackSolo: (trackId: String, solo: Boolean) -> Unit = { _, _ -> },
@@ -306,7 +308,9 @@ fun MultiTrackTimeline(
                                     onTransitionClick = onTransitionClick,
                                     onAddMediaClick = onAddMediaClick,
                                     onMoveClip = onMoveClip,
-                                    onTrimClip = { _, edge, deltaMs -> onTrimClip(edge, deltaMs) },
+                                    onTrimStart = onTrimStart,
+                                    onTrimPreview = onTrimPreview,
+                                    onTrimEnd = onTrimEnd,
                                     fps = fps,
                                     isLocked = project.isMainTrackLocked,
                                     isMultiSelect = isMultiSelect,
@@ -338,9 +342,9 @@ fun MultiTrackTimeline(
                                                 )
                                             }
                                         },
-                                        onTrimClip = { _, edge, deltaMs ->
-                                            onTrimClip(edge, deltaMs)
-                                        },
+                                        onTrimStart = onTrimStart,
+                                        onTrimPreview = onTrimPreview,
+                                        onTrimEnd = onTrimEnd,
                                         fps = fps,
                                         isLocked = track.isLocked,
                                         trackIndex = trackIndex,

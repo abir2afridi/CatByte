@@ -79,4 +79,31 @@ class TimelineGeometryTest {
             )
         )
     }
+
+    @Test
+    fun `trim drag maps one-to-one between finger pixels and handle pixels`() {
+        // The trim handle converts the finger's drag to ms with the SAME scale
+        // the clip width is drawn with, so the handle must track the finger
+        // exactly: dragPx -> ms -> clipDp -> px must return the original px.
+        listOf(0.5f, 1f, 2f, 3f).forEach { zoom ->
+            val dpPerMs = TimelineGeometry.dpPerMs(zoom)
+            val density = 2.75f
+            val dragPx = 110f
+            val deltaMs = TimelineGeometry.dragPxToMs(dragPx, density, dpPerMs)
+            val handleDeltaPx = deltaMs * dpPerMs * density
+            assertEquals(dragPx, handleDeltaPx, 0.6f)
+        }
+    }
+
+    @Test
+    fun `trim drag conversion does not amplify the finger movement`() {
+        // Regression: callers pass dpPerMs (NOT the zoom) into dragPxToMs.
+        // Converting it again shrank the scale 1000/65x and made every trim
+        // run ~15x faster than the finger.
+        val dpPerMs = TimelineGeometry.dpPerMs(1f)
+        assertEquals(
+            1_000L,
+            TimelineGeometry.dragPxToMs(dragPx = dpPerMs * 1_000f, density = 1f, dpPerMs = dpPerMs)
+        )
+    }
 }

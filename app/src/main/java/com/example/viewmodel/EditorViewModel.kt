@@ -50,6 +50,7 @@ import com.example.engine.BeatGrid
 import com.example.engine.CaptionBridge
 import com.example.engine.ClipSplit
 import com.example.engine.ClipTrimHandle
+import com.example.engine.withMagneticMainTrack
 import com.example.engine.FileJournalStorage
 import com.example.engine.SnapEngine
 import com.example.engine.SubtitleIO
@@ -328,11 +329,13 @@ class EditorViewModel(
      * sliders smooth without allowing preview/export drift.
      */
     private fun schedulePreviewRefresh() {
-        val project = _currentProject.value ?: return
-        previewRefreshJob?.cancel()
+        // Do not restart the debounce on every drag frame: a pending refresh
+        // picks up the latest project when it fires, so the preview keeps
+        // updating live during a trim instead of waiting for the finger to lift.
+        if (previewRefreshJob?.isActive == true) return
         previewRefreshJob = viewModelScope.launch {
             delay(120L)
-            playerManager?.loadProject(project)
+            _currentProject.value?.let { playerManager?.loadProject(it) }
         }
     }
 
@@ -345,7 +348,7 @@ class EditorViewModel(
     init {
         val initialList = repository.projects.value
         if (initialList.isNotEmpty()) {
-            val firstProject = initialList.first()
+            val firstProject = initialList.first().withMagneticMainTrack()
             _currentProject.value = firstProject
             _selectedClipId.value = firstProject.clips.firstOrNull()?.id
                 ?: firstProject.overlayTracks.firstOrNull()?.clips?.firstOrNull()?.id
@@ -426,11 +429,12 @@ class EditorViewModel(
     fun openProject(project: VideoProject) {
         AppLog.info("EditorViewModel", "openProject() called: projectId=${project.id}, title=${project.title}, clips=${project.clips.size}, totalDuration=${project.totalDurationMs}ms")
         pausePlayback()
-        playerManager?.loadProject(project)
-        _currentProject.value = project
+        val normalized = project.withMagneticMainTrack()
+        playerManager?.loadProject(normalized)
+        _currentProject.value = normalized
         _currentPositionMs.value = 0L
-        _selectedClipId.value = project.clips.firstOrNull()?.id
-            ?: project.overlayTracks.firstOrNull()?.clips?.firstOrNull()?.id
+        _selectedClipId.value = normalized.clips.firstOrNull()?.id
+            ?: normalized.overlayTracks.firstOrNull()?.clips?.firstOrNull()?.id
         _selectedTextId.value = null
         _activeSheet.value = ActiveToolSheet.NONE
         undoStack.clear()
@@ -774,21 +778,24 @@ class EditorViewModel(
         ) {
             // Same gesture is still streaming: keep the pre-gesture snapshot
             // on top so ONE undo reverts the whole drag (CapCut behaviour).
-            return
+            // Slide the timestamp so a long drag stays a single undo step.
+            undoStack[undoStack.lastIndex] = last.copy(atMs = now)
+        } else {
+            undoStack.add(EditorHistoryEntry(project, coalesceKey, now))
+            if (undoStack.size > HISTORY_MAX) {
+                undoStack.removeAt(0)
+            }
+            redoStack.clear()
         }
-        undoStack.add(EditorHistoryEntry(project, coalesceKey, now))
-        if (undoStack.size > HISTORY_MAX) {
-            undoStack.removeAt(0)
-        }
-        redoStack.clear()
         _canUndo.value = undoStack.isNotEmpty()
         _canRedo.value = redoStack.isNotEmpty()
         undoJournal?.record(ProjectJson.toJson(project), coalesceKey)
     }
 
     private fun applyHistoryState(project: VideoProject) {
-        _currentProject.value = project
-        repository.saveProject(project)
+        val normalized = project.withMagneticMainTrack()
+        _currentProject.value = normalized
+        repository.saveProject(normalized)
         _canUndo.value = undoStack.isNotEmpty() || undoJournal?.canUndo == true
         _canRedo.value = redoStack.isNotEmpty() || undoJournal?.canRedo == true
         schedulePreviewRefresh()
@@ -829,9 +836,15 @@ class EditorViewModel(
     ) {
         val curr = _currentProject.value ?: return
         pushHistory(curr, coalesceKey)
-        val updated = transform(curr)
+        val updated = transform(curr).withMagneticMainTrack()
         _currentProject.value = updated
         repository.saveProject(updated)
+        // Trimming can make the timeline shorter than the playhead.
+        val clampedPosition = _currentPositionMs.value.coerceIn(0L, updated.totalDurationMs)
+        if (clampedPosition != _currentPositionMs.value) {
+            _currentPositionMs.value = clampedPosition
+            playerManager?.seekTo(clampedPosition)
+        }
         schedulePreviewRefresh()
     }
 
@@ -1585,22 +1598,56 @@ class EditorViewModel(
      */
     fun trimSelectedClipEdge(edge: ClipTrimHandle.Edge, outputDeltaMs: Long, fps: Int) {
         val clipId = _selectedClipId.value ?: return
-        updateProject(
-            coalesceKey = "trim:$clipId:$edge"
-        ) { proj ->
-            if (proj.isTrackLockedForClip(clipId)) return@updateProject proj
-            val clip = (proj.clips + proj.overlayTracks.flatMap { it.clips })
-                .firstOrNull { it.id == clipId }
-                ?: return@updateProject proj
-            val result = ClipTrimHandle.trim(clip, edge, outputDeltaMs, fps)
-                ?: return@updateProject proj
-            proj.withUpdatedClip(clipId) { updated ->
-                updated.copy(
-                    trimStartMs = result.trimStartMs,
-                    trimEndMs = result.trimEndMs,
-                    durationMs = result.durationMs
-                )
-            }
+        beginTrimClip(clipId, edge)
+        updateTrimClip(outputDeltaMs, fps)
+        endTrimClip()
+    }
+
+    /** One inline handle drag, snapshotted when the finger goes down. */
+    private var trimSession: ClipTrimSession? = null
+
+    /** Snapshots the clip before a handle drag so every live update is absolute. */
+    fun beginTrimClip(clipId: String, edge: ClipTrimHandle.Edge) {
+        val proj = _currentProject.value
+        if (proj == null || proj.isTrackLockedForClip(clipId)) {
+            trimSession = null
+            return
+        }
+        val clip = (proj.clips + proj.overlayTracks.flatMap { it.clips })
+            .firstOrNull { it.id == clipId }
+        trimSession = clip?.let { ClipTrimSession(clipId, edge, it, proj) }
+    }
+
+    /**
+     * Live trim while the handle moves. All the rules (in/out only, magnetic
+     * reflow, overlay end pinning, idempotent absolute application) live in
+     * [ClipTrimSession]; this only wires state/history/preview/save.
+     */
+    fun updateTrimClip(cumulativeDeltaMs: Long, fps: Int) {
+        val session = trimSession ?: return
+        val curr = _currentProject.value ?: return
+        val updated = session.applyTo(curr, cumulativeDeltaMs, fps) ?: return
+        if (!session.historyPushed) {
+            session.historyPushed = true
+            // ONE undo entry per drag: the pre-drag project.
+            pushHistory(session.baseProject, "trim:${session.clipId}:${session.edge}")
+        }
+        _currentProject.value = updated
+        // Trimming can make the timeline shorter than the playhead.
+        val clampedPosition = _currentPositionMs.value.coerceIn(0L, updated.totalDurationMs)
+        if (clampedPosition != _currentPositionMs.value) {
+            _currentPositionMs.value = clampedPosition
+            playerManager?.seekTo(clampedPosition)
+        }
+        schedulePreviewRefresh()
+    }
+
+    /** Ends the handle drag; autosaves the final trim once. */
+    fun endTrimClip() {
+        val hadSession = trimSession != null
+        trimSession = null
+        if (hadSession) {
+            _currentProject.value?.let { repository.saveProject(it) }
         }
     }
 
@@ -1618,9 +1665,17 @@ class EditorViewModel(
             val waveform = MediaMetadata.waveform(ctx, uri, 48) ?: emptyList()
             val realTitle = title.takeIf { it.isNotBlank() }
                 ?: MediaMetadata.displayName(ctx, uri)
-            // Place clip after existing clips on the timeline
+            // Place clip after existing clips on the timeline. A fresh project
+            // (or one holding only a legacy placeholder) starts at zero and
+            // discards the placeholder so the imported clip is visible.
             val currentProject = _currentProject.value
-            val lastEndMs = currentProject?.clips?.maxOfOrNull { it.startTimelineMs + it.durationMs } ?: 0L
+            val isFreshProject = currentProject == null ||
+                currentProject.clips.all { it.isPlaceholderClip }
+            val lastEndMs = if (isFreshProject) {
+                0L
+            } else {
+                currentProject?.clips?.maxOfOrNull { it.startTimelineMs + it.durationMs } ?: 0L
+            }
             AppLog.debug("EditorViewModel", "Creating clip: title=$realTitle, startTimelineMs=$lastEndMs, durationMs=$durationMs, waveformSize=${waveform.size}")
             val clip = MediaClip(
                 id = UUID.randomUUID().toString(),
@@ -1636,9 +1691,20 @@ class EditorViewModel(
             )
             _isImporting.value = false
             updateProject { proj ->
-                proj.copy(clips = proj.clips + clip)
+                val fresh = isFreshProject && proj.clips.all { it.isPlaceholderClip }
+                val ratio = if (fresh) {
+                    info?.let { AspectMath.fromVideo(it.width, it.height, it.rotation) }
+                } else {
+                    null
+                }
+                proj.copy(
+                    aspectRatio = ratio ?: proj.aspectRatio,
+                    clips = (if (fresh) emptyList() else proj.clips) + clip
+                )
             }
             _selectedClipId.value = clip.id
+            _currentPositionMs.value = clip.startTimelineMs
+            playerManager?.seekTo(clip.startTimelineMs)
             AppLog.info("EditorViewModel", "Successfully imported clip: $realTitle (${durationMs}ms), clipId=${clip.id}")
             // Reload the player with the updated project
         } catch (e: Exception) {
@@ -1670,10 +1736,18 @@ class EditorViewModel(
             AppLog.info("EditorViewModel", "importMultipleUris() started: ${uris.size} URIs to import")
             _isImporting.value = true
             val built = mutableListOf<MediaClip>()
-            var cursor = _currentProject.value
-                ?.clips
-                ?.maxOfOrNull { it.startTimelineMs + it.durationMs }
-                ?: 0L
+            val startingProject = _currentProject.value
+            // A fresh project (new, or one that only contains a legacy demo
+            // placeholder) starts at zero and adopts the first imported clip's
+            // ratio/title. Placeholder-only timelines are dropped entirely so
+            // the imported footage is what the user sees.
+            val isFreshProject = startingProject == null ||
+                startingProject.clips.all { it.isPlaceholderClip }
+            var cursor = if (isFreshProject) {
+                0L
+            } else {
+                startingProject?.clips?.maxOfOrNull { it.startTimelineMs + it.durationMs } ?: 0L
+            }
             var firstInfo: MediaVideoInfo? = null
 
             uris.forEachIndexed { index, uriString ->
@@ -1712,7 +1786,9 @@ class EditorViewModel(
             }
 
             updateProject { proj ->
-                val renamed = if (proj.clips.isEmpty() && built.isNotEmpty() &&
+                val fresh = isFreshProject && proj.clips.all { it.isPlaceholderClip }
+                val existingClips = if (fresh) emptyList() else proj.clips
+                val renamed = if (fresh && built.isNotEmpty() &&
                     (proj.title.isBlank() || proj.title == "New Project" ||
                         proj.title.startsWith("New Project") || proj.title.startsWith("Untitled"))
                 ) {
@@ -1720,7 +1796,7 @@ class EditorViewModel(
                 } else {
                     proj.title
                 }
-                val ratio = if (proj.clips.isEmpty()) {
+                val ratio = if (fresh) {
                     firstInfo?.let { AspectMath.fromVideo(it.width, it.height, it.rotation) }
                 } else {
                     null
@@ -1728,9 +1804,14 @@ class EditorViewModel(
                 proj.copy(
                     title = renamed,
                     aspectRatio = ratio ?: proj.aspectRatio,
-                    clips = proj.clips + built
+                    clips = existingClips + built
                 )
             }
+            // Show the imported footage immediately instead of leaving the
+            // playhead parked on the (now removed) placeholder at 0.
+            val firstImportedStart = built.firstOrNull()?.startTimelineMs ?: 0L
+            _currentPositionMs.value = firstImportedStart
+            playerManager?.seekTo(firstImportedStart)
             _selectedClipId.value = built.lastOrNull()?.id
             _isImporting.value = false
             AppLog.info("EditorViewModel", "importMultipleUris() completed ${built.size} clip(s)")

@@ -52,22 +52,26 @@ object ClipTrimHandle {
 
         val original = clip.originalDurationMs.coerceAtLeast(1L)
         val trimStart = clip.trimStartMs.coerceIn(0L, (original - 1L).coerceAtLeast(0L))
+        val speed = clip.speed.coerceIn(0.1f, 32f)
+        // trimEndMs == 0 is the "until the end" sentinel: the selected source
+        // window ends where durationMs (output time) says it does, mapped back
+        // through speed so a sped-up clip cannot lose half its source.
+        val defaultEnd = (trimStart + (clip.durationMs * speed).roundToLong())
+            .coerceAtMost(original)
         val trimEnd = if (clip.trimEndMs > trimStart) {
             clip.trimEndMs.coerceIn(trimStart + 1L, original)
         } else {
-            original
+            defaultEnd.coerceAtLeast(trimStart + 1L)
         }
-        val duration = clip.durationMs.coerceAtLeast(1L)
-        val speed = clip.speed.coerceIn(0.1f, 32f)
 
         return when (edge) {
             Edge.START -> {
-                // Dragging right shortens the clip: the source start moves in.
-                val newDuration = (duration - snappedDelta)
-                    .coerceIn(MIN_DURATION_MS, duration)
-                if (newDuration == duration && snappedDelta > 0L) return null
-                val cutSource = ((duration - newDuration) * speed).roundToLong()
-                val newStart = (trimStart + cutSource).coerceIn(0L, (trimEnd - 1L).coerceAtLeast(0L))
+                // Dragging right (outputDeltaMs > 0) shortens clip (trim inward).
+                // Dragging left (outputDeltaMs < 0) lengthens clip (trim outward, brings back hidden footage).
+                val sourceDeltaMs = (snappedDelta * speed).roundToLong()
+                val maxStart = (trimEnd - MIN_DURATION_MS).coerceAtLeast(0L)
+                val newStart = (trimStart + sourceDeltaMs).coerceIn(0L, maxStart)
+
                 val result = clip.copy(
                     trimStartMs = newStart,
                     trimEndMs = trimEnd,
@@ -83,13 +87,12 @@ object ClipTrimHandle {
             }
 
             Edge.END -> {
-                // Dragging right lengthens the clip up to the real source end.
-                val maxSource = (original - trimStart).coerceAtLeast(1L)
-                val maxOutput = (maxSource / speed).toLong()
-                val newDuration = (duration + snappedDelta).coerceIn(duration, maxOutput)
-                val newSource = ((newDuration * speed).roundToLong()).coerceIn(1L, maxSource)
-                if (newDuration == duration && snappedDelta > 0L) return null
-                val newEnd = trimStart + newSource
+                // Dragging right (outputDeltaMs > 0) lengthens clip (trim outward, brings back hidden footage).
+                // Dragging left (outputDeltaMs < 0) shortens clip (trim inward).
+                val sourceDeltaMs = (snappedDelta * speed).roundToLong()
+                val minEnd = (trimStart + MIN_DURATION_MS).coerceAtMost(original)
+                val newEnd = (trimEnd + sourceDeltaMs).coerceIn(minEnd, original)
+
                 val result = clip.copy(
                     trimStartMs = trimStart,
                     trimEndMs = newEnd,

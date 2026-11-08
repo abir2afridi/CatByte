@@ -238,7 +238,15 @@ data class MediaClip(
     val sourceHeight: Int = 0,
     /** Set when the loudness-adjustment switch normalised this clip's gain. */
     val isLoudnessAdjusted: Boolean = false
-)
+) {
+    /**
+     * True when this clip has no real media behind it, e.g. the legacy
+     * "Meadow & Sky" demo placeholder. Such clips render as gaps and can be
+     * discarded when the user imports real footage.
+     */
+    val isPlaceholderClip: Boolean
+        get() = uriString.isNullOrBlank() && drawableResId == null
+}
 
 data class VideoTrack(
     val id: String = UUID.randomUUID().toString(),

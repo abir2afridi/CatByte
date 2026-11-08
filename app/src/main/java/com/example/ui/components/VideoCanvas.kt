@@ -13,15 +13,16 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -187,18 +188,55 @@ fun VideoCanvas(
         }
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .background(Color(0xFF0C0C0F))
             .padding(horizontal = 16.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
+        // Fit the largest exact-ratio canvas inside the available space. Using
+        // fillMaxSize() here would force min = max constraints and make
+        // aspectRatio() a no-op, stretching/overflowing the editor layout.
+        val boundedWidth = maxWidth.value.isFinite() && maxWidth > 0.dp
+        val boundedHeight = maxHeight.value.isFinite() && maxHeight > 0.dp
+        val fittedWidth: Dp
+        val fittedHeight: Dp
+        if (targetAspect > 0f) {
+            when {
+                boundedWidth && boundedHeight -> {
+                    val widthAtMaxHeight = maxHeight * targetAspect
+                    if (widthAtMaxHeight <= maxWidth) {
+                        fittedWidth = widthAtMaxHeight
+                        fittedHeight = maxHeight
+                    } else {
+                        fittedWidth = maxWidth
+                        fittedHeight = maxWidth / targetAspect
+                    }
+                }
+                boundedWidth -> {
+                    fittedWidth = maxWidth
+                    fittedHeight = maxWidth / targetAspect
+                }
+                boundedHeight -> {
+                    fittedHeight = maxHeight
+                    fittedWidth = maxHeight * targetAspect
+                }
+                else -> {
+                    fittedWidth = 0.dp
+                    fittedHeight = 0.dp
+                }
+            }
+        } else {
+            fittedWidth = if (boundedWidth) maxWidth else 0.dp
+            fittedHeight = if (boundedHeight) maxHeight else 0.dp
+        }
+
         // Outer Canvas Frame maintaining exact project aspect ratio (CapCut clean studio style)
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .aspectRatio(targetAspect)
+                .width(fittedWidth)
+                .height(fittedHeight)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color.Black)
                 .onSizeChanged { canvasSize = it }

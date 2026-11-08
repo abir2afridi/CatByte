@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,9 +33,7 @@ import com.example.model.VideoProject
 /**
  * CapCut-style editor top bar matching the user's reference image:
  * - Left: Close (X) and Search (Magnifying glass)
- * - Right: Vibrant cyan "Export" pill button
- * - Under Export: "Export Draft" pill
- * (AI UHD is integrated directly into the export panel).
+ * - Right: "AI UHD ▾" chip and vibrant cyan "Export" pill button.
  */
 @Composable
 internal fun EditorTopBar(
@@ -94,11 +92,36 @@ internal fun EditorTopBar(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Right side column containing Export button and "Export Draft" below
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            // Right side buttons: "AI UHD ▾" chip and "Export" button
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // "AI UHD ▾" dropdown chip
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF24252A))
+                        .clickable { onExport() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .testTag("editor_ai_uhd_chip"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "AI UHD",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "AI UHD menu",
+                        tint = Color(0xFFA5A8B2),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
                 // Cyan "Export" pill button
                 Box(
                     modifier = Modifier
@@ -115,26 +138,6 @@ internal fun EditorTopBar(
                         color = Color(0xFF041E21),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
-                    )
-                }
-
-                // "Export Draft" pill directly below Export
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF2A2B31))
-                        .clickable {
-                            if (onExportDraft != {}) onExportDraft() else onExport()
-                        }
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                        .testTag("editor_export_draft_button"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Export Draft",
-                        color = Color.White.copy(alpha = 0.95f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
                     )
                 }
             }

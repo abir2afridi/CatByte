@@ -85,6 +85,20 @@ class TimelineEditsTest {
     }
 
     @Test
+    fun `magnetic reflow closes gaps after a trim changes duration`() {
+        val spans = listOf(span("a", 0, 3_000), span("b", 3_000, 2_000), span("c", 5_000, 1_000))
+        // Trim "a" shorter: the following clips must move left with it.
+        val shorter = spans.map { if (it.id == "a") it.copy(durationMs = 1_500) else it }
+        val closed = TimelineEdits.magneticReflow(shorter)
+        assertEquals(listOf(0L, 1_500L, 3_500L), closed.map { it.startMs })
+
+        // Trim it longer again: they ripple right, no overlap.
+        val longer = spans.map { if (it.id == "a") it.copy(durationMs = 4_500) else it }
+        val rippled = TimelineEdits.magneticReflow(longer)
+        assertEquals(listOf(0L, 4_500L, 6_500L), rippled.map { it.startMs })
+    }
+
+    @Test
     fun `ripple delete closes the gap`() {
         val spans = listOf(span("a", 0, 1_000), span("b", 1_000, 1_000), span("c", 2_000, 1_000))
         val result = TimelineEdits.delete(spans, "b")

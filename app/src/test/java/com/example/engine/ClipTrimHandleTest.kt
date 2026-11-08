@@ -98,6 +98,40 @@ class ClipTrimHandleTest {
     }
 
     @Test
+    fun `outward trim after a split restores the hidden source footage`() {
+        val source = MediaClip(
+            id = "source",
+            title = "Source",
+            durationMs = 10_000L,
+            originalDurationMs = 10_000L
+        )
+        val firstHalf = ClipSplit.split(source, 4_000L) { "second-half" }!!.first
+
+        // Drag the end handle left: only the out-point moves, source stays.
+        val shortened = ClipTrimHandle.trim(
+            firstHalf,
+            ClipTrimHandle.Edge.END,
+            outputDeltaMs = -1_000L,
+            fps = 30
+        )!!
+        assertEquals(3_010L, shortened.trimEndMs)
+        assertEquals(3_010L, shortened.durationMs)
+
+        // Drag it back right: the hidden footage returns.
+        val restored = ClipTrimHandle.trim(
+            firstHalf.copy(
+                trimEndMs = shortened.trimEndMs,
+                durationMs = shortened.durationMs
+            ),
+            ClipTrimHandle.Edge.END,
+            outputDeltaMs = 1_000L,
+            fps = 30
+        )!!
+        assertEquals(4_000L, restored.trimEndMs)
+        assertEquals(4_000L, restored.durationMs)
+    }
+
+    @Test
     fun `zero delta is a no-op`() {
         assertNull(ClipTrimHandle.trim(clip(durationMs = 3_000L), ClipTrimHandle.Edge.END, 0L, 30))
     }

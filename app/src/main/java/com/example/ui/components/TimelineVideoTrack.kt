@@ -42,9 +42,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import com.example.engine.ClipTrimHandle
+import com.example.engine.TimelineGeometry
 import com.example.model.MediaClip
 import kotlin.math.abs
-import kotlin.math.roundToLong
 
 /**
  * Main video track matching CapCut:
@@ -60,7 +60,9 @@ fun TimelineVideoTrack(
     onTransitionClick: (String) -> Unit,
     onAddMediaClick: () -> Unit,
     onMoveClip: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> },
-    onTrimClip: (clipId: String, edge: ClipTrimHandle.Edge, deltaMs: Long) -> Unit = { _, _, _ -> },
+    onTrimStart: (clipId: String, edge: ClipTrimHandle.Edge) -> Unit = { _, _ -> },
+    onTrimPreview: (clipId: String, edge: ClipTrimHandle.Edge, deltaMs: Long) -> Unit = { _, _, _ -> },
+    onTrimEnd: (clipId: String, edge: ClipTrimHandle.Edge) -> Unit = { _, _ -> },
     fps: Int = 30,
     isLocked: Boolean = false,
     isMultiSelect: Boolean = false,
@@ -99,7 +101,15 @@ fun TimelineVideoTrack(
                         .offset(x = startOffsetDp)
                         .width(clipWidthDp)
                         .fillMaxHeight()
-                        .zIndex(if (isDragging) 20f else 0f)
+                        .zIndex(
+                            when {
+                                isDragging -> 30f
+                                // Above the split markers (15f) so the bold trim
+                                // frame and handles are never covered.
+                                isSelected -> 25f
+                                else -> 0f
+                            }
+                        )
                         .graphicsLayer {
                             translationX = if (isDragging) dragOffsetPx else 0f
                             shadowElevation = if (isDragging) 14f else 0f
@@ -107,7 +117,7 @@ fun TimelineVideoTrack(
                         .clip(RoundedCornerShape(6.dp))
                         .background(Color(0xFF181A20))
                         .border(
-                            width = if (isSelected) 2.dp else 0.8.dp,
+                            width = if (isSelected) 3.dp else 0.8.dp,
                             color = when {
                                 isDragging -> Color(0xFFFFD600)
                                 isSelected -> Color.White
@@ -191,20 +201,34 @@ fun TimelineVideoTrack(
                             edge = ClipTrimHandle.Edge.START,
                             color = Color.White,
                             modifier = Modifier.align(Alignment.CenterStart),
-                            onCommit = { deltaPx ->
-                                val deltaDp = deltaPx / density.density
-                                val deltaMs = (deltaDp / msToDp).roundToLong()
-                                if (deltaMs != 0L) onTrimClip(clip.id, ClipTrimHandle.Edge.START, deltaMs)
+                            onDragStart = {
+                                onTrimStart(clip.id, ClipTrimHandle.Edge.START)
+                            },
+                            onDragDelta = { deltaPx ->
+                                val deltaMs = TimelineGeometry.dragPxToMs(
+                                    deltaPx, density.density, msToDp
+                                )
+                                onTrimPreview(clip.id, ClipTrimHandle.Edge.START, deltaMs)
+                            },
+                            onCommit = {
+                                onTrimEnd(clip.id, ClipTrimHandle.Edge.START)
                             }
                         )
                         TimelineTrimHandle(
                             edge = ClipTrimHandle.Edge.END,
                             color = Color.White,
                             modifier = Modifier.align(Alignment.CenterEnd),
-                            onCommit = { deltaPx ->
-                                val deltaDp = deltaPx / density.density
-                                val deltaMs = (deltaDp / msToDp).roundToLong()
-                                if (deltaMs != 0L) onTrimClip(clip.id, ClipTrimHandle.Edge.END, deltaMs)
+                            onDragStart = {
+                                onTrimStart(clip.id, ClipTrimHandle.Edge.END)
+                            },
+                            onDragDelta = { deltaPx ->
+                                val deltaMs = TimelineGeometry.dragPxToMs(
+                                    deltaPx, density.density, msToDp
+                                )
+                                onTrimPreview(clip.id, ClipTrimHandle.Edge.END, deltaMs)
+                            },
+                            onCommit = {
+                                onTrimEnd(clip.id, ClipTrimHandle.Edge.END)
                             }
                         )
 
@@ -227,30 +251,21 @@ fun TimelineVideoTrack(
                     }
                 }
 
-                // Split transition button at the boundary between adjacent clips (zero gap)
+                // Split marker at the boundary between adjacent clips (zero gap).
+                // The hide-when-selected rule lives in SplitBoundaryMarker.
                 val nextClip = clips.firstOrNull { abs(it.startTimelineMs - (clip.startTimelineMs + clip.durationMs)) < 50L }
                 if (nextClip != null) {
                     val boundaryX = (clip.startTimelineMs + clip.durationMs) * msToDp
-                    val transitionOffsetDp = (boundaryX - 11f).dp
-                    Box(
+                    SplitBoundaryMarker(
+                        leftClipId = clip.id,
+                        rightClipId = nextClip.id,
+                        selectedClipId = selectedClipId,
+                        selectedClipIds = selectedClipIds,
                         modifier = Modifier
-                            .offset(x = transitionOffsetDp)
-                            .size(width = 22.dp, height = 30.dp)
-                            .align(Alignment.CenterStart)
-                            .zIndex(15f)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color.White)
-                            .border(0.5.dp, Color(0xFFCCCCCC), RoundedCornerShape(4.dp))
-                            .clickable { onTransitionClick(clip.id) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .width(2.dp)
-                                .height(14.dp)
-                                .background(Color.Black)
-                        )
-                    }
+                            .offset(x = (boundaryX - 11f).dp)
+                            .align(Alignment.CenterStart),
+                        onClick = { onTransitionClick(clip.id) }
+                    )
                 }
             }
 
