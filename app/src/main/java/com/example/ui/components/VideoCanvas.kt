@@ -190,18 +190,17 @@ fun VideoCanvas(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.background)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .background(Color(0xFF0C0C0F))
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Outer Canvas Frame with sketched/clean border
+        // Outer Canvas Frame maintaining exact project aspect ratio (CapCut clean studio style)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .aspectRatio(targetAspect)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color(backgroundArgbFor(project.paperStyle)))
-                .sketchPencilBorder(strokeWidth = 1.8.dp, color = colors.border, cornerRadius = 14.dp, isPencilStyle = colors.isPencilSketch)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black)
                 .onSizeChanged { canvasSize = it }
                 .pointerInput(isEyedropperActive) {
                     if (isEyedropperActive) {
@@ -243,39 +242,8 @@ fun VideoCanvas(
                 .testTag("video_canvas_preview"),
             contentAlignment = Alignment.Center
         ) {
-            if (colors.isPencilSketch) {
-                // Drafting Crop Marks in 4 corners for Pencil theme
-                DraftingCropCorners(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .padding(6.dp),
-                    strokeColor = colors.accentCyan.copy(alpha = 0.7f),
-                    lineLength = 14.dp,
-                    strokeWidth = 1.6.dp
-                )
-            }
 
-            if (colors.isPencilSketch) {
-                // Drafting Washi Tape mounting strips on top corners for Pencil theme
-                WashiTapeCorner(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .offset(x = (-4).dp, y = (-2).dp),
-                    rotationDegrees = -15f,
-                    widthDp = 44.dp,
-                    heightDp = 14.dp,
-                    tapeLabel = "PIN"
-                )
-                WashiTapeCorner(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 4.dp, y = (-2).dp),
-                    rotationDegrees = 15f,
-                    widthDp = 44.dp,
-                    heightDp = 14.dp,
-                    tapeLabel = "DRAFT"
-                )
-            }
+
             val isSampleClip = activeClip != null && activeClip.uriString == null && activeClip.drawableResId == null
             if (isSampleClip) {
                 RenderClipVisual(

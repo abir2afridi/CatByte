@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -254,11 +255,17 @@ fun EditorScreen(
     // feedback instead of a silent no-op when the playhead is on a clip edge.
     val splitAtPlayhead: () -> Unit = {
         if (!viewModel.splitClipAtPlayhead()) {
-            Toast.makeText(
-                context,
-                "Move the playhead inside a clip to split it",
-                Toast.LENGTH_SHORT
-            ).show()
+            val targetClip = project?.clips?.firstOrNull()
+            if (targetClip != null) {
+                viewModel.seekTo(targetClip.durationMs / 2L)
+                viewModel.splitClipAtPlayhead()
+            } else {
+                Toast.makeText(
+                    context,
+                    "Move the playhead inside a clip to split it",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
         }
     }
 
@@ -279,12 +286,34 @@ fun EditorScreen(
         runCatching { shortcutFocus.requestFocus() }
     }
 
-    Column(
+    // Background export needs notification permission on Android 13+.
+    var pendingBackgroundExport by remember { mutableStateOf<Triple<String, Int, Int>?>(null) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ ->
+        pendingBackgroundExport?.let { (res, fps, bitrate) ->
+            viewModel.startBackgroundExportWithContext(context, res, fps, bitrate)
+        }
+        pendingBackgroundExport = null
+    }
+    val startBackgroundExport: (resolution: String, fps: Int, bitrateMbps: Int) -> Unit = { res, fps, bitrate ->
+        viewModel.setActiveSheet(ActiveToolSheet.NONE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingBackgroundExport = Triple(res, fps, bitrate)
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            viewModel.startBackgroundExportWithContext(context, res, fps, bitrate)
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
             .statusBarsPadding()
-            .navigationBarsPadding()
             .focusRequester(shortcutFocus)
             .focusable()
             .onPreviewKeyEvent { event ->
@@ -312,6 +341,7 @@ fun EditorScreen(
                 true
             }
     ) {
+        Column(modifier = Modifier.fillMaxSize()) {
         // 1. Top Bar
         if (!isPreviewFullscreen) {
             EditorTopBar(
@@ -354,35 +384,12 @@ fun EditorScreen(
             ?.value
             .orEmpty()
 
-        // Background export needs the notification permission on Android 13+.
-        // A denial must not block the export (the foreground service runs
-        // either way; only the progress notification stays hidden).
-        var pendingBackgroundExport by remember { mutableStateOf<Triple<String, Int, Int>?>(null) }
-        val notificationPermissionLauncher = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.RequestPermission()
-        ) { _ ->
-            pendingBackgroundExport?.let { (res, fps, bitrate) ->
-                viewModel.startBackgroundExportWithContext(context, res, fps, bitrate)
-            }
-            pendingBackgroundExport = null
-        }
-        val startBackgroundExport: (resolution: String, fps: Int, bitrateMbps: Int) -> Unit = { res, fps, bitrate ->
-            viewModel.setActiveSheet(ActiveToolSheet.NONE)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                pendingBackgroundExport = Triple(res, fps, bitrate)
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            } else {
-                viewModel.startBackgroundExportWithContext(context, res, fps, bitrate)
-            }
-        }
+
 
         Box(
             modifier = Modifier
-                .weight(1f)
                 .fillMaxWidth()
+                .weight(1f, fill = false)
         ) {
             androidx.compose.runtime.CompositionLocalProvider(
                 com.example.ui.components.LocalVideoPlayer provides previewPlayer
@@ -544,14 +551,93 @@ fun EditorScreen(
             )
         }
 
-        // 5. Active Tool Sheet / Bottom Bar
-        if (activeSheet != ActiveToolSheet.NONE) {
-            when (activeSheet) {
-                ActiveToolSheet.TTS_VOICEOVER -> {
-                    // Handled by the AudioSheet when TTS is triggered
-                    Box(modifier = Modifier.fillMaxSize())
-                }
-                ActiveToolSheet.EDIT_CLIP -> {
+        // Spacer absorbing extra vertical space between Timeline and Bottom Action Bar
+        Spacer(modifier = Modifier.weight(1f))
+
+        // 5. Bottom Action Bar
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF121215))
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp, top = 6.dp)
+        ) {
+            if (selectedClipId != null && !isMultiSelect) {
+                ClipActionBar(
+                    onBack = { viewModel.clearSelection() },
+                    onSplit = splitAtPlayhead,
+                    onVolume = { viewModel.setActiveSheet(ActiveToolSheet.VOLUME_BOOST) },
+                    onAnimations = { viewModel.setActiveSheet(ActiveToolSheet.ANIMATIONS) },
+                    onEffects = { viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY) },
+                    onDelete = { viewModel.deleteSelectedClip() },
+                    onSpeed = { viewModel.setActiveSheet(ActiveToolSheet.SPEED) },
+                    onBeats = { viewModel.autoCutToBeat() },
+                    onCrop = { viewModel.setActiveSheet(ActiveToolSheet.CROP) },
+                    onDuplicate = { viewModel.duplicateSelectedClip() },
+                    onReplace = {
+                        replaceMediaLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                        )
+                    },
+                    onOverlay = {
+                        addOverlayLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                        )
+                    },
+                    onAdjust = { viewModel.setActiveSheet(ActiveToolSheet.ADJUSTMENTS) },
+                    onStickers = { viewModel.setActiveSheet(ActiveToolSheet.STICKERS_PICKER) },
+                    onAspectRatio = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
+                    onBackground = { viewModel.setActiveSheet(ActiveToolSheet.BACKGROUND) },
+                    onOpacity = { viewModel.setActiveSheet(ActiveToolSheet.OPACITY) },
+                    onFreeze = { viewModel.freezeFrameAtPlayhead() },
+                    onReverse = { viewModel.reverseSelectedClip() },
+                    onExtractAudio = { viewModel.extractAudioFromSelectedClip() },
+                    onMore = { viewModel.setActiveSheet(ActiveToolSheet.EDIT_CLIP) },
+                    onAiTools = { viewModel.setActiveSheet(ActiveToolSheet.AI_TOOLS) }
+                )
+            } else {
+                CapCutBottomActionBar(
+                    onEdit = {
+                        if (selectedClipId != null) {
+                            viewModel.setActiveSheet(ActiveToolSheet.EDIT_CLIP)
+                        } else {
+                            Toast.makeText(context, "Select a clip to edit", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onAudio = { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY) },
+                    onText = { viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR) },
+                    onEffects = { viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY) },
+                    onOverlay = {
+                        addOverlayLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                        )
+                    },
+                    onCaptions = { viewModel.setActiveSheet(ActiveToolSheet.CAPTIONS) },
+                    onStickers = { viewModel.setActiveSheet(ActiveToolSheet.STICKERS_PICKER) },
+                    onFilters = { viewModel.setActiveSheet(ActiveToolSheet.FILTERS_LIBRARY) },
+                    onAdjust = { viewModel.setActiveSheet(ActiveToolSheet.ADJUSTMENTS) },
+                    onRatio = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
+                    onBackground = { viewModel.setActiveSheet(ActiveToolSheet.BACKGROUND) },
+                    onTools = { viewModel.setActiveSheet(ActiveToolSheet.TIMELINE_TOOLS) }
+                )
+            }
+        }
+        }
+        } // end Column
+
+        // Floating Overlay Tool Sheet (slides up at bottom without compressing the video canvas)
+        if (activeSheet != ActiveToolSheet.NONE && activeSheet != ActiveToolSheet.EXPORT_MODAL) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+            ) {
+                when (activeSheet) {
+                    ActiveToolSheet.TTS_VOICEOVER -> {
+                        Box(modifier = Modifier.fillMaxSize())
+                    }
+                    ActiveToolSheet.EDIT_CLIP -> {
                     EditClipSheet(
                         clip = currentClip,
                         onSplit = splitAtPlayhead,
@@ -644,7 +730,9 @@ fun EditorScreen(
                 ActiveToolSheet.EFFECTS_LIBRARY -> {
                     EffectsSheet(
                         onAddEffect = { fx ->
-                            viewModel.addTimelineEffect(fx)
+                            if (fx != null) {
+                                viewModel.addTimelineEffect(fx)
+                            }
                             viewModel.setActiveSheet(ActiveToolSheet.NONE)
                         },
                         onClose = {
@@ -910,70 +998,7 @@ fun EditorScreen(
                 }
                 ActiveToolSheet.NONE -> {}
             }
-        } else {
-            // Bottom Action Toolbar: CapCut's clip context bar while a clip is
-            // selected, otherwise the global tool bar.
-            if (selectedClipId != null && !isMultiSelect) {
-                ClipActionBar(
-                    onBack = { viewModel.clearSelection() },
-                    onSplit = splitAtPlayhead,
-                    onVolume = { viewModel.setActiveSheet(ActiveToolSheet.VOLUME_BOOST) },
-                    onAnimations = { viewModel.setActiveSheet(ActiveToolSheet.ANIMATIONS) },
-                    onEffects = { viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY) },
-                    onDelete = { viewModel.deleteSelectedClip() },
-                    onSpeed = { viewModel.setActiveSheet(ActiveToolSheet.SPEED) },
-                    onBeats = { viewModel.autoCutToBeat() },
-                    onCrop = { viewModel.setActiveSheet(ActiveToolSheet.CROP) },
-                    onDuplicate = { viewModel.duplicateSelectedClip() },
-                    onReplace = {
-                        replaceMediaLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
-                        )
-                    },
-                    onOverlay = {
-                        addOverlayLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
-                        )
-                    },
-                    onAdjust = { viewModel.setActiveSheet(ActiveToolSheet.ADJUSTMENTS) },
-                    onStickers = { viewModel.setActiveSheet(ActiveToolSheet.STICKERS_PICKER) },
-                    onAspectRatio = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
-                    onBackground = { viewModel.setActiveSheet(ActiveToolSheet.BACKGROUND) },
-                    onOpacity = { viewModel.setActiveSheet(ActiveToolSheet.OPACITY) },
-                    onFreeze = { viewModel.freezeFrameAtPlayhead() },
-                    onReverse = { viewModel.reverseSelectedClip() },
-                    onExtractAudio = { viewModel.extractAudioFromSelectedClip() },
-                    onMore = { viewModel.setActiveSheet(ActiveToolSheet.EDIT_CLIP) },
-                    onAiTools = { viewModel.setActiveSheet(ActiveToolSheet.AI_TOOLS) }
-                )
-            } else {
-                CapCutBottomActionBar(
-                    onEdit = {
-                        if (selectedClipId != null) {
-                            viewModel.setActiveSheet(ActiveToolSheet.EDIT_CLIP)
-                        } else {
-                            Toast.makeText(context, "Select a clip to edit", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onAudio = { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY) },
-                    onText = { viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR) },
-                    onEffects = { viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY) },
-                    onOverlay = {
-                        addOverlayLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
-                        )
-                    },
-                    onCaptions = { viewModel.setActiveSheet(ActiveToolSheet.CAPTIONS) },
-                    onStickers = { viewModel.setActiveSheet(ActiveToolSheet.STICKERS_PICKER) },
-                    onFilters = { viewModel.setActiveSheet(ActiveToolSheet.FILTERS_LIBRARY) },
-                    onAdjust = { viewModel.setActiveSheet(ActiveToolSheet.ADJUSTMENTS) },
-                    onRatio = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
-                    onBackground = { viewModel.setActiveSheet(ActiveToolSheet.BACKGROUND) },
-                    onTools = { viewModel.setActiveSheet(ActiveToolSheet.TIMELINE_TOOLS) }
-                )
-            }
         }
-        } // end fullscreen check
     }
 
     if (showFeatureSearch) {
@@ -1169,6 +1194,7 @@ fun EditorScreen(
             }
         }
     }
+}
 }
 
 // ==========================================

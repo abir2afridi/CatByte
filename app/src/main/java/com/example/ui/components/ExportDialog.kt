@@ -114,15 +114,15 @@ fun ExportDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 0.dp, vertical = 0.dp),
-            contentAlignment = Alignment.BottomCenter
+            contentAlignment = Alignment.TopCenter
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                    .clip(RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp))
                     .background(colors.surface)
-                    .border(1.dp, colors.borderSubtle, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                    .padding(20.dp)
+                    .border(1.dp, colors.borderSubtle, RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp))
+                    .padding(horizontal = 20.dp, vertical = 24.dp)
                     .testTag("export_dialog")
             ) {
                 if (exportState.isExporting) {

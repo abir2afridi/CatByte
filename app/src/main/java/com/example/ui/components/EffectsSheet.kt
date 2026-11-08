@@ -1,13 +1,5 @@
 package com.example.ui.components
 
-import android.content.Context
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,145 +10,80 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.FastRewind
-import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ContentCut
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.RotateRight
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import com.example.data.SampleDataProvider
-import com.example.model.AspectRatioType
-import com.example.model.AudioClip
-import com.example.model.BlendMode
-import com.example.model.ClipAnimation
-import com.example.model.EasingCurve
 import com.example.model.EffectType
-import com.example.model.HslAdjustment
-import com.example.model.HslChannel
-import com.example.model.Keyframe
-import com.example.model.KeyframeProperty
-import com.example.model.MaskData
-import com.example.model.MaskType
-import com.example.model.MediaClip
-import com.example.model.SpeedCurve
-import com.example.model.SpeedCurvePreset
-import com.example.model.TextAnimationType
-import com.example.model.TextFontStyle
-import com.example.model.TextOverlay
-import com.example.model.TransitionType
-import com.example.model.VideoFilter
-import com.example.ui.theme.CapCutBorder
-import com.example.ui.theme.CapCutBorderSubtle
-import com.example.ui.theme.CapCutCyan
-import com.example.ui.theme.CapCutDarkBackground
-import com.example.ui.theme.CapCutGreen
-import com.example.ui.theme.CapCutPink
-import com.example.ui.theme.CapCutPurple
-import com.example.ui.theme.CapCutRed
-import com.example.ui.theme.CapCutSurface
-import com.example.ui.theme.CapCutSurfaceElevated
-import com.example.ui.theme.CapCutSurfaceVariant
-import com.example.ui.theme.CapCutTextPrimary
-import com.example.ui.theme.CapCutTextSecondary
-import com.example.ui.theme.CapCutYellow
-import com.example.ui.theme.PencilTheme
-import com.example.ui.theme.SharpenedPencilTip
-import com.example.ui.theme.TornPaperEdge
-import com.example.ui.theme.WashiTapeCorner
-import com.example.ui.theme.WashiTapeSticker
-import com.example.ui.theme.pencilHatching
-import com.example.ui.theme.sketchPencilBorder
-import com.example.viewmodel.ExportUiState
 
+/**
+ * CapCut-exact Video Effects modal matching the user's reference screenshot:
+ * - Top search bar ("Search video effects") with checkmark (✓) confirmation button
+ * - Horizontal scrollable category tabs (Trending, B.Duck, Pumpkin Spice, Classic, Magic, etc.)
+ * - 3-column grid of video effect cards with thumbnails, download badge, and diamond badge
+ */
 @Composable
 fun EffectsSheet(
-    onAddEffect: (EffectType) -> Unit,
+    onAddEffect: (EffectType?) -> Unit,
     onClose: () -> Unit
 ) {
-    val colors = PencilTheme.colors
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val categories = listOf("Trending", "B.Duck", "Pumpkin Spice 🍁", "Classic", "✨ Magic", "Retro", "Lens", "Nightclub")
+    val effects = EffectType.values().toList()
+
+    val filteredEffects = if (searchQuery.isBlank()) {
+        effects
+    } else {
+        effects.filter { it.displayName.contains(searchQuery, ignoreCase = true) }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp)
+            .height(460.dp)
             .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.borderSubtle.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            .background(Color(0xFF141416))
+            .border(1.dp, Color(0xFF262832), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .testTag("effects_sheet")
     ) {
-        // Drag handle indicator
+        // 1. Drag handle indicator
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 6.dp, bottom = 2.dp),
+                .padding(top = 8.dp, bottom = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -164,60 +91,224 @@ fun EffectsSheet(
                     .width(36.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(colors.textTertiary.copy(alpha = 0.4f))
+                    .background(Color(0xFF5A5B64))
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Video Effects (CapCut FX)", color = CapCutTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            IconButton(onClick = onClose) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = CapCutTextSecondary)
-            }
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
+        // 2. Search bar and Checkmark button row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            EffectType.values().forEach { fx ->
+            // Search field
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF22242B))
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = Color(0xFFA5A8B2),
+                    modifier = Modifier.size(18.dp)
+                )
+                androidx.compose.foundation.text.BasicTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = Color.White,
+                        fontSize = 13.sp
+                    ),
+                    decorationBox = { innerTextField ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = "Search video effects",
+                                    color = Color(0xFFA5A8B2),
+                                    fontSize = 13.sp
+                                )
+                            }
+                            innerTextField()
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Checkmark button (✓)
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF22242B))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Confirm",
+                    tint = Color(0xFF26E5D7),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        // 3. Category Tabs Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            categories.forEachIndexed { index, category ->
+                val isSelected = selectedTab == index
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .width(84.dp)
+                        .clickable { selectedTab = index }
+                        .padding(vertical = 6.dp)
+                ) {
+                    Text(
+                        text = category,
+                        color = if (isSelected) Color.White else Color(0xFFA5A8B2),
+                        fontSize = 13.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(22.dp)
+                            .height(2.5.dp)
+                            .clip(RoundedCornerShape(1.5.dp))
+                            .background(if (isSelected) Color(0xFF26E5D7) else Color.Transparent)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // 4. Effects Grid (3 columns)
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            contentPadding = PaddingValues(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            // "None" effect card
+            item {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(CapCutSurfaceElevated)
-                        .border(1.dp, CapCutBorder, RoundedCornerShape(8.dp))
+                        .background(Color(0xFF1E2026))
+                        .border(1.dp, Color(0xFF2D303B), RoundedCornerShape(8.dp))
+                        .clickable { onAddEffect(null) }
+                        .padding(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(80.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF262832)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Block,
+                            contentDescription = "None",
+                            tint = Color(0xFFA5A8B2),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "None",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            // Effect Items
+            items(filteredEffects) { fx ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF1E2026))
+                        .border(1.dp, Color(0xFF2D303B), RoundedCornerShape(8.dp))
                         .clickable { onAddEffect(fx) }
                         .padding(8.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(CapCutGreen.copy(alpha = 0.25f)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .height(80.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF1E2026))
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = fx.displayName,
-                            tint = CapCutGreen,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        // Background preview thumbnail (Meadow canvas preview)
+                        CapCutMeadowCanvas(modifier = Modifier.fillMaxSize())
+
+                        // Top badges: Download arrow (↓) on top-left, Diamond on top-right
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Download icon badge
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.5f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("↓", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                            // Diamond / Pro badge
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.5f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = "Pro",
+                                    tint = Color(0xFF00F2FE),
+                                    modifier = Modifier.size(10.dp)
+                                )
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = fx.displayName,
-                        color = CapCutTextPrimary,
+                        color = Color.White,
                         fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
-                        fontWeight = FontWeight.Medium
+                        maxLines = 1
                     )
                 }
             }

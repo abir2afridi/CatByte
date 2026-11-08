@@ -897,8 +897,6 @@ class EditorViewModel(
         val project = _currentProject.value ?: return false
         if (_isPlaying.value) {
             pausePlayback()
-            // Pull the player's exact position before cutting; the 50 ms sync
-            // loop may be one frame behind the paused frame.
             playerManager?.syncPosition()
             playerManager?.currentPositionMs?.value?.let { _currentPositionMs.value = it }
         }
@@ -906,13 +904,10 @@ class EditorViewModel(
         val selectedId = _selectedClipId.value
         val min = ClipSplit.MIN_SPLIT_MS
 
-        // Locked tracks refuse the cut. A selected overlay splits even when the
-        // main track is locked, and vice versa.
         if (selectedId != null && project.isTrackLockedForClip(selectedId)) return false
         val selectedIsMain = selectedId != null && project.clips.any { it.id == selectedId }
         if (project.isMainTrackLocked && (selectedId == null || selectedIsMain)) return false
 
-        // 1. A selected overlay clip under the playhead wins over the main track.
         if (selectedId != null) {
             project.overlayTracks.forEachIndexed { trackIndex, track ->
                 val clip = track.clips.firstOrNull { it.id == selectedId } ?: return@forEachIndexed
@@ -939,19 +934,24 @@ class EditorViewModel(
             }
         }
 
-        // 2. Main-track clip under the playhead (list order defines the time).
         var cursorMs = 0L
         project.clips.forEachIndexed { index, clip ->
             val localMs = playhead - cursorMs
             if (localMs in min..(clip.durationMs - min)) {
                 val split = ClipSplit.split(clip, localMs) { UUID.randomUUID().toString() }
                     ?: return false
+                val first = split.first.copy(
+                    startTimelineMs = clip.startTimelineMs
+                )
+                val second = split.second.copy(
+                    startTimelineMs = clip.startTimelineMs + localMs
+                )
                 val clips = project.clips.toMutableList()
                 clips.removeAt(index)
-                clips.add(index, split.second)
-                clips.add(index, split.first)
+                clips.add(index, second)
+                clips.add(index, first)
                 updateProject { it.copy(clips = clips) }
-                _selectedClipId.value = split.second.id
+                _selectedClipId.value = second.id
                 return true
             }
             cursorMs += clip.durationMs
