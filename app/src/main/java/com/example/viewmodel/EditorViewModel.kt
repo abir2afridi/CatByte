@@ -333,6 +333,10 @@ class EditorViewModel(
         // picks up the latest project when it fires, so the preview keeps
         // updating live during a trim instead of waiting for the finger to lift.
         if (previewRefreshJob?.isActive == true) return
+        // A live trim would rebuild the whole Media3 composition mid-drag —
+        // far too heavy for a smooth handle. ClipTrimSession refreshes ONCE at
+        // finger lift instead (endTrimClip -> refreshPreviewNow).
+        if (trimSession != null) return
         previewRefreshJob = viewModelScope.launch {
             delay(120L)
             _currentProject.value?.let { playerManager?.loadProject(it) }
@@ -1616,6 +1620,13 @@ class EditorViewModel(
         val clip = (proj.clips + proj.overlayTracks.flatMap { it.clips })
             .firstOrNull { it.id == clipId }
         trimSession = clip?.let { ClipTrimSession(clipId, edge, it, proj) }
+        // A queued preview rebuild landing mid-drag is one visible hitch, and
+        // while the session is active schedulePreviewRefresh() refuses new
+        // work. Cancel whatever is pending; endTrimClip refreshes instead.
+        if (trimSession != null) {
+            previewRefreshJob?.cancel()
+            previewRefreshJob = null
+        }
     }
 
     /**
@@ -1642,12 +1653,15 @@ class EditorViewModel(
         schedulePreviewRefresh()
     }
 
-    /** Ends the handle drag; autosaves the final trim once. */
+    /** Ends the handle drag; autosaves once and refreshes the preview once. */
     fun endTrimClip() {
         val hadSession = trimSession != null
         trimSession = null
         if (hadSession) {
             _currentProject.value?.let { repository.saveProject(it) }
+            // One rebuild at finger lift: the preview shows the final trim
+            // immediately, without any mid-drag composition rebuilds.
+            refreshPreviewNow()
         }
     }
 

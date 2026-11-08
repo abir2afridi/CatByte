@@ -159,9 +159,24 @@ class PlayerManager(context: Context) {
      * Loads [project] into the best available preview path. When the project is
      * unchanged this is a no-op (apart from restoring the play state), which is
      * what makes debounced preview refresh cheap.
+     *
+     * [forceRebuild] skips that fast path and retries a latched-off composition
+     * path: a player that errored (e.g. "Error processing video frames" when the
+     * host surface died in the background) sits in STATE_IDLE forever, and the
+     * process-scoped singleton would keep it after the app reopens — which is
+     * why nothing played until the user cleared the app from recents.
      */
-    fun loadProject(project: VideoProject, startPositionMs: Long? = null) {
+    fun loadProject(project: VideoProject, startPositionMs: Long? = null, forceRebuild: Boolean = false) {
         if (released) return
+        if (forceRebuild) {
+            _lastError.value = null
+            if (compositionFailed) {
+                // Retry the composition path once per forced rebuild; if it
+                // errors again the fallback path continues as before.
+                compositionFailed = false
+                if (compositionPlayer == null) buildCompositionPlayer()
+            }
+        }
         val previous = currentProject
         val start = (startPositionMs ?: _currentPositionMs.value)
             .coerceIn(0L, project.totalDurationMs)
@@ -184,8 +199,10 @@ class PlayerManager(context: Context) {
         }
 
         // Same project: keep the prepared composition (editing calls this method
-        // after every mutation, so rebuilding identical input would stutter).
-        if (previous == project &&
+        // after every mutation, so rebuilding identical input would stutter) —
+        // unless the rebuild was forced because the player is known-broken.
+        if (!forceRebuild &&
+            previous == project &&
             lastCompositionProject == project &&
             _activePlayer.value != null
         ) {
@@ -323,11 +340,19 @@ class PlayerManager(context: Context) {
     // ------------------------------------------------------------------
 
     fun play() {
-        val player = _activePlayer.value
-        if (player == null) {
+        if (_activePlayer.value == null) {
             AppLog.warn(TAG, "play() called without an active preview player")
             return
         }
+        // A player that errored sits in STATE_IDLE and silently ignores play()
+        // (it needs prepare(), not play()). Rebuild it from the project so
+        // pressing play always recovers instead of doing nothing.
+        if (_playbackState.value == Player.STATE_IDLE) {
+            currentProject?.let { project ->
+                loadProject(project, _currentPositionMs.value, forceRebuild = true)
+            }
+        }
+        val player = _activePlayer.value ?: return
         if (player.playbackState == Player.STATE_ENDED) {
             seekPlayer(player, 0L)
             _currentPositionMs.value = 0L
@@ -416,5 +441,34 @@ class PlayerManager(context: Context) {
         fallbackPlayer = null
         _activePlayer.value = null
         _isPlayingInternal.value = false
+    }
+
+    // ------------------------------------------------------------------
+    // Host lifecycle recovery
+    // ------------------------------------------------------------------
+
+    /**
+     * This manager is a process-scoped singleton: it outlives the activity.
+     * When the app is only backgrounded (not killed), a player whose surface
+     * died can end up errored/idle, and on reopen nothing would play — not
+     * even freshly imported media — until the user cleared the app from
+     * recents. The editor UI calls these two hooks around foreground events;
+     * on resume we rebuild a broken player at the same playhead.
+     */
+    private var hostBackgrounded = false
+
+    fun onHostPause() {
+        hostBackgrounded = true
+    }
+
+    fun onHostResume() {
+        if (!hostBackgrounded) return
+        hostBackgrounded = false
+        val project = currentProject ?: return
+        val broken = _lastError.value != null || _playbackState.value == Player.STATE_IDLE
+        if (broken) {
+            AppLog.warn(TAG, "Preview player is idle after the host returned; rebuilding it")
+            loadProject(project, _currentPositionMs.value, forceRebuild = true)
+        }
     }
 }

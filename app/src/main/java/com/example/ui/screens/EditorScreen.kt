@@ -366,6 +366,24 @@ fun EditorScreen(
             (context.applicationContext as? com.example.CatByteApplication)
                 ?.container?.playerManager
         }
+
+        // PlayerManager is process-scoped and outlives the activity: when the
+        // app is backgrounded its surface dies and the player can end up
+        // errored/idle, which used to make nothing play after reopening the
+        // app (until "Clear all" killed the process). Rebuild it on resume.
+        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+        androidx.compose.runtime.DisposableEffect(playerManager, lifecycleOwner) {
+            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                when (event) {
+                    androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> playerManager?.onHostPause()
+                    androidx.lifecycle.Lifecycle.Event.ON_RESUME -> playerManager?.onHostResume()
+                    else -> Unit
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
+
         val previewPlayer = playerManager
             ?.activePlayer
             ?.collectAsState()

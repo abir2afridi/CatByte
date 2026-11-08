@@ -113,6 +113,7 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.room.ktx)
   implementation(libs.coil.compose)
+implementation(libs.coil.video)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   ksp(libs.androidx.room.compiler)

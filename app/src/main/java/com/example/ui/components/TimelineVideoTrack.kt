@@ -33,6 +33,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -41,10 +42,84 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.request.videoFrameMicros
+import com.example.data.ClipTiming
 import com.example.engine.ClipTrimHandle
 import com.example.engine.TimelineGeometry
 import com.example.model.MediaClip
 import kotlin.math.abs
+
+/**
+ * Tiled filmstrip frames for one clip.
+ *
+ * Own composable on purpose: a trim drag changes only the clip's width, and
+ * with strong skipping this whole row of Coil images is skipped unless the
+ * tile count actually changes — one of the reasons the trim handle stays
+ * smooth instead of stuttering.
+ */
+@Composable
+private fun ClipFilmstrip(
+    clip: MediaClip,
+    frameCount: Int,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    Row(modifier = modifier) {
+        val frameWidthDp = 50.dp
+        // Every tile shows a DIFFERENT frame, sampled evenly across the clip's
+        // selected source window (in-point .. out-point). Samples snap to a
+        // fixed 500ms grid so zooming reuses cached frames instead of
+        // re-decoding a whole new set.
+        val sourceWindowMs = ClipTiming.sourceLengthMs(clip)
+        val trimStartMs = clip.trimStartMs.coerceAtLeast(0L)
+        val gridMs = 500L
+        for (f in 0 until frameCount) {
+            if (clip.uriString != null) {
+                val rawOffsetMs = (((f + 0.5) * sourceWindowMs) / frameCount).toLong()
+                val offsetMs = if (sourceWindowMs > gridMs * 2) {
+                    ((rawOffsetMs / gridMs) * gridMs + gridMs / 2)
+                        .coerceIn(0L, (sourceWindowMs - 1).coerceAtLeast(0L))
+                } else {
+                    rawOffsetMs
+                }
+                val model = ImageRequest.Builder(context)
+                    .data(clip.uriString)
+                    .videoFrameMicros((trimStartMs + offsetMs) * 1000L)
+                    .size(160)
+                    .build()
+                AsyncImage(
+                    model = model,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .width(frameWidthDp)
+                        .fillMaxHeight()
+                        .border(0.4.dp, Color.Black.copy(alpha = 0.25f))
+                )
+            } else if (clip.drawableResId != null) {
+                Image(
+                    painter = painterResource(clip.drawableResId),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .width(frameWidthDp)
+                        .fillMaxHeight()
+                        .border(0.4.dp, Color.Black.copy(alpha = 0.25f))
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .width(frameWidthDp)
+                        .fillMaxHeight()
+                        .border(0.4.dp, Color.Black.copy(alpha = 0.25f))
+                ) {
+                    CapCutMeadowCanvas(modifier = Modifier.fillMaxSize())
+                }
+            }
+        }
+    }
+}
 
 /**
  * Main video track matching CapCut:
@@ -133,45 +208,14 @@ fun TimelineVideoTrack(
                             }
                         }
                 ) {
-                    // Tiled filmstrip frames
-                    Row(
+                    // Tiled filmstrip frames. Extracted so a trim drag — which
+                    // only changes the clip's width — does not recompose the
+                    // heavy AsyncImage row unless the tile count changes.
+                    ClipFilmstrip(
+                        clip = clip,
+                        frameCount = ((clipWidthDp / 50.dp).toInt()).coerceAtLeast(1),
                         modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp))
-                    ) {
-                        val frameWidthDp = 50.dp
-                        val frameCount = ((clipWidthDp / frameWidthDp).toInt()).coerceAtLeast(1)
-                        for (f in 0 until frameCount) {
-                            if (clip.uriString != null) {
-                                AsyncImage(
-                                    model = clip.uriString,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .width(frameWidthDp)
-                                        .fillMaxHeight()
-                                        .border(0.4.dp, Color.Black.copy(alpha = 0.25f))
-                                )
-                            } else if (clip.drawableResId != null) {
-                                Image(
-                                    painter = painterResource(clip.drawableResId),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .width(frameWidthDp)
-                                        .fillMaxHeight()
-                                        .border(0.4.dp, Color.Black.copy(alpha = 0.25f))
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .width(frameWidthDp)
-                                        .fillMaxHeight()
-                                        .border(0.4.dp, Color.Black.copy(alpha = 0.25f))
-                                ) {
-                                    CapCutMeadowCanvas(modifier = Modifier.fillMaxSize())
-                                }
-                            }
-                        }
-                    }
+                    )
 
                     // Waveform overlay
                     Canvas(modifier = Modifier.fillMaxSize()) {
