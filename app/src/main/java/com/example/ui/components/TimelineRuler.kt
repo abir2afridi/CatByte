@@ -1,11 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,12 +9,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -26,38 +19,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.engine.SnapCandidate
+import com.example.engine.SnapEngine
 import com.example.engine.TimelineGeometry
 import com.example.model.TimelineMarker
 
 /**
  * CapCut-exact time ruler matching the reference screenshot:
  * Clean ticks with stamped second text (00:00 · 00:01 · 00:02) and subtle center dots.
+ *
+ * Purely visual: the ruler lives inside the scrolling content and slides under
+ * the fixed centre playhead. Tap-to-seek is detected by the viewport (see
+ * `MultiTrackTimeline`), and horizontal drags are handled by the scroll
+ * container, so this composable never competes for pointer input.
  */
 @Composable
 fun TimelineRuler(
     totalMs: Long,
     zoom: Float,
-    fps: Int,
-    magneticSnap: Boolean,
-    snapCandidates: List<SnapCandidate>,
-    snapThresholdFrames: Long,
-    scrollState: ScrollState,
     beats: List<Long> = emptyList(),
     markers: List<TimelineMarker> = emptyList(),
-    onSeek: (Long) -> Unit,
-    onScrubStart: () -> Unit,
-    onScrubEnd: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
     val safeZoom = zoom.coerceAtLeast(0.01f)
-
-    val latestOnSeek by rememberUpdatedState(onSeek)
-    val latestOnScrubStart by rememberUpdatedState(onScrubStart)
-    val latestOnScrubEnd by rememberUpdatedState(onScrubEnd)
-    val latestSnap by rememberUpdatedState(magneticSnap)
-    val latestCandidates by rememberUpdatedState(snapCandidates)
-    val latestThreshold by rememberUpdatedState(snapThresholdFrames)
 
     val labelStepMs = when {
         TimelineGeometry.dpPerMs(safeZoom) * 1_000f >= 48f -> 1_000L
@@ -71,43 +55,6 @@ fun TimelineRuler(
             .height(28.dp)
             .background(Color(0xFF101014))
             .testTag("timeline_ruler")
-            .pointerInput(totalMs, fps) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    down.consume()
-                    latestOnScrubStart()
-
-                    fun seekAtX(xPx: Float) {
-                        val xDp = (xPx / density.density).coerceAtLeast(0f)
-                        val rawMs = TimelineGeometry.msAtContentXDp(xDp, safeZoom)
-                        latestOnSeek(
-                            snapTargetMs(
-                                rawMs = rawMs,
-                                fps = fps,
-                                totalMs = totalMs,
-                                enabled = latestSnap,
-                                candidates = latestCandidates,
-                                thresholdFrames = latestThreshold
-                            )
-                        )
-                    }
-
-                    try {
-                        seekAtX(down.position.x)
-                        drag(down.id) { change ->
-                            change.consume()
-                            seekAtX(change.position.x)
-                            TimelineAutoScroll.atContentPx(
-                                contentPx = change.position.x,
-                                density = density.density,
-                                scrollState = scrollState
-                            )
-                        }
-                    } finally {
-                        latestOnScrubEnd()
-                    }
-                }
-            }
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val h = size.height
@@ -189,4 +136,24 @@ fun TimelineRuler(
             labelMs += labelStepMs
         }
     }
+}
+
+/** Snaps a raw seek position to nearby clip edges, never to itself. */
+internal fun snapTargetMs(
+    rawMs: Long,
+    fps: Int,
+    totalMs: Long,
+    enabled: Boolean,
+    candidates: List<SnapCandidate>,
+    thresholdFrames: Long
+): Long {
+    val safeFps = fps.coerceIn(1, 120)
+    val rawFrame = (rawMs.coerceIn(0L, totalMs) * safeFps / 1_000L)
+    val snapped = SnapEngine.snap(
+        targetFrame = rawFrame,
+        candidates = candidates,
+        thresholdFrames = thresholdFrames,
+        enabled = enabled
+    )
+    return (snapped.frame * 1_000L / safeFps).coerceIn(0L, totalMs)
 }

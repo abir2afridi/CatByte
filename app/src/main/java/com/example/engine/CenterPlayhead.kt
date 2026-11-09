@@ -4,76 +4,56 @@ import kotlin.math.max
 import kotlin.math.roundToLong
 
 /**
- * Fixed center playhead (CapCut timeline behaviour).
+ * Fixed centre playhead (CapCut timeline behaviour).
  *
- * The playhead never moves on screen: the timeline content scrolls underneath
- * it. These helpers convert between a frame and a horizontal content offset so
- * the gesture layer, the ruler and the clip strips all agree.
+ * The needle never moves on screen: it is pinned to the horizontal centre of
+ * the scrolling viewport and the timeline content scrolls underneath it.
+ *
+ * To make that possible at time 0 AND at the very end, the scroll content is
+ * padded with HALF A VIEWPORT on both sides. Those pads are exactly why the
+ * scroll offset for a frame is simply `frame * pxPerFrame` — the leading pad
+ * already puts time 0 at the centre, so no extra `viewport / 2` term is needed.
+ *
+ * Own file on purpose: the ruler, the scroll observer and the follow-scroll
+ * all derive their positions from these rules, so a future edit elsewhere
+ * cannot silently make the needle drift again.
  */
 object CenterPlayhead {
 
-    fun maxOffsetPx(contentWidthPx: Float, viewportWidthPx: Float): Float =
-        max(0f, contentWidthPx - viewportWidthPx)
+    /** Empty lead-in / lead-out on each side of the timeline, in pixels. */
+    fun edgePaddingPx(viewportWidthPx: Float): Float =
+        viewportWidthPx.coerceAtLeast(0f) / 2f
 
-    fun clampOffset(offsetPx: Float, contentWidthPx: Float, viewportWidthPx: Float): Float =
-        offsetPx.coerceIn(0f, maxOffsetPx(contentWidthPx, viewportWidthPx))
+    /** Width of the scroll content: timeline plus one half-viewport pad per side. */
+    fun paddedContentWidthPx(timelineWidthPx: Float, viewportWidthPx: Float): Float =
+        timelineWidthPx.coerceAtLeast(0f) + 2f * edgePaddingPx(viewportWidthPx)
 
-    /** Content offset that puts [playheadFrame] exactly under the playhead. */
+    /**
+     * Largest scroll offset. The two half-viewport pads cancel the viewport
+     * exactly, so this equals the timeline width.
+     */
+    fun maxOffsetPx(timelineWidthPx: Float, viewportWidthPx: Float): Float =
+        max(
+            0f,
+            paddedContentWidthPx(timelineWidthPx, viewportWidthPx) -
+                viewportWidthPx.coerceAtLeast(0f)
+        )
+
+    /** Content offset that puts [playheadFrame] exactly under the fixed needle. */
     fun offsetForFrame(
         playheadFrame: Long,
         pxPerFrame: Float,
-        viewportWidthPx: Float,
-        contentWidthPx: Float
+        timelineWidthPx: Float,
+        viewportWidthPx: Float
     ): Float {
         if (pxPerFrame <= 0f) return 0f
-        val raw = playheadFrame * pxPerFrame - viewportWidthPx / 2f
-        return clampOffset(raw, contentWidthPx, viewportWidthPx)
+        val raw = playheadFrame.coerceAtLeast(0L) * pxPerFrame
+        return raw.coerceIn(0f, maxOffsetPx(timelineWidthPx, viewportWidthPx))
     }
 
-    /** Frame currently visible under the fixed playhead for a given offset. */
-    fun frameAtPlayhead(
-        offsetPx: Float,
-        pxPerFrame: Float,
-        viewportWidthPx: Float
-    ): Long {
+    /** Frame currently under the fixed needle for a given scroll offset. */
+    fun frameAtPlayhead(offsetPx: Float, pxPerFrame: Float): Long {
         if (pxPerFrame <= 0f) return 0L
-        val frame = (offsetPx + viewportWidthPx / 2f) / pxPerFrame
-        return frame.roundToLong().coerceAtLeast(0L)
+        return (offsetPx.coerceAtLeast(0f) / pxPerFrame).roundToLong()
     }
-
-    /**
-     * Offset to keep after a pinch zoom, so the content under the playhead stays
-     * put while the scale changes.
-     */
-    fun offsetAfterZoom(
-        playheadFrame: Long,
-        newPxPerFrame: Float,
-        viewportWidthPx: Float,
-        contentWidthPx: Float
-    ): Float = offsetForFrame(playheadFrame, newPxPerFrame, viewportWidthPx, contentWidthPx)
-
-    /**
-     * True when the playhead is pinned at the very start/end of the timeline and
-     * therefore cannot stay centered; the UI uses this to show the end padding.
-     */
-    fun pinnedAtEdges(
-        playheadFrame: Long,
-        pxPerFrame: Float,
-        viewportWidthPx: Float,
-        contentWidthPx: Float
-    ): Boolean {
-        if (pxPerFrame <= 0f) return true
-        val ideal = playheadFrame * pxPerFrame - viewportWidthPx / 2f
-        return ideal < 0f || ideal > maxOffsetPx(contentWidthPx, viewportWidthPx)
-    }
-
-    /**
-     * Horizontal offset for drawing a clip edge when the content is scrolled by
-     * [offsetPx].
-     */
-    fun clipDrawOffsetPx(
-        clipStartFrame: Long,
-        pxPerFrame: Float,
-        offsetPx: Float
-    ): Float = clipStartFrame * pxPerFrame - offsetPx
 }

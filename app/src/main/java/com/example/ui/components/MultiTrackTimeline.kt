@@ -1,12 +1,10 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,16 +24,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.example.engine.CenterPlayhead
 import com.example.engine.ClipTrimHandle
 import com.example.engine.SnapCandidate
@@ -43,12 +44,25 @@ import com.example.engine.SnapEngine
 import com.example.engine.TimelineGeometry
 import com.example.model.TimelineTrackIds
 import com.example.model.VideoProject
-import com.example.ui.theme.PencilTheme
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 /**
  * Multi-track timeline coordinator matching the CapCut screenshot.
+ *
+ * CapCut interaction model: the white playhead is FIXED at the horizontal
+ * centre of the viewport and cannot be dragged. The ruler and every track
+ * scroll underneath it; the time under the needle is the current position.
+ * The scroll content is padded with half a viewport on both sides so time 0
+ * and the end can also sit exactly under the needle.
+ *
+ * Two one-way syncs keep scroll and position in agreement without fighting:
+ *  - user scroll  -> derive the frame under the needle -> onSeek (scrub);
+ *  - position/zoom change -> scroll so that position is under the needle.
+ * Each side ignores changes that the other one caused (offset equality /
+ * programmatic flag), so there is no feedback loop.
  */
 @Composable
 fun MultiTrackTimeline(
@@ -95,17 +109,24 @@ fun MultiTrackTimeline(
     val density = LocalDensity.current
 
     var viewportWidthPx by remember { mutableStateOf(0) }
-    var isScrubbing by remember { mutableStateOf(false) }
+    // Set while the position-change effect scrolls the timeline itself, so the
+    // scroll observer below never mistakes that for a user scrub.
+    var programmaticScroll by remember { mutableStateOf(false) }
 
-    val isUserDragging by scrollState.interactionSource.collectIsDraggedAsState()
     val latestInteraction by rememberUpdatedState(onUserInteraction)
     val latestOnZoom by rememberUpdatedState(onZoomChange)
     val latestZoom by rememberUpdatedState(zoom)
+    val latestPositionMs by rememberUpdatedState(currentPositionMs)
+    val latestOnSeek by rememberUpdatedState(onSeek)
 
     val fps = project.fps.coerceIn(1, 120)
     val pxPerFrameDp = (msToDp * (1_000f / fps)).coerceAtLeast(0.0001f)
     val pxPerFramePx = pxPerFrameDp * density.density
-    val contentWidthPx = timelineWidthDp * density.density
+    val timelineWidthPx = timelineWidthDp * density.density
+
+    // Half a viewport of empty lead-in/lead-out: this is what lets time 0 and
+    // the end sit exactly under the fixed centre needle.
+    val halfViewportDp = with(density) { (viewportWidthPx / 2f).toDp() }
 
     val snapCandidates: List<SnapCandidate> = remember(project, fps, beats) {
         val edges = mutableListOf<Long>(0L)
@@ -143,49 +164,59 @@ fun MultiTrackTimeline(
         SnapEngine.thresholdFrames(TimelineGeometry.SNAP_THRESHOLD_DP, pxPerFrameDp)
     }
 
-    LaunchedEffect(isUserDragging) {
-        if (isUserDragging) latestInteraction()
+    val latestSnap by rememberUpdatedState(magneticSnap)
+    val latestSnapCandidates by rememberUpdatedState(snapCandidates)
+    val latestSnapThreshold by rememberUpdatedState(snapThresholdFrames)
+
+    // ------------------------------------------------------------------
+    // Position -> scroll: keep the current frame under the fixed needle.
+    // Skipped while the user is dragging/flinging; when the finger lifts the
+    // same flow re-emits with inProgress = false and settles the needle.
+    // ------------------------------------------------------------------
+    LaunchedEffect(pxPerFramePx, viewportWidthPx, timelineWidthPx, fps) {
+        if (viewportWidthPx <= 0 || pxPerFramePx <= 0f) return@LaunchedEffect
+        snapshotFlow { latestPositionMs to scrollState.isScrollInProgress }
+            .distinctUntilChanged()
+            .collect { (positionMs, scrollInProgress) ->
+                if (scrollInProgress) return@collect
+                val target = CenterPlayhead.offsetForFrame(
+                    playheadFrame = positionMs * fps / 1_000L,
+                    pxPerFrame = pxPerFramePx,
+                    timelineWidthPx = timelineWidthPx,
+                    viewportWidthPx = viewportWidthPx.toFloat()
+                )
+                if (abs(target - scrollState.value) < 1f) return@collect
+                programmaticScroll = true
+                try {
+                    scrollState.scrollTo(target.roundToInt())
+                } finally {
+                    programmaticScroll = false
+                }
+            }
     }
 
-    LaunchedEffect(
-        currentPositionMs,
-        isPlaying,
-        isUserDragging,
-        isScrubbing,
-        pxPerFramePx,
-        viewportWidthPx
-    ) {
-        if (!isPlaying || isUserDragging || isScrubbing || viewportWidthPx <= 0) {
-            return@LaunchedEffect
-        }
-        val target = CenterPlayhead.offsetForFrame(
-            playheadFrame = currentPositionMs * fps / 1_000L,
-            pxPerFrame = pxPerFramePx,
-            viewportWidthPx = viewportWidthPx.toFloat(),
-            contentWidthPx = contentWidthPx
-        )
-        if (abs(target - scrollState.value) >= 0.5f) {
-            scrollState.scrollTo(target.roundToInt())
-        }
+    // ------------------------------------------------------------------
+    // Scroll -> position: the frame under the needle while the user scrolls.
+    // This is the whole scrub gesture now that the playhead cannot move.
+    // ------------------------------------------------------------------
+    LaunchedEffect(pxPerFramePx, viewportWidthPx, timelineWidthPx, fps, totalMs) {
+        if (viewportWidthPx <= 0 || pxPerFramePx <= 0f) return@LaunchedEffect
+        snapshotFlow { scrollState.value to scrollState.isScrollInProgress }
+            .distinctUntilChanged()
+            .collect { (offset, scrollInProgress) ->
+                if (!scrollInProgress || programmaticScroll) return@collect
+                val expected = CenterPlayhead.offsetForFrame(
+                    playheadFrame = latestPositionMs * fps / 1_000L,
+                    pxPerFrame = pxPerFramePx,
+                    timelineWidthPx = timelineWidthPx,
+                    viewportWidthPx = viewportWidthPx.toFloat()
+                )
+                if (abs(offset - expected) < 1.5f) return@collect
+                val frame = CenterPlayhead.frameAtPlayhead(offset.toFloat(), pxPerFramePx)
+                val ms = (frame * 1_000L / fps).coerceIn(0L, totalMs)
+                if (abs(ms - latestPositionMs) >= 2L) latestOnSeek(ms)
+            }
     }
-
-    LaunchedEffect(pxPerFramePx, viewportWidthPx) {
-        if (viewportWidthPx > 0) {
-            val target = CenterPlayhead.offsetForFrame(
-                playheadFrame = currentPositionMs * fps / 1_000L,
-                pxPerFrame = pxPerFramePx,
-                viewportWidthPx = viewportWidthPx.toFloat(),
-                contentWidthPx = contentWidthPx
-            )
-            scrollState.scrollTo(target.roundToInt())
-        }
-    }
-
-    val beginScrub: () -> Unit = {
-        isScrubbing = true
-        latestInteraction()
-    }
-    val endScrub: () -> Unit = { isScrubbing = false }
 
     Box(
         modifier = modifier
@@ -253,9 +284,58 @@ fun MultiTrackTimeline(
                             }
                         }
                     }
+                    .pointerInput(totalMs, fps, zoom, viewportWidthPx) {
+                        // Tap on the ruler -> seek. Deliberately non-consuming:
+                        // a drag must still reach horizontalScroll so the ruler
+                        // slides under the fixed needle. The ruler itself has
+                        // no pointer input for exactly this reason.
+                        val touchSlop = viewConfiguration.touchSlop
+                        val rulerHeightPx = 28.dp.toPx()
+                        val pxPerMsPx = msToDp * density.density
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            if (down.position.y > rulerHeightPx) return@awaitEachGesture
+                            var moved = false
+                            var multiTouch = false
+                            var released = false
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                if (event.changes.count { it.pressed } > 1) multiTouch = true
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.changedToUpIgnoreConsumed()) {
+                                    released = true
+                                    break
+                                }
+                                if (!change.pressed) break
+                                if (abs(change.position.x - down.position.x) > touchSlop ||
+                                    abs(change.position.y - down.position.y) > touchSlop
+                                ) {
+                                    moved = true
+                                }
+                            }
+                            if (released && !moved && !multiTouch && pxPerMsPx > 0f) {
+                                val contentX = scrollState.value + down.position.x
+                                val padPx = CenterPlayhead.edgePaddingPx(viewportWidthPx.toFloat())
+                                val rawMs = ((contentX - padPx) / pxPerMsPx)
+                                    .roundToLong()
+                                    .coerceAtLeast(0L)
+                                latestOnSeek(
+                                    snapTargetMs(
+                                        rawMs = rawMs,
+                                        fps = fps,
+                                        totalMs = totalMs,
+                                        enabled = latestSnap,
+                                        candidates = latestSnapCandidates,
+                                        thresholdFrames = latestSnapThreshold
+                                    )
+                                )
+                            }
+                        }
+                    }
                     .onSizeChanged { viewportWidthPx = it.width }
             ) {
-                // Ruler pinned to top of track scroll
+                // Ruler pinned to top of track scroll. The leading/trailing
+                // half-viewport spacers live INSIDE the scroll content.
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
@@ -263,21 +343,17 @@ fun MultiTrackTimeline(
                         .height(28.dp)
                         .horizontalScroll(scrollState)
                 ) {
-                    Box(modifier = Modifier.width(timelineWidthDp.dp)) {
-                        TimelineRuler(
-                            totalMs = totalMs,
-                            zoom = zoom,
-                            fps = fps,
-                            magneticSnap = magneticSnap,
-                            snapCandidates = snapCandidates,
-                            snapThresholdFrames = snapThresholdFrames,
-                            scrollState = scrollState,
-                            beats = beats,
-                            markers = project.markers,
-                            onSeek = onSeek,
-                            onScrubStart = beginScrub,
-                            onScrubEnd = endScrub
-                        )
+                    Row {
+                        Spacer(modifier = Modifier.width(halfViewportDp))
+                        Box(modifier = Modifier.width(timelineWidthDp.dp)) {
+                            TimelineRuler(
+                                totalMs = totalMs,
+                                zoom = zoom,
+                                beats = beats,
+                                markers = project.markers
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(halfViewportDp))
                     }
                 }
 
@@ -293,138 +369,120 @@ fun MultiTrackTimeline(
                             .fillMaxHeight()
                             .verticalScroll(trackScrollState)
                     ) {
-                        Box(
+                        Row(
                             modifier = Modifier
-                                .width(timelineWidthDp.dp)
+                                .fillMaxHeight()
                                 .horizontalScroll(scrollState)
                         ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                // 1. Main Video Track
-                                TimelineVideoTrack(
-                                    clips = project.clips,
-                                    selectedClipId = selectedClipId,
-                                    msToDp = msToDp,
-                                    onSelectClip = onSelectClip,
-                                    onTransitionClick = onTransitionClick,
-                                    onAddMediaClick = onAddMediaClick,
-                                    onMoveClip = onMoveClip,
-                                    onTrimStart = onTrimStart,
-                                    onTrimPreview = onTrimPreview,
-                                    onTrimEnd = onTrimEnd,
-                                    fps = fps,
-                                    isLocked = project.isMainTrackLocked,
-                                    isMultiSelect = isMultiSelect,
-                                    selectedClipIds = selectedClipIds,
-                                    onToggleClipSelection = onToggleClipSelection
-                                )
+                            Spacer(modifier = Modifier.width(halfViewportDp))
 
-                                Spacer(modifier = Modifier.height(5.dp))
-
-                                // 2. Overlay Tracks
-                                project.overlayTracks.forEachIndexed { trackIndex, track ->
-                                    TimelineOverlayTrack(
-                                        clips = track.clips,
+                            Box(
+                                modifier = Modifier
+                                    .width(timelineWidthDp.dp)
+                                    .fillMaxHeight()
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    // 1. Main Video Track
+                                    TimelineVideoTrack(
+                                        clips = project.clips,
                                         selectedClipId = selectedClipId,
                                         msToDp = msToDp,
                                         onSelectClip = onSelectClip,
-                                        onMoveClip = { clipId, startMs, trackShift ->
-                                            if (trackShift == 0) {
-                                                onMoveOverlayClip(clipId, startMs)
-                                            } else {
-                                                val targetIndex = (trackIndex + trackShift).coerceIn(
-                                                    0,
-                                                    project.overlayTracks.lastIndex
-                                                )
-                                                onMoveOverlayClipToTrack(
-                                                    clipId,
-                                                    project.overlayTracks[targetIndex].id,
-                                                    startMs
-                                                )
-                                            }
-                                        },
+                                        onTransitionClick = onTransitionClick,
+                                        onAddMediaClick = onAddMediaClick,
+                                        onMoveClip = onMoveClip,
                                         onTrimStart = onTrimStart,
                                         onTrimPreview = onTrimPreview,
                                         onTrimEnd = onTrimEnd,
                                         fps = fps,
-                                        isLocked = track.isLocked,
-                                        trackIndex = trackIndex,
-                                        trackCount = project.overlayTracks.size,
+                                        isLocked = project.isMainTrackLocked,
                                         isMultiSelect = isMultiSelect,
                                         selectedClipIds = selectedClipIds,
                                         onToggleClipSelection = onToggleClipSelection
                                     )
+
                                     Spacer(modifier = Modifier.height(5.dp))
-                                }
 
-                                // 3. Audio Track (+ Add audio)
-                                TimelineAudioTrack(
-                                    tracks = project.audioTracks,
-                                    msToDp = msToDp,
-                                    onMoveClip = onMoveAudioClip,
-                                    selectedAudioId = null,
-                                    onAddAudioClick = onAddAudioClick
-                                )
+                                    // 2. Overlay Tracks
+                                    project.overlayTracks.forEachIndexed { trackIndex, track ->
+                                        TimelineOverlayTrack(
+                                            clips = track.clips,
+                                            selectedClipId = selectedClipId,
+                                            msToDp = msToDp,
+                                            onSelectClip = onSelectClip,
+                                            onMoveClip = { clipId, startMs, trackShift ->
+                                                if (trackShift == 0) {
+                                                    onMoveOverlayClip(clipId, startMs)
+                                                } else {
+                                                    val targetIndex = (trackIndex + trackShift).coerceIn(
+                                                        0,
+                                                        project.overlayTracks.lastIndex
+                                                    )
+                                                    onMoveOverlayClipToTrack(
+                                                        clipId,
+                                                        project.overlayTracks[targetIndex].id,
+                                                        startMs
+                                                    )
+                                                }
+                                            },
+                                            onTrimStart = onTrimStart,
+                                            onTrimPreview = onTrimPreview,
+                                            onTrimEnd = onTrimEnd,
+                                            fps = fps,
+                                            isLocked = track.isLocked,
+                                            trackIndex = trackIndex,
+                                            trackCount = project.overlayTracks.size,
+                                            isMultiSelect = isMultiSelect,
+                                            selectedClipIds = selectedClipIds,
+                                            onToggleClipSelection = onToggleClipSelection
+                                        )
+                                        Spacer(modifier = Modifier.height(5.dp))
+                                    }
 
-                                Spacer(modifier = Modifier.height(5.dp))
-
-                                // 4. Text Track (+ Add text)
-                                TimelineTextTrack(
-                                    texts = project.textOverlays,
-                                    selectedTextId = selectedTextId,
-                                    msToDp = msToDp,
-                                    onSelectText = onSelectText,
-                                    onAddTextClick = onAddTextClick
-                                )
-
-                                if (project.effects.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.height(5.dp))
-                                    TimelineEffectsTrack(
-                                        effects = project.effects,
-                                        msToDp = msToDp
+                                    // 3. Audio Track (+ Add audio)
+                                    TimelineAudioTrack(
+                                        tracks = project.audioTracks,
+                                        msToDp = msToDp,
+                                        onMoveClip = onMoveAudioClip,
+                                        selectedAudioId = null,
+                                        onAddAudioClick = onAddAudioClick
                                     )
+
+                                    Spacer(modifier = Modifier.height(5.dp))
+
+                                    // 4. Text Track (+ Add text)
+                                    TimelineTextTrack(
+                                        texts = project.textOverlays,
+                                        selectedTextId = selectedTextId,
+                                        msToDp = msToDp,
+                                        onSelectText = onSelectText,
+                                        onAddTextClick = onAddTextClick
+                                    )
+
+                                    if (project.effects.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(5.dp))
+                                        TimelineEffectsTrack(
+                                            effects = project.effects,
+                                            msToDp = msToDp
+                                        )
+                                    }
                                 }
                             }
+
+                            Spacer(modifier = Modifier.width(halfViewportDp))
                         }
                     }
                 }
 
-                // White Playhead Needle (Through ruler and tracks)
+                // Fixed centre playhead: a pure visual overlay with no pointer
+                // input, so it never steals a drag from the timeline beneath.
                 TimelinePlayhead(
-                    positionMs = currentPositionMs,
-                    totalMs = totalMs,
-                    zoom = zoom,
-                    scrollState = scrollState,
-                    fps = fps,
-                    magneticSnap = magneticSnap,
-                    snapCandidates = snapCandidates,
-                    snapThresholdFrames = snapThresholdFrames,
-                    onSeek = onSeek,
-                    onScrubStart = beginScrub,
-                    onScrubEnd = endScrub,
-                    modifier = Modifier.align(Alignment.TopStart)
-                )
-
-                // Snap guide line
-                Canvas(
+                    active = scrollState.isScrollInProgress,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .fillMaxSize()
-                ) {
-                    if (!magneticSnap || !isScrubbing) return@Canvas
-                    val x = TimelineGeometry.screenXDp(
-                        positionMs = currentPositionMs,
-                        zoom = zoom,
-                        scrollPx = scrollState.value,
-                        density = density.density
-                    ) * density.density
-                    if (x < 0f || x > size.width) return@Canvas
-                    drawLine(
-                        color = Color(0xFFFFD600),
-                        start = androidx.compose.ui.geometry.Offset(x, 0f),
-                        end = androidx.compose.ui.geometry.Offset(x, size.height),
-                        strokeWidth = 1.6f * density.density
-                    )
-                }
+                        .zIndex(20f)
+                )
             }
         }
     }

@@ -321,7 +321,13 @@ class EditorViewModel(
     private var voiceRecordJob: Job? = null
     private var exportJob: Job? = null
     private var importJob: Job? = null
-    private var previewRefreshJob: Job? = null
+
+    /** Preview rebuild policy lives in its own file (PreviewRefreshScheduler). */
+    private val previewScheduler = PreviewRefreshScheduler(
+        scope = viewModelScope,
+        projectProvider = { _currentProject.value },
+        refresh = { project -> playerManager?.loadProject(project) }
+    )
 
     /**
      * Rebuilds the render graph after the user stops dragging/sliding. The
@@ -329,24 +335,11 @@ class EditorViewModel(
      * sliders smooth without allowing preview/export drift.
      */
     private fun schedulePreviewRefresh() {
-        // Do not restart the debounce on every drag frame: a pending refresh
-        // picks up the latest project when it fires, so the preview keeps
-        // updating live during a trim instead of waiting for the finger to lift.
-        if (previewRefreshJob?.isActive == true) return
-        // A live trim would rebuild the whole Media3 composition mid-drag —
-        // far too heavy for a smooth handle. ClipTrimSession refreshes ONCE at
-        // finger lift instead (endTrimClip -> refreshPreviewNow).
-        if (trimSession != null) return
-        previewRefreshJob = viewModelScope.launch {
-            delay(120L)
-            _currentProject.value?.let { playerManager?.loadProject(it) }
-        }
+        previewScheduler.schedule()
     }
 
     private fun refreshPreviewNow() {
-        previewRefreshJob?.cancel()
-        previewRefreshJob = null
-        _currentProject.value?.let { playerManager?.loadProject(it) }
+        previewScheduler.refreshNow()
     }
 
     init {
@@ -421,7 +414,7 @@ class EditorViewModel(
         voiceRecordJob?.cancel()
         exportJob?.cancel()
         importJob?.cancel()
-        previewRefreshJob?.cancel()
+        previewScheduler.cancel()
         voiceRecorder?.cancel()
         speechSynthesizer?.release()
         // PlayerManager is application-scoped (the editor UI reads it directly).
@@ -1620,12 +1613,10 @@ class EditorViewModel(
         val clip = (proj.clips + proj.overlayTracks.flatMap { it.clips })
             .firstOrNull { it.id == clipId }
         trimSession = clip?.let { ClipTrimSession(clipId, edge, it, proj) }
-        // A queued preview rebuild landing mid-drag is one visible hitch, and
-        // while the session is active schedulePreviewRefresh() refuses new
-        // work. Cancel whatever is pending; endTrimClip refreshes instead.
+        // No rebuilds while the handle moves (see PreviewRefreshScheduler);
+        // endTrimClip fires exactly one rebuild at finger lift.
         if (trimSession != null) {
-            previewRefreshJob?.cancel()
-            previewRefreshJob = null
+            previewScheduler.beginSuppression()
         }
     }
 
@@ -1661,7 +1652,7 @@ class EditorViewModel(
             _currentProject.value?.let { repository.saveProject(it) }
             // One rebuild at finger lift: the preview shows the final trim
             // immediately, without any mid-drag composition rebuilds.
-            refreshPreviewNow()
+            previewScheduler.endSuppression()
         }
     }
 

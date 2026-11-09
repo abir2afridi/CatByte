@@ -44,7 +44,7 @@ import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.request.videoFrameMicros
-import com.example.data.ClipTiming
+import com.example.engine.ClipFrames
 import com.example.engine.ClipTrimHandle
 import com.example.engine.TimelineGeometry
 import com.example.model.MediaClip
@@ -68,24 +68,14 @@ private fun ClipFilmstrip(
     Row(modifier = modifier) {
         val frameWidthDp = 50.dp
         // Every tile shows a DIFFERENT frame, sampled evenly across the clip's
-        // selected source window (in-point .. out-point). Samples snap to a
-        // fixed 500ms grid so zooming reuses cached frames instead of
-        // re-decoding a whole new set.
-        val sourceWindowMs = ClipTiming.sourceLengthMs(clip)
-        val trimStartMs = clip.trimStartMs.coerceAtLeast(0L)
-        val gridMs = 500L
+        // selected source window (in-point .. out-point). The sampling rule
+        // (centre of each tile's span, snapped to a 500ms cache grid) lives in
+        // engine/ClipFrames.kt so zooming reuses cached frames.
         for (f in 0 until frameCount) {
             if (clip.uriString != null) {
-                val rawOffsetMs = (((f + 0.5) * sourceWindowMs) / frameCount).toLong()
-                val offsetMs = if (sourceWindowMs > gridMs * 2) {
-                    ((rawOffsetMs / gridMs) * gridMs + gridMs / 2)
-                        .coerceIn(0L, (sourceWindowMs - 1).coerceAtLeast(0L))
-                } else {
-                    rawOffsetMs
-                }
                 val model = ImageRequest.Builder(context)
                     .data(clip.uriString)
-                    .videoFrameMicros((trimStartMs + offsetMs) * 1000L)
+                    .videoFrameMicros(ClipFrames.sampleSourceMs(clip, f, frameCount) * 1000L)
                     .size(160)
                     .build()
                 AsyncImage(

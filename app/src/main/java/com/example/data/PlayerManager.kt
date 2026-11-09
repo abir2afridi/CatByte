@@ -347,7 +347,7 @@ class PlayerManager(context: Context) {
         // A player that errored sits in STATE_IDLE and silently ignores play()
         // (it needs prepare(), not play()). Rebuild it from the project so
         // pressing play always recovers instead of doing nothing.
-        if (_playbackState.value == Player.STATE_IDLE) {
+        if (PlayerRecoveryPolicy.isBroken(_lastError.value, _playbackState.value)) {
             currentProject?.let { project ->
                 loadProject(project, _currentPositionMs.value, forceRebuild = true)
             }
@@ -465,8 +465,12 @@ class PlayerManager(context: Context) {
         if (!hostBackgrounded) return
         hostBackgrounded = false
         val project = currentProject ?: return
-        val broken = _lastError.value != null || _playbackState.value == Player.STATE_IDLE
-        if (broken) {
+        if (PlayerRecoveryPolicy.shouldRebuildOnHostResume(
+                backgrounded = true,
+                lastError = _lastError.value,
+                playbackState = _playbackState.value
+            )
+        ) {
             AppLog.warn(TAG, "Preview player is idle after the host returned; rebuilding it")
             loadProject(project, _currentPositionMs.value, forceRebuild = true)
         }
