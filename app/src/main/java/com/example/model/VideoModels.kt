@@ -54,7 +54,10 @@ enum class TextAnimationType(val displayName: String) {
     POP_UP("Pop Up"),
     WAVE("Wave Bounce"),
     NEON_PULSE("Neon Pulse"),
-    FADE_IN("Fade In")
+    FADE_IN("Fade In"),
+    FADE_OUT("Fade Out"),
+    GLITCH("Glitch Text"),
+    BOUNCE_IN("Bounce In")
 }
 
 enum class TextFontStyle(val displayName: String) {
@@ -62,7 +65,12 @@ enum class TextFontStyle(val displayName: String) {
     CLEAN_SANS("Clean Sans"),
     CINEMATIC_SERIF("Cinematic Serif"),
     NEON_GLOW("Neon Glow"),
-    SUBTITLE("Clean Subtitle")
+    SUBTITLE("Clean Subtitle"),
+    BANGLA_NOTO_SANS("Noto Sans বাংলা"),
+    BANGLA_HIND_SILIGURI("Hind Siliguri বাংলা"),
+    BANGLA_TIRO("Tiro Serif বাংলা"),
+    BANGLA_SOLAIMAN_LIPI("SolaimanLipi বাংলা"),
+    BANGLA_KALPURUSH("Kalpurush বাংলা")
 }
 
 enum class EffectType(val displayName: String, val iconName: String) {
@@ -172,6 +180,14 @@ data class HslAdjustment(
     val luminance: Float = 0f   // -100f to +100f
 )
 
+data class ChromaKeyData(
+    val isEnabled: Boolean = false,
+    val keyColorHex: Long = 0xFF00FF00, // Green
+    val tolerance: Float = 0.25f,
+    val softness: Float = 0.20f,
+    val spill: Float = 0.30f
+)
+
 data class MediaClip(
     val id: String,
     val title: String,
@@ -189,7 +205,10 @@ data class MediaClip(
     val trimEndMs: Long = 0L,
     val speed: Float = 1.0f,
     val speedCurve: SpeedCurve = SpeedCurve(),
+    /** Keep the original pitch when the clip is retimed (CapCut's default). */
+    val maintainPitch: Boolean = true,
     val volume: Float = 1.0f,
+    val isMuted: Boolean = false,
     val filter: VideoFilter = VideoFilter.NONE,
     val transition: TransitionType = TransitionType.NONE,
     val transitionDurationMs: Long = 400L,
@@ -210,14 +229,36 @@ data class MediaClip(
     val scale: Float = 1.0f,
     val posX: Float = 0.5f,
     val posY: Float = 0.5f,
-    val opacity: Float = 1.0f
-)
+    val opacity: Float = 1.0f,
+    val isReversed: Boolean = false,
+    val chromaKey: ChromaKeyData = ChromaKeyData(),
+
+    /** Source pixel dimensions, 0 when unknown (colour clips, unprobed media). */
+    val sourceWidth: Int = 0,
+    val sourceHeight: Int = 0,
+    /** Set when the loudness-adjustment switch normalised this clip's gain. */
+    val isLoudnessAdjusted: Boolean = false
+) {
+    /**
+     * True when this clip has no real media behind it, e.g. the legacy
+     * "Meadow & Sky" demo placeholder. Such clips render as gaps and can be
+     * discarded when the user imports real footage.
+     */
+    val isPlaceholderClip: Boolean
+        get() = uriString.isNullOrBlank() && drawableResId == null
+}
 
 data class VideoTrack(
     val id: String = UUID.randomUUID().toString(),
     val name: String = "Main Track",
     val isMainTrack: Boolean = true,
-    val clips: List<MediaClip> = emptyList()
+    val clips: List<MediaClip> = emptyList(),
+    /** Track-level audio: silencing a track drops gain for every clip on it. */
+    val isMuted: Boolean = false,
+    /** Locked tracks refuse moves, trims and deletes (editing safety). */
+    val isLocked: Boolean = false,
+    /** Solo mutes every other video track's audio, like an audio desk. */
+    val isSolo: Boolean = false
 )
 
 data class AudioClip(
@@ -228,6 +269,11 @@ data class AudioClip(
     val uriString: String? = null,
     val startTimelineMs: Long = 0L,
     val durationMs: Long = 6000L,
+    /** Source trim points. Both zero means "play the whole source". */
+    val trimStartMs: Long = 0L,
+    val trimEndMs: Long = 0L,
+    /** Playback speed multiplier for the source audio. */
+    val speed: Float = 1.0f,
     val volume: Float = 1.0f,
     val isVoiceover: Boolean = false,
     val isMuted: Boolean = false,
@@ -270,6 +316,19 @@ data class TimelineEffect(
     val durationMs: Long = 2000L
 )
 
+/** Stable ids for the two tracks that exist without a `VideoTrack` object. */
+object TimelineTrackIds {
+    const val MAIN = "__main__"
+}
+
+/** A timeline marker: labelled magnet and jump target. */
+data class TimelineMarker(
+    val id: String = UUID.randomUUID().toString(),
+    val atMs: Long = 0L,
+    val label: String = "",
+    val colorArgb: Long = 0xFFFFC94A
+)
+
 data class VideoProject(
     val id: String,
     val title: String,
@@ -285,10 +344,36 @@ data class VideoProject(
     val resolution: String = "1080P",
     val fps: Int = 30,
     val isFavorite: Boolean = false,
-    val paperStyle: String = "Drafting Grid"
+    val paperStyle: String = "Drafting Grid",
+    /** Main video track controls (the main clips have no `VideoTrack` object). */
+    val isMainTrackMuted: Boolean = false,
+    val isMainTrackLocked: Boolean = false,
+    val isMainTrackSolo: Boolean = false,
+    /** Named, coloured timeline markers (jump targets and snap magnets). */
+    val markers: List<TimelineMarker> = emptyList()
 ) {
     val allVideoClips: List<MediaClip>
         get() = clips + overlayTracks.flatMap { it.clips }
+
+    /** Track that owns [clipId]; main clips belong to [TimelineTrackIds.MAIN]. */
+    fun trackIdForClip(clipId: String): String? =
+        if (clips.any { it.id == clipId }) {
+            TimelineTrackIds.MAIN
+        } else {
+            overlayTracks.firstOrNull { it.clips.any { c -> c.id == clipId } }?.id
+        }
+
+    fun isTrackLocked(trackId: String): Boolean =
+        if (trackId == TimelineTrackIds.MAIN) {
+            isMainTrackLocked
+        } else {
+            overlayTracks.firstOrNull { it.id == trackId }?.isLocked ?: false
+        }
+
+    fun isTrackLockedForClip(clipId: String): Boolean {
+        val trackId = trackIdForClip(clipId) ?: return false
+        return isTrackLocked(trackId)
+    }
 
     val totalDurationMs: Long
         get() {

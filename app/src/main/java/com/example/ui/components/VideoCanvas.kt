@@ -1,17 +1,29 @@
 package com.example.ui.components
 
+import android.view.SurfaceView
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,13 +41,16 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,13 +72,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.transform.CircleCropTransformation
 import com.example.R
 import com.example.data.KeyframeInterpolator
+import com.example.engine.backgroundArgbFor
 import com.example.model.AspectRatioType
+import com.example.model.BlendMode
 import com.example.model.EffectType
+import com.example.model.MaskType
 import com.example.model.MediaClip
 import com.example.model.TextAnimationType
 import kotlinx.coroutines.delay
@@ -87,6 +107,20 @@ fun VideoCanvas(
     isPlaying: Boolean,
     onTogglePlay: () -> Unit,
     watermarkEnabled: Boolean = false,
+    /**
+     * Composition preview player. When [compositionPreview] is true this single
+     * surface already contains the composited video, PIP layers, text, stickers,
+     * effects and watermark, so the Compose fallback layers are skipped.
+     */
+    player: Player? = null,
+    compositionPreview: Boolean = false,
+    previewError: String? = null,
+    previewWarnings: List<String> = emptyList(),
+    selectedClip: MediaClip? = null,
+    isTransformInteractive: Boolean = false,
+    onTransformClip: ((scaleMultiplier: Float, rotationDelta: Float, panDeltaX: Float, panDeltaY: Float) -> Unit)? = null,
+    isEyedropperActive: Boolean = false,
+    onSampleColorAt: ((normX: Float, normY: Float) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val colors = PencilTheme.colors
@@ -124,6 +158,8 @@ fun VideoCanvas(
     }
 
     // Pulse animation - only runs when playing (coroutine-based to avoid divide-by-zero crash)
+    var canvasSize by remember { mutableStateOf(IntSize(1, 1)) }
+    var reticlePos by remember { mutableStateOf(Offset(0.5f, 0.5f)) }
     val pulseAlphaState: androidx.compose.runtime.MutableState<Float> = remember { mutableStateOf(0.85f) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(isPlaying) {
@@ -152,56 +188,127 @@ fun VideoCanvas(
         }
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.background),
+            .background(Color(0xFF0C0C0F))
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Outer Canvas Frame with sketched border and drafting marks
+        // Fit the largest exact-ratio canvas inside the available space. Using
+        // fillMaxSize() here would force min = max constraints and make
+        // aspectRatio() a no-op, stretching/overflowing the editor layout.
+        val boundedWidth = maxWidth.value.isFinite() && maxWidth > 0.dp
+        val boundedHeight = maxHeight.value.isFinite() && maxHeight > 0.dp
+        val fittedWidth: Dp
+        val fittedHeight: Dp
+        if (targetAspect > 0f) {
+            when {
+                boundedWidth && boundedHeight -> {
+                    val widthAtMaxHeight = maxHeight * targetAspect
+                    if (widthAtMaxHeight <= maxWidth) {
+                        fittedWidth = widthAtMaxHeight
+                        fittedHeight = maxHeight
+                    } else {
+                        fittedWidth = maxWidth
+                        fittedHeight = maxWidth / targetAspect
+                    }
+                }
+                boundedWidth -> {
+                    fittedWidth = maxWidth
+                    fittedHeight = maxWidth / targetAspect
+                }
+                boundedHeight -> {
+                    fittedHeight = maxHeight
+                    fittedWidth = maxHeight * targetAspect
+                }
+                else -> {
+                    fittedWidth = 0.dp
+                    fittedHeight = 0.dp
+                }
+            }
+        } else {
+            fittedWidth = if (boundedWidth) maxWidth else 0.dp
+            fittedHeight = if (boundedHeight) maxHeight else 0.dp
+        }
+
+        // Outer Canvas Frame maintaining exact project aspect ratio (CapCut clean studio style)
         Box(
             modifier = Modifier
-                .padding(horizontal = 24.dp, vertical = 12.dp)
-                .aspectRatio(targetAspect)
-                .clip(RoundedCornerShape(14.dp))
+                .width(fittedWidth)
+                .height(fittedHeight)
+                .clip(RoundedCornerShape(8.dp))
                 .background(Color.Black)
-                .sketchPencilBorder(strokeWidth = 2.dp, color = colors.border, cornerRadius = 14.dp)
-                .clickable { onTogglePlay() }
-                .testTag("video_canvas_preview")
-                .width(720.dp),
+                .onSizeChanged { canvasSize = it }
+                .pointerInput(isEyedropperActive) {
+                    if (isEyedropperActive) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                val nx = (offset.x / canvasSize.width.toFloat()).coerceIn(0f, 1f)
+                                val ny = (offset.y / canvasSize.height.toFloat()).coerceIn(0f, 1f)
+                                reticlePos = Offset(nx, ny)
+                                onSampleColorAt?.invoke(nx, ny)
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                val nx = (change.position.x / canvasSize.width.toFloat()).coerceIn(0f, 1f)
+                                val ny = (change.position.y / canvasSize.height.toFloat()).coerceIn(0f, 1f)
+                                reticlePos = Offset(nx, ny)
+                                onSampleColorAt?.invoke(nx, ny)
+                            }
+                        )
+                    }
+                }
+                .pointerInput(isEyedropperActive, isTransformInteractive, selectedClip?.id) {
+                    if (isEyedropperActive) {
+                        detectTapGestures { offset ->
+                            val nx = (offset.x / canvasSize.width.toFloat()).coerceIn(0f, 1f)
+                            val ny = (offset.y / canvasSize.height.toFloat()).coerceIn(0f, 1f)
+                            reticlePos = Offset(nx, ny)
+                            onSampleColorAt?.invoke(nx, ny)
+                        }
+                    } else if (isTransformInteractive && selectedClip != null) {
+                        detectTransformGestures { _, pan, zoom, rotation ->
+                            val panDeltaX = pan.x / canvasSize.width.toFloat()
+                            val panDeltaY = pan.y / canvasSize.height.toFloat()
+                            onTransformClip?.invoke(zoom, rotation, panDeltaX, panDeltaY)
+                        }
+                    } else {
+                        detectTapGestures { onTogglePlay() }
+                    }
+                }
+                .testTag("video_canvas_preview"),
             contentAlignment = Alignment.Center
         ) {
-            // Drafting Crop Marks in 4 corners
-            DraftingCropCorners(
-                modifier = Modifier
-                    .matchParentSize()
-                    .padding(6.dp),
-                strokeColor = colors.accentCyan.copy(alpha = 0.7f),
-                lineLength = 14.dp,
-                strokeWidth = 1.6.dp
-            )
 
-            // Drafting Washi Tape mounting strips on top corners
-            WashiTapeCorner(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(x = (-4).dp, y = (-2).dp),
-                rotationDegrees = -15f,
-                widthDp = 44.dp,
-                heightDp = 14.dp,
-                tapeLabel = "PIN"
-            )
-            WashiTapeCorner(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = (-2).dp),
-                rotationDegrees = 15f,
-                widthDp = 44.dp,
-                heightDp = 14.dp,
-                tapeLabel = "DRAFT"
-            )
-            if (activeClip != null) {
-                // Visual Rendering
+
+            val isSampleClip = activeClip != null && activeClip.uriString == null && activeClip.drawableResId == null
+            if (isSampleClip) {
+                RenderClipVisual(
+                    clip = activeClip!!,
+                    activeEffects = activeEffects,
+                    pulseAlpha = pulseAlphaState.value,
+                    currentClipLocalMs = clipLocalTimeMs
+                )
+            } else if (player != null) {
+                // One surface: composition preview when available, otherwise the
+                // ExoPlayer fallback playlist. The fallback must still render a
+                // real video surface, or playback advances the audio/timeline
+                // while the picture stays frozen on a generated still.
+                key(player) {
+                    PlayerPreviewSurface(
+                        player = player,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                // The fallback player renders plain video, so draw title/text
+                // overlays ourselves (composition burns them in).
+                if (!compositionPreview) {
+                    // Drafting overlay for transform handles (existing code below)
+                }
+            } else if (activeClip != null) {
+                // No player at all: show the generated preview frame only.
                 RenderClipVisual(
                     clip = activeClip,
                     activeEffects = activeEffects,
@@ -239,7 +346,8 @@ fun VideoCanvas(
                 }
             }
 
-            // Text Overlays
+            // Text Overlays (fallback renderer only - composition burns them in)
+            if (!compositionPreview) {
             activeTexts.forEach { textOverlay ->
                 val displayText = if (textOverlay.animation == TextAnimationType.TYPEWRITER) {
                     val progress = ((currentPositionMs - textOverlay.startTimelineMs).toFloat() / textOverlay.durationMs).coerceIn(0f, 1f)
@@ -274,9 +382,9 @@ fun VideoCanvas(
                         fontSize = when (textOverlay.fontStyle) {
                             TextFontStyle.CAPCUT_BOLD -> 23.sp
                             TextFontStyle.NEON_GLOW -> 21.sp
-                            TextFontStyle.CINEMATIC_SERIF -> 20.sp
+                            TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> 20.sp
                             TextFontStyle.SUBTITLE -> 16.sp
-                            TextFontStyle.CLEAN_SANS -> 17.sp
+                            else -> 17.sp
                         },
                         fontWeight = when (textOverlay.fontStyle) {
                             TextFontStyle.CAPCUT_BOLD -> FontWeight.Black
@@ -284,7 +392,7 @@ fun VideoCanvas(
                             else -> FontWeight.Bold
                         },
                         fontFamily = when (textOverlay.fontStyle) {
-                            TextFontStyle.CINEMATIC_SERIF -> FontFamily.Serif
+                            TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> FontFamily.Serif
                             else -> FontFamily.SansSerif
                         },
                         textAlign = TextAlign.Center,
@@ -333,9 +441,165 @@ fun VideoCanvas(
                     )
                 }
             }
+            } // end fallback-only 2D layers
 
             // Centered Play/Pause HUD when paused - Sketched Paper & Graphite Button
-            if (!isPlaying) {
+            // CapCut-style Selection Bounding Box & Transform Handles
+            if (isTransformInteractive && selectedClip != null && !isEyedropperActive) {
+                val clipScale = selectedClip.scale
+                val clipRotation = selectedClip.rotation
+                val clipPosX = selectedClip.posX
+                val clipPosY = selectedClip.posY
+
+                Box(modifier = Modifier.fillMaxSize()) {
+                    val density = androidx.compose.ui.platform.LocalDensity.current
+                    val boxWidthDp = with(density) { (canvasSize.width * 0.80f * clipScale).toDp() }
+                    val boxHeightDp = with(density) { (canvasSize.height * 0.80f * clipScale).toDp() }
+
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .offset {
+                                val cx = clipPosX * canvasSize.width
+                                val cy = clipPosY * canvasSize.height
+                                val halfW = (canvasSize.width * 0.40f * clipScale)
+                                val halfH = (canvasSize.height * 0.40f * clipScale)
+                                IntOffset((cx - halfW).toInt(), (cy - halfH).toInt())
+                            }
+                            .size(boxWidthDp.coerceAtLeast(40.dp), boxHeightDp.coerceAtLeast(40.dp))
+                            .rotate(clipRotation)
+                            .border(1.5.dp, colors.accentCyan, RoundedCornerShape(4.dp))
+                    ) {
+                        listOf(
+                            Alignment.TopStart to IntOffset(-6, -6),
+                            Alignment.TopEnd to IntOffset(6, -6),
+                            Alignment.BottomStart to IntOffset(-6, 6),
+                            Alignment.BottomEnd to IntOffset(6, 6)
+                        ).forEach { (align, offs) ->
+                            Box(
+                                modifier = Modifier
+                                    .align(align)
+                                    .offset(offs.x.dp, offs.y.dp)
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                                    .border(2.dp, colors.accentCyan, CircleShape)
+                            )
+                        }
+
+                        // Top Rotation Handle
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .offset(y = (-20).dp)
+                                .size(16.dp)
+                                .clip(CircleShape)
+                                .background(colors.accentYellow)
+                                .border(1.5.dp, Color.White, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("⟳", fontSize = 10.sp, color = Color.Black, fontWeight = FontWeight.Black)
+                        }
+
+                        // Badge showing scale and rotation
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .offset(y = 24.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color.Black.copy(alpha = 0.8f))
+                                .border(0.8.dp, colors.accentCyan.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "${(clipScale * 100).toInt()}% • ${clipRotation.toInt()}°",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // CapCut-style Eyedropper Magnifier Reticle
+            if (isEyedropperActive) {
+                val pickedColorHex = selectedClip?.chromaKey?.keyColorHex ?: 0xFF00FF00L
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .offset {
+                                val rx = (reticlePos.x * canvasSize.width) - 26.dp.toPx()
+                                val ry = (reticlePos.y * canvasSize.height) - 26.dp.toPx()
+                                IntOffset(rx.toInt(), ry.toInt())
+                            }
+                            .size(52.dp)
+                    ) {
+                        // Outer ring with sampled color
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                                .background(Color.Transparent)
+                                .border(3.dp, Color(pickedColorHex), CircleShape)
+                        )
+                        // Inner circle border
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .align(Alignment.Center)
+                                .clip(CircleShape)
+                                .background(Color.Transparent)
+                                .border(1.5.dp, Color.White, CircleShape)
+                        )
+                        // Center dot with sampled color
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .align(Alignment.Center)
+                                .clip(CircleShape)
+                                .background(Color(pickedColorHex))
+                                .border(1.5.dp, Color.White, CircleShape)
+                        )
+                        // Crosshairs
+                        Box(
+                            modifier = Modifier
+                                .width(1.5.dp)
+                                .height(52.dp)
+                                .align(Alignment.Center)
+                                .background(Color.White.copy(alpha = 0.7f))
+                        )
+                        Box(
+                            modifier = Modifier
+                                .width(52.dp)
+                                .height(1.5.dp)
+                                .align(Alignment.Center)
+                                .background(Color.White.copy(alpha = 0.7f))
+                        )
+                    }
+
+                    // Bottom instruction pill
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 8.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.Black.copy(alpha = 0.85f))
+                            .border(1.dp, colors.accentCyan, RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "🎯 Tap or drag reticle to pick chroma key color",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            if (!isPlaying && !isTransformInteractive && !isEyedropperActive) {
                 Box(
                     modifier = Modifier
                         .size(58.dp)
@@ -397,6 +661,39 @@ fun VideoCanvas(
                 }
             }
 
+            // Render-fidelity notice. Warnings are never hidden: if a mask or
+            // blend mode is approximated, the user sees it before exporting.
+            val previewNotice = previewError?.let { "Preview error: $it" }
+                ?: previewWarnings.firstOrNull()
+            if (previewNotice != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 36.dp, start = 16.dp, end = 16.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(
+                            if (previewError != null) {
+                                colors.accentRed.copy(alpha = 0.92f)
+                            } else {
+                                colors.accentYellow.copy(alpha = 0.92f)
+                            }
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (previewWarnings.size > 1) {
+                            "$previewNotice (+${previewWarnings.size - 1} more)"
+                        } else {
+                            previewNotice
+                        },
+                        color = Color.Black,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2
+                    )
+                }
+            }
+
             // Bottom Timecode Overlay
             Box(
                 modifier = Modifier
@@ -416,6 +713,34 @@ fun VideoCanvas(
                     fontWeight = FontWeight.SemiBold
                 )
             }
+        }
+    }
+}
+
+/**
+ * A SurfaceView is required by CompositionPlayer (it rejects TextureView).
+ * The player instance is part of the key in the caller, so switching between
+ * the composition and fallback players always re-attaches a fresh surface.
+ */
+@Composable
+private fun PlayerPreviewSurface(
+    player: Player,
+    modifier: Modifier = Modifier
+) {
+    AndroidView(
+        factory = { context ->
+            SurfaceView(context).also { surfaceView ->
+                runCatching { player.setVideoSurfaceView(surfaceView) }
+            }
+        },
+        update = { surfaceView ->
+            runCatching { player.setVideoSurfaceView(surfaceView) }
+        },
+        modifier = modifier
+    )
+    DisposableEffect(player) {
+        onDispose {
+            runCatching { player.clearVideoSurface() }
         }
     }
 }
@@ -520,6 +845,7 @@ private fun RenderClipVisual(
             .fillMaxSize()
             .scale(keyScale)
             .rotate(keyRotation)
+            .graphicsLayer { alpha = keyOpacity }
             .scale(if (clip.isMirrored) -1f else 1f, 1f)
     ) {
         if (clip.uriString != null) {
@@ -558,17 +884,7 @@ private fun RenderClipVisual(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            val startColor = Color(clip.gradientColors.firstOrNull() ?: 0xFF1E2640)
-            val endColor = Color(clip.gradientColors.lastOrNull() ?: 0xFF0D1B2A)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            listOf(startColor, endColor)
-                        )
-                    )
-            )
+            CapCutMeadowCanvas(modifier = Modifier.fillMaxSize())
         }
 
         // Active visual effects
@@ -625,6 +941,54 @@ private fun RenderClipVisual(
                     )
                 }
             }
+        }
+
+        // Render Mask preview overlay
+        when (clip.mask.type) {
+            MaskType.RECTANGLE -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp)
+                        .border(2.dp, Color.Cyan, RoundedCornerShape(8.dp))
+                )
+            }
+            MaskType.CIRCLE -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, Color.Cyan, CircleShape)
+                )
+            }
+            MaskType.SPLIT -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f), Color.Transparent)
+                            )
+                        )
+                )
+            }
+            MaskType.MIRROR, MaskType.FILMSTRIP -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .border(1.dp, Color.Magenta.copy(alpha = 0.7f))
+                )
+            }
+            MaskType.NONE -> {}
+        }
+
+        if (clip.blendMode != BlendMode.NORMAL) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Blue.copy(alpha = 0.1f))
+            )
         }
     }
 }
@@ -744,3 +1108,98 @@ private fun RenderTransitionEffect(
         TransitionType.DISSOLVE, TransitionType.ZOOM_IN, TransitionType.NONE -> {}
     }
 }
+
+/**
+ * Realistic CapCut meadow and blue sky canvas for default sample clip rendering,
+ * matching the user's reference image (blue sky, fluffy white clouds, glowing sun, green grass).
+ */
+@Composable
+fun CapCutMeadowCanvas(
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // 1. Blue sky gradient
+        val skyBrush = Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF1976D2), // Deep sky blue top
+                Color(0xFF42A5F5), // Bright blue sky mid
+                Color(0xFF90CAF9), // Horizon sky light blue
+                Color(0xFFE3F2FD)  // Atmospheric haze
+            ),
+            startY = 0f,
+            endY = h * 0.62f
+        )
+        drawRect(brush = skyBrush, size = androidx.compose.ui.geometry.Size(w, h * 0.62f))
+
+        // 2. Bright Sun with glowing halo
+        val sunCenter = Offset(w * 0.28f, h * 0.18f)
+        drawCircle(
+            color = Color.White.copy(alpha = 0.40f),
+            radius = w * 0.18f,
+            center = sunCenter
+        )
+        drawCircle(
+            color = Color.White.copy(alpha = 0.70f),
+            radius = w * 0.11f,
+            center = sunCenter
+        )
+        drawCircle(
+            color = Color(0xFFFFFDE7),
+            radius = w * 0.065f,
+            center = sunCenter
+        )
+
+        // 3. Fluffy white clouds
+        val cloudColor = Color.White.copy(alpha = 0.90f)
+
+        // Left cloud group
+        drawCircle(color = cloudColor, radius = w * 0.12f, center = Offset(w * 0.14f, h * 0.22f))
+        drawCircle(color = cloudColor, radius = w * 0.14f, center = Offset(w * 0.26f, h * 0.20f))
+        drawCircle(color = cloudColor, radius = w * 0.10f, center = Offset(w * 0.36f, h * 0.24f))
+
+        // Right cloud group
+        drawCircle(color = cloudColor, radius = w * 0.11f, center = Offset(w * 0.58f, h * 0.16f))
+        drawCircle(color = cloudColor, radius = w * 0.15f, center = Offset(w * 0.74f, h * 0.13f))
+        drawCircle(color = cloudColor, radius = w * 0.12f, center = Offset(w * 0.88f, h * 0.18f))
+
+        // 4. Distant green hills
+        val hillPath = Path().apply {
+            moveTo(0f, h * 0.56f)
+            cubicTo(w * 0.25f, h * 0.50f, w * 0.45f, h * 0.54f, w * 0.65f, h * 0.48f)
+            cubicTo(w * 0.80f, h * 0.44f, w * 0.92f, h * 0.50f, w, h * 0.52f)
+            lineTo(w, h)
+            lineTo(0f, h)
+            close()
+        }
+        drawPath(
+            path = hillPath,
+            brush = Brush.verticalGradient(
+                colors = listOf(Color(0xFF558B2F), Color(0xFF33691E)),
+                startY = h * 0.46f,
+                endY = h
+            )
+        )
+
+        // 5. Foreground green grass meadow (lush blades & field)
+        val meadowPath = Path().apply {
+            moveTo(0f, h * 0.50f)
+            cubicTo(w * 0.20f, h * 0.44f, w * 0.50f, h * 0.52f, w * 0.75f, h * 0.45f)
+            cubicTo(w * 0.88f, h * 0.41f, w * 0.95f, h * 0.46f, w, h * 0.48f)
+            lineTo(w, h)
+            lineTo(0f, h)
+            close()
+        }
+        drawPath(
+            path = meadowPath,
+            brush = Brush.verticalGradient(
+                colors = listOf(Color(0xFF689F38), Color(0xFF2E7D32), Color(0xFF1B5E20)),
+                startY = h * 0.41f,
+                endY = h
+            )
+        )
+    }
+}
+

@@ -36,40 +36,41 @@ val LightClipSelected = Color(0xFFE8EAED)
 val LightHandle = Color(0xFF1A73E8)
 
 // ==========================================
-// Dark Palette (Professional Dark)
+// Dark Palette (CapCut Professional Dark Studio)
 // ==========================================
-val DarkBackground = Color(0xFF121212)         // Pure dark background
-val DarkSurface = Color(0xFF1E1E1E)            // Dark surface
-val DarkSurfaceVariant = Color(0xFF2C2C2C)     // Dark card layer
-val DarkSurfaceElevated = Color(0xFF383838)    // Elevated dark card
-val DarkSurfaceGlass = Color(0xDD1E1E1E)
-val DarkBorder = Color(0xFFE0E0E0)             // White border
-val DarkBorderSubtle = Color(0xFF424242)       // Subtle divider
+val DarkBackground = Color(0xFF0A0A0E)         // Pitch OLED studio dark
+val DarkSurface = Color(0xFF18191C)            // Charcoal studio surface
+val DarkSurfaceVariant = Color(0xFF22242A)     // Dark card layer
+val DarkSurfaceElevated = Color(0xFF2D3038)    // Elevated studio card
+val DarkSurfaceGlass = Color(0xEE121318)
+val DarkBorder = Color(0xFF383A44)             // Subtle studio outline
+val DarkBorderSubtle = Color(0xFF262830)       // Subtle divider
 
-val DarkTextPrimary = Color(0xFFFFFFFF)        // White text
-val DarkTextSecondary = Color(0xFFB0B0B0)      // Gray text
-val DarkTextTertiary = Color(0xFF808080)       // Darker gray
+val DarkTextPrimary = Color(0xFFFFFFFF)        // Pure white text
+val DarkTextSecondary = Color(0xFFA1A5B0)      // Secondary studio text
+val DarkTextTertiary = Color(0xFF6A6E79)       // Muted gray text
 
-val DarkAccentCyan = Color(0xFF42A5F5)         // Bright cyan
-val DarkAccentRed = Color(0xFFEF5350)          // Bright red
-val DarkAccentYellow = Color(0xFFFFB74D)       // Bright yellow
-val DarkAccentPurple = Color(0xFFCE93D8)       // Bright purple
-val DarkAccentGreen = Color(0xFF66BB6A)        // Bright green
-val DarkAccentPink = Color(0xFFF48FB1)         // Bright pink
-val DarkAccentTeal = Color(0xFF4DB6AC)         // Bright teal
+val DarkAccentCyan = Color(0xFF00F2FE)         // CapCut Electric Cyan
+val DarkAccentRed = Color(0xFFFF4D4D)          // Bright studio red
+val DarkAccentYellow = Color(0xFFFFC107)       // Bright yellow
+val DarkAccentPurple = Color(0xFFB388FF)       // Bright studio purple
+val DarkAccentGreen = Color(0xFF00E676)        // Bright studio green
+val DarkAccentPink = Color(0xFFFF4081)         // Bright studio pink
+val DarkAccentTeal = Color(0xFF00E5FF)         // CapCut Neon Teal
 
-val DarkPlayhead = Color(0xFF42A5F5)
-val DarkPlayheadGlow = Color(0xFF42A5F5)
-val DarkTimelineTrack = Color(0xFF1A1A1A)
-val DarkClipBg = Color(0xFF2C2C2C)
-val DarkClipSelected = Color(0xFF383838)
-val DarkHandle = Color(0xFF42A5F5)
+val DarkPlayhead = Color(0xFFFFFFFF)           // Fixed Steel White Needle
+val DarkPlayheadGlow = Color(0xFF00F2FE)       // Cyan glow
+val DarkTimelineTrack = Color(0xFF121317)      // Dark track slot
+val DarkClipBg = Color(0xFF1E2026)             // Track clip card
+val DarkClipSelected = Color(0xFF282A32)         // Selected clip background
+val DarkHandle = Color(0xFF00F2FE)             // CapCut Cyan trim handle
 
 // ==========================================
 // Semantic Theme System
 // ==========================================
 data class AppColors(
     val isLight: Boolean,
+    val isPencilSketch: Boolean = false,
     val background: Color,
     val surface: Color,
     val surfaceVariant: Color,
@@ -94,6 +95,7 @@ data class AppColors(
 
 val LightAppColors = AppColors(
     isLight = true,
+    isPencilSketch = true,
     background = LightBackground,
     surface = LightSurface,
     surfaceVariant = LightSurfaceVariant,
@@ -118,6 +120,7 @@ val LightAppColors = AppColors(
 
 val DarkAppColors = AppColors(
     isLight = false,
+    isPencilSketch = false,
     background = DarkBackground,
     surface = DarkSurface,
     surfaceVariant = DarkSurfaceVariant,
