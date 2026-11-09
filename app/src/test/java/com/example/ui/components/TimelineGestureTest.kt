@@ -160,6 +160,18 @@ class TimelineGestureTest {
             .getUnclippedBoundsInRoot()
         val needleBefore = (needleBoundsBefore.left + needleBoundsBefore.right).value / 2f
 
+        // The needle must sit at the centre of the whole panel (under the
+        // play button above), not the centre of the viewport after the gutter.
+        val panelBounds = compose.onNodeWithTag("multi_track_timeline")
+            .getUnclippedBoundsInRoot()
+        val panelWidth = (panelBounds.right - panelBounds.left).value
+        assertEquals(
+            "needle must be at the panel centre",
+            panelWidth / 2f,
+            needleBefore,
+            1f
+        )
+
         // Drag left on the empty audio row: the content slides under the
         // needle, so time advances without the needle itself moving.
         compose.onNodeWithTag("multi_track_timeline").performTouchInput {

@@ -7,32 +7,63 @@ import org.junit.Test
 /**
  * Locks the fixed-centre-playhead geometry.
  *
- * The playhead never moves on screen: the content is padded with half a
- * viewport per side, and the scroll offset for a frame is exactly
- * `frame * pxPerFrame`. These tests guard the bug class where the needle
- * drifted with the playhead instead of staying centred.
+ * The playhead never moves on screen: the content is padded with the needle
+ * inset on the left and the rest of the viewport on the right, and the scroll
+ * offset for a frame is exactly `frame * pxPerFrame`. These tests guard the
+ * bug class where the needle drifted with the playhead, and the follow-up bug
+ * where it centred on the viewport instead of the whole timeline panel (so it
+ * sat to the right of the play button above).
  */
 class CenterPlayheadTest {
 
     @Test
-    fun `content is padded with half a viewport on each side`() {
-        val viewport = 1_000f
-        assertEquals(500f, CenterPlayhead.edgePaddingPx(viewport))
+    fun `needle inset centres on the whole panel, not the viewport`() {
+        // No gutter: panel == viewport, so the needle is at the viewport centre.
+        assertEquals(
+            500f,
+            CenterPlayhead.needleInsetPx(viewportWidthPx = 1_000f, gutterWidthPx = 0f)
+        )
+        // 96 px gutter, 224 px viewport: panel = 320, centre = 160, inset = 64.
+        assertEquals(
+            64f,
+            CenterPlayhead.needleInsetPx(viewportWidthPx = 224f, gutterWidthPx = 96f)
+        )
+        // Gutter wider than the viewport cannot push the needle off the left.
+        assertEquals(
+            0f,
+            CenterPlayhead.needleInsetPx(viewportWidthPx = 50f, gutterWidthPx = 96f)
+        )
+    }
+
+    @Test
+    fun `pads add up to exactly one viewport`() {
+        val viewport = 224f
+        val inset = CenterPlayhead.needleInsetPx(viewport, gutterWidthPx = 96f)
+        val leading = CenterPlayhead.leadingPaddingPx(inset)
+        val trailing = CenterPlayhead.trailingPaddingPx(viewport, inset)
+        assertEquals(64f, leading)
+        assertEquals(160f, trailing)
+        assertEquals(viewport, leading + trailing)
+    }
+
+    @Test
+    fun `padded content is timeline plus one viewport`() {
+        // The two pads cancel the viewport, so the content width does not
+        // depend on where the needle sits inside it.
         assertEquals(
             2_500f,
-            CenterPlayhead.paddedContentWidthPx(timelineWidthPx = 1_500f, viewportWidthPx = viewport)
+            CenterPlayhead.paddedContentWidthPx(timelineWidthPx = 1_500f, viewportWidthPx = 1_000f)
         )
     }
 
     @Test
     fun `max offset equals the timeline width`() {
-        // content (timeline + viewport) - viewport = timeline width.
         assertEquals(
             1_500f,
             CenterPlayhead.maxOffsetPx(timelineWidthPx = 1_500f, viewportWidthPx = 1_000f)
         )
         // Even a timeline shorter than the viewport scrolls its own width:
-        // the two half-viewport pads make the content viewport + timeline.
+        // the pads make the content viewport + timeline.
         assertEquals(
             400f,
             CenterPlayhead.maxOffsetPx(timelineWidthPx = 400f, viewportWidthPx = 1_000f)
@@ -54,8 +85,8 @@ class CenterPlayheadTest {
 
     @Test
     fun `frame offset is a plain frame times pxPerFrame`() {
-        // The leading half-viewport pad already centres time zero, so no
-        // extra viewport/2 term may creep back in.
+        // The leading pad already centres time zero, so no extra inset term
+        // may creep back into the offset.
         assertEquals(
             200f,
             CenterPlayhead.offsetForFrame(

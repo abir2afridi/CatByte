@@ -7,12 +7,16 @@ import kotlin.math.roundToLong
  * Fixed centre playhead (CapCut timeline behaviour).
  *
  * The needle never moves on screen: it is pinned to the horizontal centre of
- * the scrolling viewport and the timeline content scrolls underneath it.
+ * the whole timeline panel (so it lines up with the play button above it) and
+ * the timeline content scrolls underneath it.
  *
- * To make that possible at time 0 AND at the very end, the scroll content is
- * padded with HALF A VIEWPORT on both sides. Those pads are exactly why the
- * scroll offset for a frame is simply `frame * pxPerFrame` — the leading pad
- * already puts time 0 at the centre, so no extra `viewport / 2` term is needed.
+ * The viewport starts to the right of the fixed left gutter, so the needle is
+ * NOT at `viewport / 2`; its inset inside the viewport is
+ * `(viewportWidth - gutterWidth) / 2`. The scroll content is padded with that
+ * inset on the leading side and the remainder of the viewport on the trailing
+ * side. Those pads are exactly why the scroll offset for a frame is simply
+ * `frame * pxPerFrame` — the leading pad already puts time 0 under the needle,
+ * so no extra term is needed.
  *
  * Own file on purpose: the ruler, the scroll observer and the follow-scroll
  * all derive their positions from these rules, so a future edit elsewhere
@@ -20,18 +24,35 @@ import kotlin.math.roundToLong
  */
 object CenterPlayhead {
 
-    /** Empty lead-in / lead-out on each side of the timeline, in pixels. */
-    fun edgePaddingPx(viewportWidthPx: Float): Float =
-        viewportWidthPx.coerceAtLeast(0f) / 2f
+    /**
+     * X of the fixed needle inside the scrolling viewport.
+     *
+     * The panel is `gutter + viewport` wide and the needle sits at the panel
+     * centre, i.e. `gutter + (viewport - gutter) / 2` from the panel's left
+     * edge — which is `(viewport - gutter) / 2` inside the viewport.
+     */
+    fun needleInsetPx(viewportWidthPx: Float, gutterWidthPx: Float): Float =
+        ((viewportWidthPx.coerceAtLeast(0f) - gutterWidthPx.coerceAtLeast(0f)) / 2f)
+            .coerceAtLeast(0f)
 
-    /** Width of the scroll content: timeline plus one half-viewport pad per side. */
-    fun paddedContentWidthPx(timelineWidthPx: Float, viewportWidthPx: Float): Float =
-        timelineWidthPx.coerceAtLeast(0f) + 2f * edgePaddingPx(viewportWidthPx)
+    /** Empty lead-in before time 0; equals the needle inset so time 0 is centred. */
+    fun leadingPaddingPx(needleInsetPx: Float): Float =
+        needleInsetPx.coerceAtLeast(0f)
+
+    /** Empty lead-out after the last frame so the end can reach the needle. */
+    fun trailingPaddingPx(viewportWidthPx: Float, needleInsetPx: Float): Float =
+        (viewportWidthPx.coerceAtLeast(0f) - needleInsetPx.coerceAtLeast(0f))
+            .coerceAtLeast(0f)
 
     /**
-     * Largest scroll offset. The two half-viewport pads cancel the viewport
-     * exactly, so this equals the timeline width.
+     * Width of the scroll content: timeline plus the lead-in and lead-out pads.
+     * The two pads always add up to exactly one viewport, so this is
+     * `timelineWidth + viewportWidth` wherever the needle sits.
      */
+    fun paddedContentWidthPx(timelineWidthPx: Float, viewportWidthPx: Float): Float =
+        timelineWidthPx.coerceAtLeast(0f) + viewportWidthPx.coerceAtLeast(0f)
+
+    /** Largest scroll offset: the pads cancel the viewport exactly. */
     fun maxOffsetPx(timelineWidthPx: Float, viewportWidthPx: Float): Float =
         max(
             0f,
