@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -35,6 +36,7 @@ class ExportForegroundService : Service() {
         const val EXTRA_RESOLUTION = "resolution"
         const val EXTRA_FPS = "fps"
         const val EXTRA_WATERMARK = "watermark"
+        const val EXTRA_BITRATE_MBPS = "bitrate_mbps"
         const val EXTRA_PROJECT_ID = "project_id"
     }
 
@@ -63,20 +65,34 @@ class ExportForegroundService : Service() {
         val resolution = intent?.getStringExtra(EXTRA_RESOLUTION) ?: "1080P"
         val fps = intent?.getIntExtra(EXTRA_FPS, 30) ?: 30
         val watermark = intent?.getBooleanExtra(EXTRA_WATERMARK, false) ?: false
+        val bitrateMbps = intent?.getIntExtra(EXTRA_BITRATE_MBPS, 10) ?: 10
         currentProjectId = intent?.getStringExtra(EXTRA_PROJECT_ID) ?: ""
 
         val project = com.example.data.db.ProjectJson.fromJson(projectJson) ?: return START_NOT_STICKY
 
-        // Start foreground with initial notification
-        val notification = buildNotificationBuilder(0, "Preparing export...", false).build()
-        startForeground(NOTIFICATION_ID, notification, 16 /* FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING */)
+        // Never run two encoders at once: a second ACTION_START while a job
+        // is still active would overwrite the job reference and keep both
+        // transformers competing for the encoder.
+        if (exportJob?.isActive == true) {
+            AppLog.warn("ExportForegroundService", "Export already running; ignoring a second start request")
+            return START_NOT_STICKY
+        }
+
+        // Start foreground before any heavy work, with the Android-version
+        // correct foreground service type (see startForegroundTyped).
+        val notification = buildNotificationBuilder(
+            0,
+            getString(R.string.export_notification_preparing),
+            false
+        ).build()
+        startForegroundTyped(notification)
 
         exportJob = scope.launch {
             try {
                 var lastProgress = 0f
 
-                // Monitor progress
-                progressJob = CoroutineScope(Dispatchers.Main).launch {
+                // Monitor progress (notifications can be posted from any thread)
+                progressJob = scope.launch {
                     while (true) {
                         val progress = exportManager?.progress?.value
                         if (progress != null && progress.progress != lastProgress && progress.progress > 0f) {
@@ -95,53 +111,107 @@ class ExportForegroundService : Service() {
                     }
                 }
 
-                val result = exportManager?.export(project, resolution, fps, watermark)
+                val result = exportManager?.export(
+                    project,
+                    resolution,
+                    fps,
+                    watermark,
+                    bitrateMbps.coerceIn(1, 100) * 1_000_000
+                )
 
                 progressJob?.cancel()
 
                 if (result != null) {
-                    val builder = buildNotificationBuilder(100, "Export complete! Tap to open.", true)
+                    val builder = buildNotificationBuilder(
+                        100,
+                        getString(R.string.export_notification_tap_to_open),
+                        true
+                    )
                         .setContentIntent(createOpenIntent(result.file))
                         .setAutoCancel(true)
                     val finalNotif = builder.build()
                     notificationManager?.notify(NOTIFICATION_ID, finalNotif)
-                    stopForeground(true)
+                    stopForeground(STOP_FOREGROUND_REMOVE)
                 } else {
-                    val builder = buildNotificationBuilder(0, "Export failed: ${exportManager?.progress?.value?.error ?: "Unknown error"}", true)
+                    val errorMsg = exportManager?.progress?.value?.error ?: "Unknown error"
+                    val builder = buildNotificationBuilder(
+                        0,
+                        getString(R.string.export_notification_failed, errorMsg),
+                        true
+                    )
                         .setAutoCancel(true)
                     val errorNotif = builder.build()
                     notificationManager?.notify(NOTIFICATION_ID, errorNotif)
-                    stopForeground(true)
+                    stopForeground(STOP_FOREGROUND_REMOVE)
                 }
             } catch (e: Throwable) {
                 AppLog.error("ExportForegroundService", "Background export failed", e)
-                val builder = buildNotificationBuilder(0, "Export failed: ${e.message}", true)
+                val builder = buildNotificationBuilder(
+                    0,
+                    getString(R.string.export_notification_failed, e.message ?: "Unknown error"),
+                    true
+                )
                     .setAutoCancel(true)
                 val errorNotif = builder.build()
                 notificationManager?.notify(NOTIFICATION_ID, errorNotif)
-                stopForeground(true)
+                stopForeground(STOP_FOREGROUND_REMOVE)
             }
         }
 
         return START_STICKY
     }
 
+    /**
+     * Calls startForeground with the right foreground service type for the
+     * running Android version. `mediaProcessing` only exists on API 35+; the
+     * manifest also declares `dataSync` so API 34 devices keep a valid type.
+     */
+    @Suppress("DEPRECATION")
+    private fun startForegroundTyped(notification: Notification) {
+        runCatching {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM ->
+                    startForeground(
+                        NOTIFICATION_ID,
+                        notification,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING
+                    )
+
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
+                    startForeground(
+                        NOTIFICATION_ID,
+                        notification,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    )
+
+                else -> startForeground(NOTIFICATION_ID, notification)
+            }
+        }.onFailure { error ->
+            AppLog.error("ExportForegroundService", "startForeground failed, falling back", error)
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
     private fun cancelExport() {
         exportJob?.cancel()
         progressJob?.cancel()
         exportManager?.cancel()
-        val builder = buildNotificationBuilder(0, "Export cancelled", true)
+        val builder = buildNotificationBuilder(
+            0,
+            getString(R.string.export_cancelled),
+            true
+        )
             .setAutoCancel(true)
         val errorNotif = builder.build()
         notificationManager?.notify(NOTIFICATION_ID, errorNotif)
-        stopForeground(true)
+        stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "CatByte Export",
+                getString(R.string.export_notification_title),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Shows video export progress"
@@ -160,7 +230,7 @@ class ExportForegroundService : Service() {
     ): NotificationCompat.Builder {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_export)
-            .setContentTitle("CatByte Export")
+            .setContentTitle(getString(R.string.export_notification_title))
             .setContentText(text)
             .setProgress(100, progress, progress == 0)
             .setOngoing(!isComplete)
@@ -214,7 +284,8 @@ object ExportServiceScheduler {
         project: com.example.model.VideoProject,
         resolution: String,
         fps: Int,
-        watermark: Boolean
+        watermark: Boolean,
+        bitrateMbps: Int = 10
     ) {
         val intent = Intent(context, ExportForegroundService::class.java).apply {
             action = ExportForegroundService.ACTION_START
@@ -222,6 +293,7 @@ object ExportServiceScheduler {
             putExtra(ExportForegroundService.EXTRA_RESOLUTION, resolution)
             putExtra(ExportForegroundService.EXTRA_FPS, fps)
             putExtra(ExportForegroundService.EXTRA_WATERMARK, watermark)
+            putExtra(ExportForegroundService.EXTRA_BITRATE_MBPS, bitrateMbps)
             putExtra(ExportForegroundService.EXTRA_PROJECT_ID, project.id)
         }
 
@@ -240,7 +312,9 @@ object ExportServiceScheduler {
     }
 
     fun isExportRunning(context: Context): Boolean {
-        // Check if service is running (simplified)
+        // getRunningServices is deprecated but there is no public replacement
+        // for checking our own started service state.
+        @Suppress("DEPRECATION")
         val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
         return manager.getRunningServices(100).any { it.service.className == ExportForegroundService::class.java.name }
     }

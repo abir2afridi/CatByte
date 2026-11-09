@@ -1,232 +1,252 @@
-# CatByte Video Editor
+# CatByte
 
-A professional, CapCut-level video editor built with **Tauri 2**, **React 18**, **TypeScript**, **Fabric.js**, and **FFmpeg.wasm**.
+**An offline, Bangla-first video editor for Android.**
 
-## ✨ Features
+CatByte is a CapCut-class editor in progress: multi-track timeline, keyframes,
+velocity curves, masks, transitions, colour work, text and captions, Media3
+export — all on the device, with no account and no cloud render.
 
-### Core Editing
-- **Multi-track Timeline** - Video, audio, text, and effect tracks
-- **Frame-accurate editing** - Precise trimming, splitting, and positioning
-- **Keyframe animation** - Animate transform, opacity, effects, and more
-- **Real-time preview** - GPU-accelerated canvas rendering
-- **Ripple/Insert/Overwrite modes** - Professional editing workflows
+[Status](#status) · [Features](#features) · [Build and run](#build-and-run) ·
+[Architecture](#architecture) · [Testing](#testing) · [Roadmap](#roadmap) ·
+[Documentation](#documentation)
 
-### Visual Effects
-- **100+ built-in effects** - Blur, color correction, glitch, chroma key, etc.
-- **Transitions** - Fade, slide, zoom, wipe, glitch transitions
-- **Text animations** - Typewriter, fade, slide, scale, custom animations
-- **LUT support** - Cinematic color grading
-- **Green screen** - Chroma key with spill suppression
-
-### Audio
-- **Multi-track audio** - Music, voiceover, sound effects
-- **Audio meters** - Real-time level monitoring
-- **Effects** - Gain, EQ, compressor, noise reduction, reverb, delay
-- **Beat sync** - Auto-cut to music beats
-
-### AI-Powered (Planned)
-- **Auto captions** - Whisper.cpp on-device speech-to-text
-- **Text-to-speech** - Natural voices
-- **Background removal** - Without green screen
-- **Smart scene detection** - Auto-split clips
-- **Auto reframe** - 9:16, 16:9, 1:1 smart crop
-
-### Platform & Export
-- **Cross-platform** - Windows, macOS, Linux (Web coming)
-- **Hardware acceleration** - NVENC, QuickSync, VAAPI, VideoToolbox
-- **Presets** - YouTube, TikTok, Reels, Shorts, Instagram, Twitter
-- **4K/8K support** - Proxy workflow for smooth editing
-- **Direct share** - Upload to social platforms
-
-### Developer Experience
-- **Plugin system** - Custom effects, transitions, tools
-- **Scripting API** - JavaScript/Python automation
-- **Headless CLI** - Server-side rendering
-- **Local-first** - No forced cloud, privacy-focused
-
-## 🚀 Quick Start
-
-### Prerequisites
-- **Node.js** 20+
-- **Rust** 1.75+ (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
-- **FFmpeg** (for export) - `winget install ffmpeg` / `brew install ffmpeg` / `apt install ffmpeg`
-
-### Installation
-```bash
-# Clone and install
-git clone https://github.com/yourusername/catbyte.git
-cd catbyte
-npm install
-
-# Development
-npm run tauri:dev
-
-# Build for production
-npm run tauri:build
-```
-
-## 🏗 Architecture
-
-```
-src/
-├── components/
-│   ├── layout/        # AppLayout, Header
-│   ├── timeline/      # Timeline, Tracks, Clips
-│   ├── preview/       # Video Preview (Fabric.js)
-│   ├── media/         # Media Bin
-│   ├── effects/       # Effects Panel
-│   ├── properties/    # Properties Panel
-│   └── audio/         # Audio Meters
-├── hooks/
-│   ├── useKeyboardShortcuts.ts
-│   └── useMedia.ts    # FFmpeg.wasm integration
-├── store/
-│   └── projectStore.ts # Zustand state management
-├── types/
-│   └── index.ts       # TypeScript definitions
-├── utils/
-│   └── cn.ts          # Class name utility
-├── App.tsx
-├── main.tsx
-└── index.css          # Tailwind + custom styles
-
-src-tauri/
-├── src/
-│   └── main.rs        # Rust backend (FFmpeg, file I/O)
-├── Cargo.toml
-└── tauri.conf.json
-```
-
-## 🎮 Keyboard Shortcuts
-
-| Action | Shortcut |
-|--------|----------|
-| **Play/Pause** | `Space` |
-| **Stop** | `K` |
-| **Frame Back/Forward** | `←` / `→` |
-| **Jump 1s** | `Shift + ←/→` |
-| **Go to Start/End** | `Home` / `End` |
-| **Split at Playhead** | `Ctrl + K` |
-| **Trim Start/End** | `Q` / `W` |
-| **Undo/Redo** | `Ctrl + Z` / `Ctrl + Shift + Z` |
-| **Zoom In/Out** | `=` / `-` |
-| **Fit to Timeline** | `\` |
-| **Selection Tool** | `V` |
-| **Blade Tool** | `C` |
-| **Hand Tool** | `H` |
-| **Zoom Tool** | `Z` |
-| **Add Video Track** | `Ctrl + Alt + V` |
-| **Add Audio Track** | `Ctrl + Alt + A` |
-| **Toggle Snap** | `S` |
-| **Toggle Ripple** | `R` |
-
-## 🔧 Configuration
-
-### Project Settings
-```json
-{
-  "width": 1920,
-  "height": 1080,
-  "frameRate": 30,
-  "backgroundColor": "#000000",
-  "sampleRate": 48000,
-  "channels": 2
-}
-```
-
-### Export Presets
-```typescript
-const presets = [
-  { name: 'YouTube 4K', width: 3840, height: 2160, bitrate: 45000 },
-  { name: 'YouTube 1080p', width: 1920, height: 1080, bitrate: 12000 },
-  { name: 'TikTok/Reels/Shorts', width: 1080, height: 1920, bitrate: 8000 },
-  { name: 'Instagram Feed', width: 1080, height: 1080, bitrate: 8000 },
-  { name: 'Custom', width: 1920, height: 1080, bitrate: 12000 },
-]
-```
-
-## 📦 Plugin Development
-
-Create custom effects:
-
-```typescript
-// plugins/my-effect/index.ts
-export const effect = {
-  id: 'my-effect',
-  name: 'My Custom Effect',
-  category: 'stylize',
-  type: 'custom',
-  params: [
-    { name: 'intensity', label: 'Intensity', type: 'number', default: 0.5, min: 0, max: 1 },
-    { name: 'color', label: 'Color', type: 'color', default: { r: 1, g: 0, b: 0, a: 1 } },
-  ],
-  render: async (input: VideoFrame, params: Params) => {
-    // WebGL/Canvas processing
-    return processedFrame
-  }
-}
-```
-
-## 🗺 Roadmap
-
-### v0.1 (MVP) ✅
-- [x] Project structure & state management
-- [x] Timeline with multi-track support
-- [x] Video preview with Fabric.js
-- [x] Media bin with import
-- [x] Properties panel
-- [x] Effects panel (UI)
-- [x] Audio meters
-- [x] Keyboard shortcuts
-- [x] Tauri backend setup
-
-### v0.2 - Core Editing
-- [ ] Clip trimming/splitting with mouse
-- [ ] Drag & drop to timeline
-- [ ] Transitions between clips
-- [ ] Keyframe UI & interpolation
-- [ ] Undo/Redo history
-
-### v0.3 - Effects & Rendering
-- [ ] FFmpeg.wasm effect pipeline
-- [ ] Real-time effect preview
-- [ ] Export with progress
-- [ ] Hardware acceleration
-
-### v0.4 - AI Features
-- [ ] Auto captions (Whisper.cpp)
-- [ ] Text-to-speech
-- [ ] Background removal
-- [ ] Scene detection
-
-### v0.5 - Polish & Plugins
-- [ ] Plugin system
-- [ ] Template marketplace
-- [ ] Collaboration (CRDT)
-- [ ] Mobile companion app
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run `npm run lint && npm run format`
-5. Submit a PR
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## 🙏 Acknowledgments
-
-- **Tauri** - For the amazing Rust + Web framework
-- **Fabric.js** - Canvas rendering engine
-- **FFmpeg.wasm** - WebAssembly FFmpeg
-- **Zustand** - Simple state management
-- **Tailwind CSS** - Utility-first styling
-- **Lucide** - Beautiful icons
-- **CapCut** - Inspiration for UX patterns
+> **Honest status:** the export path is solid and 309 JVM/Robolectric tests
+> pass, but the "CapCut feel" still needs a real GL compositor, bundled Bangla
+> fonts and on-device models. What is done and what is not is tracked in
+> [`docs/M1-M4-ENGINE.md`](docs/M1-M4-ENGINE.md) and
+> [`FEATURE_MATRIX.md`](FEATURE_MATRIX.md).
 
 ---
 
-**Built with ❤️ for creators who want professional tools without the bloat.**
+## Status
+
+| | |
+|---|---|
+| **Platform** | Android (minSdk 24, target/compile SDK 37), Kotlin 2.2, Jetpack Compose |
+| **Rendering** | Media3 ExoPlayer (preview) + Media3 Transformer (export) |
+| **State** | Room + JSON snapshots, DataStore settings, durable undo journal |
+| **Languages** | English + Bengali UI (full key parity), Bangla digit formatting |
+| **APK** | ~25.8 MB debug build, no native libraries yet |
+| **Plan progress** | ~62% — export core complete, device verification pending (`STATUS.md`) |
+| **Tests** | 309 JVM/Robolectric tests, 0 failures — no instrumented/device run yet |
+| **CI** | GitHub Actions: lint, unit tests and debug APK (`.github/workflows/ci.yml`) |
+
+Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not built**
+
+## Features
+
+### Editing
+| Feature | State | Notes |
+|---|---|---|
+| Projects: create, duplicate, delete + undo, pin, search | ✅ | Aspect presets 9:16, 16:9, 1:1, 4:5 |
+| Media import | ✅ | One-pass real duration + dimensions + display name; project adopts the imported aspect ratio and file name; waveform decode deferred |
+| Responsive editor layout | ✅ | Transport/selection bars scroll horizontally, adaptive timeline height, height-constrained preview |
+| Autosave | 🟡 | Saves on every change; debounce + journal pending |
+| Undo / redo | ✅ | Gesture coalescing; persisted atomically so a crash keeps history |
+| Multi-track timeline (video, overlay, audio, text, effects) | ✅ | Free pan, pinch zoom, vertical track scroll, one row per overlay + audio track, track reorder, inline trim handles, split, ripple delete, main reorder + overlay/cross-track drag + multi-select |
+| Audio row drag + per-clip mute | 🟡 | One timeline row per audio clip; long-press drag with magnetic snap + project clamp; drag/fades/mixer wiring pending |
+| Snapping (playhead, clip edges, audio/text/effect bounds, beats, markers) | ✅ | Priority order lives in the engine, not in the UI; detected beats are lower priority, markers higher; beat ticks and marker pins are drawn |
+| Drag-and-drop clip move | 🟡 | Main-track long-press reorder and overlay start-time drag (magnetic + bounds-clamped, cross-track); audio row drag wired |
+| Multi-select + group ops | 🟡 | Timeline MS toggle + selection bar; overlay group move/delete + overlay copy/paste wired; main-track contiguous block move + paste-attributes wired; cut and main-track paste pending |
+| Markers | 🟡 | Add/jump/move-to-playhead/remove and snap are wired; rename/recolour/delete UI pending |
+| Draggable playhead + free timeline pan | ✅ | Needle drags with edge auto-scroll; any timeline touch pauses playback; content centers under the playhead during playback |
+| Keyframes (position, scale, rotation, opacity, volume) | ✅ | Sheet + interpolation + easing curves |
+| Speed: constant and bezier velocity curves | ✅ | Presets: montage, hero moment, bullet time, jump cut |
+| Masks (rectangle, circle, split, mirror, filmstrip) | 🟡 | Data + sheet exist; not burned into the pixels yet |
+| Blend modes | 🟡 | Sheet + enum; export composites with normal alpha |
+| 13 filters + adjustments (brightness, contrast, saturation, vignette, HSL) | ✅ | Applied via Media3 colour effects |
+| Transitions (11 types) | 🟡 | Rendered through Media3, not true two-frame compositing |
+| Text overlays, animations, TTS voice-over | ✅ | Bangla shaping not verified on device |
+| Preview surface | ✅ | Composition preview when available; ExoPlayer fallback renders a real video surface instead of a frozen still |
+| CapCut-style editor shell | ✅ | Top bar (close, search, trial badge, AI UHD menu, export pill), transport row (fullscreen / play / transition / undo / redo), timecode strip, clip context action bar, bottom tool nav (Edit…Background + Tools) |
+| Editor feature search | ✅ | Top-bar search jumps to 29 real panels/actions (split, volume, crop, captions, markers, …) |
+| Clip panels: Volume, Speed, Crop, Opacity, Animations, Captions, Background, Timeline tools, AI tools | ✅ | One sheet per tool; cloud/GPU-only entries state why they are disabled instead of faking toggles |
+| Clip actions: split, duplicate, replace, freeze, reverse, extract audio, crop, opacity, loudness | ✅ | Replace re-probes duration/dimensions; loudness normalisation is waveform-driven (`AudioLoudness`); crop writes a real transform via `CropMath` |
+
+### Audio
+| Feature | State | Notes |
+|---|---|---|
+| Multi-track music, volume, fades, waveform | ✅ | |
+| Voice-over recording | ✅ | MediaRecorder based |
+| Beat detection | 🟡 | Detector, beat-magnetic snapping, beat ticks and auto-cut-to-beat are wired; source beats map through trim/start/speed; editable beat grid pending |
+| Audio rows + per-clip mute | 🟡 | One timeline row per audio clip with long-press drag (magnetic + clamp) and mute; per-clip volume/fades UI + mixer wiring pending |
+| Limiter, ducking, EQ, loudness (LUFS), noise reduction | 🟡 | Maths implemented and tested in the engine; not wired to the mixer |
+
+### Export
+| Feature | State | Notes |
+|---|---|---|
+| 480p–4K, 24–60 fps | ✅ | 480/540/720/1080/2K/4K map to exact heights; capability ladder unit-tested (HEVC→H.264, size/fps downgrade) |
+| Bitrate selector (5–100 Mbps) | ✅ | Real encoder setting: `DefaultEncoderFactory` + `VideoEncoderSettings.setBitrate()` in foreground and background exports; storage precheck follows it |
+| H.264 + HEVC, AAC | ✅ | Encoder rejection retries once with the default encoder |
+| Progress, cancel, validation, MediaStore save | ✅ | Duration/dimension validation before success |
+| Background export (foreground service) | ✅ | Typed `mediaProcessing` / `dataSync` notification |
+| Platform presets, audio-only (.m4a), GIF | 🟡 | MP4 export + audio-only presets wired; the GIF tab is shown for parity but export stays disabled (no GIF encoder bundled) and says so |
+| HDR tone-map, 10-bit output | 🔴 | 10-bit sources detected by the proxy policy only |
+
+### Not built yet
+- **GL compositor** — 35 GLSL effect sources and the transition weights exist in
+  `com.example.engine`, but no EGL surface executes them yet. The canvas
+  background colour is saved and read by the render graph, but the live
+  compositor still draws a black canvas.
+- **GIF export** — the export sheet shows the GIF tab for parity, but no GIF
+  encoder is bundled, so it stays disabled with an explanation.
+- **Bangla fonts and shaping** — UI strings are translated; OFL fonts are not
+  bundled and conjunct shaping has no golden-image test.
+- **On-device AI** — auto-reframe crop maths and silence detection are ready;
+  the detectors (MediaPipe/ML Kit/TFLite) are not.
+- **Camera capture** — no CameraX module, so shoot-and-edit needs the gallery.
+- **Cloud anything** — no account, no cloud render, no marketplace, no
+  collaboration. Editing works from local files only.
+
+---
+
+## Build and run
+
+Requirements: **JDK 17** and the **Android SDK (compileSdk 37)**. Node is only
+needed for the desktop prototype.
+
+```bash
+# Debug APK -> app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:assembleDebug
+
+# Install on a connected device/emulator
+./gradlew :app:installDebug
+
+# Unit tests (332 tests, incl. Robolectric Compose gestures)
+./gradlew :app:testDebugUnitTest
+
+# Lint (CI runs it on every push/PR)
+./gradlew :app:lintDebug
+```
+
+### Desktop prototype (legacy)
+
+`src/` and `src-tauri/` hold an earlier Tauri 2 + React + Fabric.js + FFmpeg.wasm
+prototype. It is **not** the shipping app and shares no code with the Android
+build:
+
+```bash
+npm install
+npm run tauri:dev     # or: npm run dev      (browser only)
+npm run tauri:build
+```
+
+---
+
+## Architecture
+
+```
+Project (Kotlin model)
+        │
+        ▼
+RenderGraphBuilder ──► RenderGraph   immutable layout: layers, audio, text,
+        │                            fps, canvas, clamped transitions
+        ├──────────────► preview  (ExoPlayer + Media3 effects)
+        └──────────────► export   (Media3 Transformer)
+```
+
+`ProjectCompositionFactory.plan()` consumes the same graph for both paths, so
+clip order, gaps, overlay starts, audio starts and transition durations cannot
+differ between what you see and what you export. A parity test
+(`ProjectCompositionPlanTest`) guards that.
+
+```
+app/src/main/java/com/example/
+├── model/          VideoProject, MediaClip, AudioClip, TextOverlay, keyframes
+├── engine/         platform-free logic, unit tested on the JVM
+├── data/           Room, JSON, import, export, player, cache, services
+├── ui/             Compose screens, tool sheets, timeline, canvas, theme
+└── viewmodel/      EditorViewModel (editing commands, undo, export state)
+```
+
+### Engine modules (`com.example.engine`)
+
+| Module | Responsibility |
+|---|---|
+| `Timebase` | Rational fps (30000/1001), `TimeUs`, frame snapping, timecode |
+| `SnapEngine` | Magnet collection/priority (clip edges, playhead, markers, beats), magnetic main-track placement |
+| `TimelineEdits` | Magnetic placement, ripple vs lift delete, reorder-close-gaps, trim bounds |
+| `UndoJournal` | Atomic, bounded, gesture-coalescing undo/redo persistence |
+| `CenterPlayhead` | Fixed-playhead scroll maths, zoom anchoring |
+| `TimelineGeometry` | dp/ms conversions, drag-anchor maths, screen x, timeline constants |
+| `BeatGrid` | Onset peaks, tempo from inter-onset intervals, beat lattice, nearest beat |
+| `ClipSplit` | Frame-accurate split: source-offset resolution, keyframe partition/rebase, transition/animation rules |
+| `ClipTrimHandle` | Inline timeline trim: frame-quantised source trim, speed-aware, minimum-duration clamp |
+| `AspectMath` | Maps imported video dimensions/rotation to the closest canvas preset |
+| `RenderGraph` | Single render description + canvas maths |
+| `TransitionEngine` | 17 transition kinds, two-frame weights, shaders |
+| `EffectShaders` | 35 GLSL ES 3.0 effect sources |
+| `LutCube` | `.cube` parsing, trilinear sampling, chain baking |
+| `DecoderBudget` | Decoder pool priority/LRU plan, proxy policy |
+| `SubtitleIO` | SRT/VTT parse/write, retime, validate, word→cue |
+| `CaptionBridge` | Cues ↔ timeline text overlays (SRT/VTT import, subtitle style) |
+| `BanglaText` | Native digits, mark-safe line breaking, caption fit |
+| `AudioMath` | Fades, ducking, limiter, mix, RMS/LUFS, PCM16 |
+| `DeviceProfiles` | LOW/MID/HIGH tiers, thermal + battery degradation |
+| `AutoReframe` | Subject-aware crop, smoothing, Ken Burns |
+| `SilenceDetector` | Silence ranges from the waveform pyramid |
+| `ExportPresets` | Platform presets, bitrate ladder, size estimate |
+
+---
+
+## Testing
+
+```bash
+./gradlew :app:testDebugUnitTest --rerun
+```
+
+- **309 JVM/Robolectric tests, 0 failures**: timing, snapping, timeline geometry, undo journal,
+  render graph, transitions, LUTs, captions, audio maths, Bangla text, device
+  policy, export math, JSON round-trip, editor workflow, localization parity,
+  inline trim maths, track mute/lock/solo persistence, and 2 Compose UI test
+  classes (timeline gestures, track header controls) driven by Robolectric.
+- **CI:** `.github/workflows/ci.yml` runs lint, unit tests and `assembleDebug`
+  on pushes and pull requests to `main`/`develop`.
+- **Not covered yet:** instrumented codec/export runs, golden-frame rendering,
+  60 fps scroll, memory and soak tests. See [`TEST_REPORT.md`](TEST_REPORT.md).
+
+## Roadmap
+
+1. Run the instrumented export probe on a real device and record it in
+   `TEST_REPORT.md`.
+2. Free drag of clips across tracks (main-track reorder and overlay start-time
+   and cross-track drag are wired; audio row drag is wired; remaining work is
+   audio fades/mixer wiring and paste-attributes polish).
+3. Execute the shader library in a GL compositor shared by preview and export.
+4. Bundle Bangla OFL fonts and add golden-image shaping tests.
+5. Finish captions and the export sheet (SRT/VTT import/export, readable
+   auto-caption cues and keyboard shortcuts are wired; karaoke highlighting, a
+   real speech model, platform-preset chips in the sheet and the audio mixer
+   remain).
+6. CameraX capture, then on-device cutout/reframe/tracking.
+
+Full breakdown and device-only work: [`docs/M1-M4-ENGINE.md`](docs/M1-M4-ENGINE.md).
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Module boundaries, timing model, render/audio data flow |
+| [`docs/DECISIONS.md`](docs/DECISIONS.md) | ADR log (Media3 transformer, Room, time base, codec ladder) |
+| [`docs/M1-M4-ENGINE.md`](docs/M1-M4-ENGINE.md) | What the engine milestones delivered; remaining device work |
+| [`docs/SPIKE_RENDER_ENGINE.md`](docs/SPIKE_RENDER_ENGINE.md) | Render engine spike and its outcome |
+| [`STATUS.md`](STATUS.md) | Phase-by-phase progress and known gaps |
+| [`FEATURE_MATRIX.md`](FEATURE_MATRIX.md) | Feature-by-feature status |
+| [`TEST_REPORT.md`](TEST_REPORT.md) | Test coverage and results |
+| [`docs+/plan.md`](docs+/plan.md) | Original build plan |
+| [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md) | Dependency licences |
+
+## Privacy
+
+Editing, preview and export run entirely on the device. There is no account
+system, no cloud render and no telemetry; project files and media stay in app
+storage and the system gallery.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
+
+## Credits
+
+Media3, Jetpack Compose, Room, Kotlin coroutines, Coil, Robolectric, JUnit.
+CapCut for the UX patterns this project is measured against.

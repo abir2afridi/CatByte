@@ -9,8 +9,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
 enum class AppThemeMode(val title: String, val subtitle: String) {
-    LIGHT("Light", "Clean light theme"),
-    DARK("Dark", "Professional dark theme"),
+    DARK("CapCut Dark Studio", "Pro pitch dark video studio"),
+    LIGHT("Pencil & Paper", "Warm sketchbook paper theme"),
     SYSTEM("Follow System", "Match Android device appearance")
 }
 
@@ -60,7 +60,7 @@ private val DarkMaterialScheme = darkColorScheme(
 
 @Composable
 fun MyApplicationTheme(
-    themeMode: AppThemeMode = AppThemeMode.LIGHT,
+    themeMode: AppThemeMode = AppThemeMode.DARK,
     content: @Composable () -> Unit
 ) {
     val isDark = when (themeMode) {

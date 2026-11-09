@@ -1,7 +1,8 @@
-﻿package com.example.data.db
+package com.example.data.db
 
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
+import com.example.model.BezierPoint
 import com.example.model.BlendMode
 import com.example.model.ClipAnimation
 import com.example.model.EasingCurve
@@ -13,12 +14,15 @@ import com.example.model.KeyframeProperty
 import com.example.model.MaskData
 import com.example.model.MaskType
 import com.example.model.MediaClip
+import com.example.model.SpeedCurve
+import com.example.model.SpeedCurvePreset
 import com.example.model.StickerOverlay
 import com.example.model.TextAnimationType
 import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
 import com.example.model.TimelineEffect
 import com.example.model.TransitionType
+import com.example.model.TimelineMarker
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
@@ -50,6 +54,9 @@ object ProjectJson {
         put("paperStyle", project.paperStyle)
         put("isFavorite", project.isFavorite)
         put("lastModified", project.lastModified)
+        put("isMainTrackMuted", project.isMainTrackMuted)
+        put("isMainTrackLocked", project.isMainTrackLocked)
+        put("isMainTrackSolo", project.isMainTrackSolo)
         put("thumbnailResId", project.thumbnailResId ?: JSONObject.NULL)
         put("clips", JSONArray().also { array -> project.clips.forEach { array.put(clipToJson(it)) } })
         put(
@@ -61,6 +68,9 @@ object ProjectJson {
                             put("id", track.id)
                             put("name", track.name)
                             put("isMainTrack", track.isMainTrack)
+                            put("isMuted", track.isMuted)
+                            put("isLocked", track.isLocked)
+                            put("isSolo", track.isSolo)
                             put(
                                 "clips",
                                 JSONArray().also { clips -> track.clips.forEach { clips.put(clipToJson(it)) } }
@@ -77,6 +87,10 @@ object ProjectJson {
         put(
             "textOverlays",
             JSONArray().also { array -> project.textOverlays.forEach { array.put(textToJson(it)) } }
+        )
+        put(
+            "markers",
+            JSONArray().also { array -> project.markers.forEach { array.put(markerToJson(it)) } }
         )
         put(
             "stickers",
@@ -98,11 +112,15 @@ object ProjectJson {
                 id = trackJson.optString("id"),
                 name = trackJson.optString("name", "Track"),
                 isMainTrack = trackJson.optBoolean("isMainTrack", false),
+                isMuted = trackJson.optBoolean("isMuted", false),
+                isLocked = trackJson.optBoolean("isLocked", false),
+                isSolo = trackJson.optBoolean("isSolo", false),
                 clips = trackJson.optJSONArray("clips").mapObjects { clipFromJson(it) }
             )
         },
         audioTracks = json.optJSONArray("audioTracks").mapObjects { audioFromJson(it) },
         textOverlays = json.optJSONArray("textOverlays").mapObjects { textFromJson(it) },
+        markers = json.optJSONArray("markers").mapObjects { markerFromJson(it) },
         stickers = json.optJSONArray("stickers").mapObjects { stickerFromJson(it) },
         effects = json.optJSONArray("effects").mapObjects { effectFromJson(it) },
         thumbnailResId = if (json.isNull("thumbnailResId")) null else json.optInt("thumbnailResId"),
@@ -110,7 +128,10 @@ object ProjectJson {
         resolution = json.optString("resolution", "1080P"),
         fps = json.optInt("fps", 30),
         isFavorite = json.optBoolean("isFavorite", false),
-        paperStyle = json.optString("paperStyle", "Drafting Grid")
+        paperStyle = json.optString("paperStyle", "Drafting Grid"),
+        isMainTrackMuted = json.optBoolean("isMainTrackMuted", false),
+        isMainTrackLocked = json.optBoolean("isMainTrackLocked", false),
+        isMainTrackSolo = json.optBoolean("isMainTrackSolo", false)
     )
 
     // -----------------------------------------------------------------
@@ -129,7 +150,10 @@ object ProjectJson {
         put("trimStartMs", clip.trimStartMs)
         put("trimEndMs", clip.trimEndMs)
         put("speed", clip.speed.toDouble())
+        put("speedCurve", speedCurveToJson(clip.speedCurve))
+        put("maintainPitch", clip.maintainPitch)
         put("volume", clip.volume.toDouble())
+        put("isMuted", clip.isMuted)
         put("filter", clip.filter.name)
         put("transition", clip.transition.name)
         put("transitionDurationMs", clip.transitionDurationMs)
@@ -163,6 +187,17 @@ object ProjectJson {
         put("posX", clip.posX.toDouble())
         put("posY", clip.posY.toDouble())
         put("opacity", clip.opacity.toDouble())
+        put("isReversed", clip.isReversed)
+        put("sourceWidth", clip.sourceWidth)
+        put("sourceHeight", clip.sourceHeight)
+        put("isLoudnessAdjusted", clip.isLoudnessAdjusted)
+        put("chromaKey", JSONObject().apply {
+            put("isEnabled", clip.chromaKey.isEnabled)
+            put("keyColorHex", clip.chromaKey.keyColorHex)
+            put("tolerance", clip.chromaKey.tolerance.toDouble())
+            put("softness", clip.chromaKey.softness.toDouble())
+            put("spill", clip.chromaKey.spill.toDouble())
+        })
     }
 
     private fun clipFromJson(json: JSONObject): MediaClip = MediaClip(
@@ -178,7 +213,11 @@ object ProjectJson {
         trimStartMs = json.optLong("trimStartMs"),
         trimEndMs = json.optLong("trimEndMs"),
         speed = json.optDouble("speed", 1.0).toFloat(),
+        speedCurve = json.optJSONObject("speedCurve")?.let { speedCurveFromJson(it) }
+            ?: SpeedCurve(),
+        maintainPitch = json.optBoolean("maintainPitch", true),
         volume = json.optDouble("volume", 1.0).toFloat(),
+        isMuted = json.optBoolean("isMuted", false),
         filter = parseEnum(json.optString("filter"), VideoFilter.NONE),
         transition = parseEnum(json.optString("transition"), TransitionType.NONE),
         transitionDurationMs = json.optLong("transitionDurationMs", 400L),
@@ -204,8 +243,55 @@ object ProjectJson {
         scale = json.optDouble("scale", 1.0).toFloat(),
         posX = json.optDouble("posX", 0.5).toFloat(),
         posY = json.optDouble("posY", 0.5).toFloat(),
-        opacity = json.optDouble("opacity", 1.0).toFloat()
+        opacity = json.optDouble("opacity", 1.0).toFloat(),
+        isReversed = json.optBoolean("isReversed", false),
+        sourceWidth = json.optInt("sourceWidth", 0),
+        sourceHeight = json.optInt("sourceHeight", 0),
+        isLoudnessAdjusted = json.optBoolean("isLoudnessAdjusted", false),
+        chromaKey = json.optJSONObject("chromaKey")?.let { cj ->
+            com.example.model.ChromaKeyData(
+                isEnabled = cj.optBoolean("isEnabled", false),
+                keyColorHex = cj.optLong("keyColorHex", 0xFF00FF00),
+                tolerance = cj.optDouble("tolerance", 0.25).toFloat(),
+                softness = cj.optDouble("softness", 0.20).toFloat(),
+                spill = cj.optDouble("spill", 0.30).toFloat()
+            )
+        } ?: com.example.model.ChromaKeyData()
     )
+
+    private fun speedCurveToJson(curve: SpeedCurve): JSONObject = JSONObject().apply {
+        put("preset", curve.preset.name)
+        put(
+            "points",
+            JSONArray().also { array ->
+                curve.points.forEach { point ->
+                    array.put(
+                        JSONObject().apply {
+                            put("x", point.x.toDouble().coerceIn(0.0, 1.0))
+                            put("speedMultiplier", point.speedMultiplier.toDouble())
+                        }
+                    )
+                }
+            }
+        )
+    }
+
+    private fun speedCurveFromJson(json: JSONObject): SpeedCurve {
+        val points = json.optJSONArray("points").mapObjects { point ->
+            BezierPoint(
+                x = point.optDouble("x", 0.0).toFloat().coerceIn(0f, 1f),
+                speedMultiplier = point.optDouble("speedMultiplier", 1.0)
+                    .toFloat()
+                    .coerceIn(0.05f, 32f)
+            )
+        }.sortedBy { it.x }
+        return SpeedCurve(
+            preset = parseEnum(json.optString("preset"), SpeedCurvePreset.STANDARD),
+            points = points.ifEmpty {
+                listOf(BezierPoint(0f, 1f), BezierPoint(1f, 1f))
+            }
+        )
+    }
 
     // -----------------------------------------------------------------
     // Audio / text / stickers / effects
@@ -218,6 +304,9 @@ object ProjectJson {
         put("uriString", audio.uriString ?: JSONObject.NULL)
         put("startTimelineMs", audio.startTimelineMs)
         put("durationMs", audio.durationMs)
+        put("trimStartMs", audio.trimStartMs)
+        put("trimEndMs", audio.trimEndMs)
+        put("speed", audio.speed.toDouble())
         put("volume", audio.volume.toDouble())
         put("isVoiceover", audio.isVoiceover)
         put("isMuted", audio.isMuted)
@@ -233,6 +322,9 @@ object ProjectJson {
         uriString = json.optStringOrNull("uriString"),
         startTimelineMs = json.optLong("startTimelineMs"),
         durationMs = json.optLong("durationMs", 6000L),
+        trimStartMs = json.optLong("trimStartMs"),
+        trimEndMs = json.optLong("trimEndMs"),
+        speed = json.optDouble("speed", 1.0).toFloat().coerceIn(0.1f, 16f),
         volume = json.optDouble("volume", 1.0).toFloat(),
         isVoiceover = json.optBoolean("isVoiceover", false),
         isMuted = json.optBoolean("isMuted", false),
@@ -307,6 +399,20 @@ object ProjectJson {
         effectType = parseEnum(json.optString("effectType"), EffectType.RGB_SPLIT),
         startTimelineMs = json.optLong("startTimelineMs"),
         durationMs = json.optLong("durationMs", 2000L)
+    )
+
+    private fun markerToJson(marker: TimelineMarker): JSONObject = JSONObject().apply {
+        put("id", marker.id)
+        put("atMs", marker.atMs)
+        put("label", marker.label)
+        put("colorArgb", marker.colorArgb.toString())
+    }
+
+    private fun markerFromJson(json: JSONObject): TimelineMarker = TimelineMarker(
+        id = json.optString("id"),
+        atMs = json.optLong("atMs"),
+        label = json.optString("label", ""),
+        colorArgb = json.optString("colorArgb", "4276944634").toLongOrNull() ?: 0xFFFFC94A
     )
 
     private fun keyframeToJson(keyframe: Keyframe): JSONObject = JSONObject().apply {

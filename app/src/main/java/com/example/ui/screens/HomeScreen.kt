@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
@@ -101,6 +102,15 @@ import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.pencilHatching
 import kotlinx.coroutines.delay
 
+enum class QuickTool {
+    CAPTIONS,
+    CANVAS,
+    VELOCITY,
+    AUDIO,
+    EXTRACT_AUDIO,
+    KEYFRAMES
+}
+
 @Composable
 fun HomeScreen(
     projects: List<VideoProject>,
@@ -112,6 +122,7 @@ fun HomeScreen(
     onDuplicateProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
     onRestoreProject: (VideoProject) -> Unit = {}, // NEW: undo delete
+    onQuickTool: (QuickTool) -> Unit = {},
     onOpenSettings: () -> Unit
 ) {
     val colors = PencilTheme.colors
@@ -191,7 +202,7 @@ fun HomeScreen(
                         // Quick Tools Tiles
                         item {
                             Spacer(modifier = Modifier.height(18.dp))
-                            QuickToolsRow()
+                            QuickToolsRow(onQuickTool = onQuickTool)
                         }
 
                         // Search & Filter Bar
@@ -419,8 +430,12 @@ private fun HeroNewProjectSection(
                 .weight(1.8f)
                 .height(135.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(colors.surface)
-                .border(1.5.dp, colors.border, RoundedCornerShape(16.dp))
+                .background(if (!colors.isPencilSketch) colors.surfaceVariant else colors.surface)
+                .border(
+                    width = 1.5.dp,
+                    color = if (!colors.isPencilSketch) colors.accentCyan.copy(alpha = 0.5f) else colors.border,
+                    shape = RoundedCornerShape(16.dp)
+                )
                 .clickable { onNewProjectClick() }
                 .testTag("hero_new_project_button")
                 .padding(14.dp)
@@ -438,14 +453,14 @@ private fun HeroNewProjectSection(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(CircleShape)
-                            .background(colors.surfaceElevated)
-                            .border(1.6.dp, colors.border, CircleShape),
+                            .background(if (!colors.isPencilSketch) colors.accentCyan else colors.surfaceElevated)
+                            .border(1.6.dp, if (!colors.isPencilSketch) colors.accentCyan else colors.border, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "New Project",
-                            tint = colors.textPrimary,
+                            tint = if (!colors.isPencilSketch) Color.Black else colors.textPrimary,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -453,7 +468,7 @@ private fun HeroNewProjectSection(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(colors.surfaceVariant)
+                            .background(colors.surfaceElevated)
                             .border(1.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
                             .padding(horizontal = 7.dp, vertical = 3.dp)
                     ) {
@@ -489,7 +504,7 @@ private fun HeroNewProjectSection(
                 .height(135.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(colors.surfaceVariant)
-                .border(1.5.dp, colors.border, RoundedCornerShape(16.dp))
+                .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(16.dp))
                 .clickable { 
                     Toast.makeText(context, context.getString(R.string.camera_prompter_not_implemented), Toast.LENGTH_SHORT).show()
                 }
@@ -505,7 +520,7 @@ private fun HeroNewProjectSection(
                         .size(42.dp)
                         .clip(CircleShape)
                         .background(colors.surfaceElevated)
-                        .border(1.3.dp, colors.border, CircleShape),
+                        .border(1.3.dp, colors.borderSubtle, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -536,26 +551,36 @@ private fun HeroNewProjectSection(
 // Quick Tools
 // ==========================================
 
+private data class QuickToolItem(
+    val icon: ImageVector,
+    val label: String,
+    val tint: Color,
+    val tool: QuickTool
+)
+
 @Composable
-private fun QuickToolsRow() {
+private fun QuickToolsRow(onQuickTool: (QuickTool) -> Unit) {
     val colors = PencilTheme.colors
+    val tools = listOf(
+        QuickToolItem(Icons.Default.Subtitles, "Captions", colors.accentYellow, QuickTool.CAPTIONS),
+        QuickToolItem(Icons.Default.AutoAwesome, "Canvas", colors.accentPink, QuickTool.CANVAS),
+        QuickToolItem(Icons.Default.Speed, "Velocity", colors.accentCyan, QuickTool.VELOCITY),
+        QuickToolItem(Icons.Default.GraphicEq, "Audio", colors.accentGreen, QuickTool.AUDIO),
+        QuickToolItem(Icons.Default.VolumeUp, "Extract", colors.accentPurple, QuickTool.EXTRACT_AUDIO),
+        QuickToolItem(Icons.Default.VideoLibrary, "Keyframes", colors.accentRed, QuickTool.KEYFRAMES)
+    )
 
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        items(listOf(
-            Triple(Icons.Default.Subtitles, "Captions", colors.accentYellow),
-            Triple(Icons.Default.AutoAwesome, "Background", colors.accentPink),
-            Triple(Icons.Default.Speed, "Velocity", colors.accentCyan),
-            Triple(Icons.Default.GraphicEq, "Audio", colors.accentGreen),
-            Triple(Icons.Default.VolumeUp, "Extract", colors.accentPurple),
-            Triple(Icons.Default.VideoLibrary, "Auto Cut", colors.accentRed)
-        )) { (icon, name, tintColor) ->
+        items(tools) { (icon, name, tintColor, tool) ->
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .width(68.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable { onQuickTool(tool) }
             ) {
                 Box(
                     modifier = Modifier
@@ -998,53 +1023,55 @@ private fun CapCutBottomNavigationBar(
 ) {
     val colors = PencilTheme.colors
 
-    NavigationBar(
-        containerColor = colors.surface,
-        tonalElevation = 8.dp,
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .border(width = 1.2.dp, color = colors.borderSubtle)
+            .background(colors.surface)
+            .border(width = 1.dp, color = colors.borderSubtle)
     ) {
-        NavigationBarItem(
-            selected = selectedIndex == 0,
-            onClick = { onSelect(0) },
-            icon = { Icon(Icons.Default.ContentCut, contentDescription = "Edit") },
-            label = { Text("Edit", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = colors.accentCyan,
-                selectedTextColor = colors.accentCyan,
-                unselectedIconColor = colors.textTertiary,
-                unselectedTextColor = colors.textTertiary,
-                indicatorColor = colors.surfaceElevated
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val items = listOf(
+                Triple(0, "Edit", Icons.Outlined.ContentCut),
+                Triple(1, "Inbox", Icons.Outlined.Notifications),
+                Triple(2, "Profile", Icons.Outlined.Person)
             )
-        )
-        NavigationBarItem(
-            selected = selectedIndex == 1,
-            onClick = { onSelect(1) },
-            icon = { Icon(Icons.Default.Notifications, contentDescription = "Inbox") },
-            label = { Text("Inbox", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = colors.accentCyan,
-                selectedTextColor = colors.accentCyan,
-                unselectedIconColor = colors.textTertiary,
-                unselectedTextColor = colors.textTertiary,
-                indicatorColor = colors.surfaceElevated
-            )
-        )
-        NavigationBarItem(
-            selected = selectedIndex == 2,
-            onClick = { onSelect(2) },
-            icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
-            label = { Text("Profile", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = colors.accentCyan,
-                selectedTextColor = colors.accentCyan,
-                unselectedIconColor = colors.textTertiary,
-                unselectedTextColor = colors.textTertiary,
-                indicatorColor = colors.surfaceElevated
-            )
-        )
+
+            items.forEach { (index, label, icon) ->
+                val isSelected = selectedIndex == index
+                val itemColor = if (isSelected) colors.accentCyan else colors.textTertiary
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onSelect(index) }
+                        .padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = label,
+                        tint = itemColor,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = label,
+                        color = itemColor,
+                        fontSize = 10.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
+            }
+        }
     }
 }
 
