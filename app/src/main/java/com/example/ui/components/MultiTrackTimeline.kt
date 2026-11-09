@@ -109,6 +109,7 @@ fun MultiTrackTimeline(
     val density = LocalDensity.current
 
     var viewportWidthPx by remember { mutableStateOf(0) }
+    var gutterWidthPx by remember { mutableStateOf(0) }
     // Set while the position-change effect scrolls the timeline itself, so the
     // scroll observer below never mistakes that for a user scrub.
     var programmaticScroll by remember { mutableStateOf(false) }
@@ -124,9 +125,27 @@ fun MultiTrackTimeline(
     val pxPerFramePx = pxPerFrameDp * density.density
     val timelineWidthPx = timelineWidthDp * density.density
 
-    // Half a viewport of empty lead-in/lead-out: this is what lets time 0 and
-    // the end sit exactly under the fixed centre needle.
-    val halfViewportDp = with(density) { (viewportWidthPx / 2f).toDp() }
+    // The needle is pinned to the centre of the WHOLE timeline panel (so it
+    // lines up with the play button above it), not the centre of the
+    // viewport, which starts after the fixed left gutter. The scroll content
+    // is padded by the needle inset on the left and the rest of the viewport
+    // on the right; the two pads always add up to exactly one viewport, so
+    // `offsetForFrame` stays `frame * pxPerFrame`.
+    val needleInsetPx = CenterPlayhead.needleInsetPx(
+        viewportWidthPx = viewportWidthPx.toFloat(),
+        gutterWidthPx = gutterWidthPx.toFloat()
+    )
+    val leadingPadDp = with(density) { needleInsetPx.toDp() }
+    val trailingPadDp = with(density) {
+        CenterPlayhead.trailingPaddingPx(
+            viewportWidthPx = viewportWidthPx.toFloat(),
+            needleInsetPx = needleInsetPx
+        ).toDp()
+    }
+
+    // Empty strip above the ruler reserved for the playhead head (pencil or
+    // gold cap). Keeps the head off the ruler so its time labels stay visible.
+    val playheadHeadHeight = 24.dp
 
     val snapCandidates: List<SnapCandidate> = remember(project, fps, beats) {
         val edges = mutableListOf<Long>(0L)
@@ -225,7 +244,11 @@ fun MultiTrackTimeline(
             .border(0.6.dp, Color(0xFF1E2028))
             .testTag("multi_track_timeline")
     ) {
-        Row(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = playheadHeadHeight)
+        ) {
             // CapCut Fixed Left Gutter (Timecode, Mute clip, Cover, ♪, T)
             CapCutTimelineLeftGutter(
                 currentPositionMs = currentPositionMs,
@@ -238,7 +261,9 @@ fun MultiTrackTimeline(
                 overlayTrackCount = project.overlayTracks.size,
                 hasAudioTrack = true,
                 hasTextTrack = true,
-                modifier = Modifier.verticalScroll(trackScrollState)
+                modifier = Modifier
+                    .verticalScroll(trackScrollState)
+                    .onSizeChanged { gutterWidthPx = it.width }
             )
 
             // Scrolling Viewport
@@ -284,7 +309,7 @@ fun MultiTrackTimeline(
                             }
                         }
                     }
-                    .pointerInput(totalMs, fps, zoom, viewportWidthPx) {
+                    .pointerInput(totalMs, fps, zoom, viewportWidthPx, needleInsetPx) {
                         // Tap on the ruler -> seek. Deliberately non-consuming:
                         // a drag must still reach horizontalScroll so the ruler
                         // slides under the fixed needle. The ruler itself has
@@ -315,7 +340,7 @@ fun MultiTrackTimeline(
                             }
                             if (released && !moved && !multiTouch && pxPerMsPx > 0f) {
                                 val contentX = scrollState.value + down.position.x
-                                val padPx = CenterPlayhead.edgePaddingPx(viewportWidthPx.toFloat())
+                                val padPx = needleInsetPx
                                 val rawMs = ((contentX - padPx) / pxPerMsPx)
                                     .roundToLong()
                                     .coerceAtLeast(0L)
@@ -344,7 +369,7 @@ fun MultiTrackTimeline(
                         .horizontalScroll(scrollState)
                 ) {
                     Row {
-                        Spacer(modifier = Modifier.width(halfViewportDp))
+                        Spacer(modifier = Modifier.width(leadingPadDp))
                         Box(modifier = Modifier.width(timelineWidthDp.dp)) {
                             TimelineRuler(
                                 totalMs = totalMs,
@@ -353,7 +378,7 @@ fun MultiTrackTimeline(
                                 markers = project.markers
                             )
                         }
-                        Spacer(modifier = Modifier.width(halfViewportDp))
+                        Spacer(modifier = Modifier.width(trailingPadDp))
                     }
                 }
 
@@ -374,7 +399,7 @@ fun MultiTrackTimeline(
                                 .fillMaxHeight()
                                 .horizontalScroll(scrollState)
                         ) {
-                            Spacer(modifier = Modifier.width(halfViewportDp))
+                            Spacer(modifier = Modifier.width(leadingPadDp))
 
                             Box(
                                 modifier = Modifier
@@ -469,21 +494,24 @@ fun MultiTrackTimeline(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.width(halfViewportDp))
+                            Spacer(modifier = Modifier.width(trailingPadDp))
                         }
                     }
                 }
-
-                // Fixed centre playhead: a pure visual overlay with no pointer
-                // input, so it never steals a drag from the timeline beneath.
-                TimelinePlayhead(
-                    active = scrollState.isScrollInProgress,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .fillMaxSize()
-                        .zIndex(20f)
-                )
             }
         }
+
+        // Fixed centre playhead: a pure visual overlay with no pointer input,
+        // so it never steals a drag from the timeline beneath. It is a
+        // sibling of the whole Row (gutter + viewport), which pins the needle
+        // to the centre of the panel — exactly under the play button above.
+        TimelinePlayhead(
+            active = scrollState.isScrollInProgress,
+            headHeight = playheadHeadHeight,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxSize()
+                .zIndex(20f)
+        )
     }
 }

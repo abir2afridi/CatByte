@@ -508,11 +508,17 @@ fun EditorScreen(
         }
 
         // Adaptive heights: small phones must not overlap the bottom bar.
+        // +24 dp reserves the strip above the ruler where the playhead head
+        // (pencil) lives, so the ruler's time labels stay uncovered.
         val timelineHeight = if (LocalConfiguration.current.screenHeightDp < 640) {
-            148.dp
+            148.dp + 24.dp
         } else {
-            175.dp
+            175.dp + 24.dp
         }
+
+        // Small gap under the transport row: keeps the playhead head clear of
+        // the play/pause button above.
+        Spacer(modifier = Modifier.height(8.dp))
 
         // 4. Multi-Track Timeline (integrated CapCut left gutter and timecode)
         Box(
