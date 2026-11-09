@@ -464,6 +464,8 @@ fun EditorScreen(
                 canUndo = canUndo,
                 canRedo = canRedo,
                 magneticSnap = magneticSnap,
+                aspectRatioLabel = project?.aspectRatio?.label ?: "16:9",
+                onAspectRatioClick = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
                 onTogglePlay = { viewModel.togglePlayback() },
                 onFullscreen = { isPreviewFullscreen = true },
                 onToggleMagneticSnap = { viewModel.toggleMagneticSnap() },

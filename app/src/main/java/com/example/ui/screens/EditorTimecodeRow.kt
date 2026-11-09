@@ -16,8 +16,12 @@ import androidx.compose.ui.unit.sp
 import java.util.Locale
 
 /**
- * CapCut Timecode display matching the reference screenshot:
- * "00:01 / 00:16" with active time in crisp white and total duration in muted gray.
+ * CapCut timecode display in the timeline's left gutter, e.g.
+ * "00:01.8 / 01:07.1": active time in crisp white, total duration in muted
+ * gray, both with sub-second precision so scrubbing is easy to read.
+ *
+ * This is the single timecode in the editor - nothing time-related is painted
+ * on top of the preview frame.
  */
 @Composable
 fun EditorTimecodeText(
@@ -30,18 +34,22 @@ fun EditorTimecodeText(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = formatTimecodeSeconds(currentPositionMs),
+            text = formatTimecodeTenths(currentPositionMs),
             color = Color.White,
-            fontSize = 11.5.sp,
+            fontSize = 10.5.sp,
             fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.SansSerif
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = (-0.3).sp,
+            maxLines = 1
         )
         Text(
-            text = " / " + formatTimecodeSeconds(totalDurationMs),
+            text = " / " + formatTimecodeTenths(totalDurationMs),
             color = Color(0xFF8E8E93),
-            fontSize = 11.5.sp,
+            fontSize = 9.5.sp,
             fontWeight = FontWeight.Normal,
-            fontFamily = FontFamily.SansSerif
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = (-0.3).sp,
+            maxLines = 1
         )
     }
 }
@@ -65,10 +73,16 @@ internal fun EditorTimecodeRow(
     }
 }
 
-internal fun formatTimecodeSeconds(ms: Long): String {
-    val safe = ms.coerceAtLeast(0L)
-    val totalSeconds = safe / 1000L
-    val minutes = totalSeconds / 60L
-    val seconds = totalSeconds % 60L
-    return String.format(Locale.US, "%02d:%02d", minutes, seconds)
+/**
+ * Formats milliseconds as `MM:SS.s` using locale-independent ASCII digits and
+ * a dot separator (Locale.US), so Bangla/Arabic locales never localise the
+ * digits or swap the decimal separator.
+ */
+internal fun formatTimecodeTenths(ms: Long): String {
+    // Work in integer tenths of a second so 59.96s never rounds to "00:60.0".
+    val totalTenths = (ms.coerceAtLeast(0L) + 50L) / 100L
+    val minutes = totalTenths / 600L
+    val seconds = (totalTenths % 600L) / 10L
+    val tenths = totalTenths % 10L
+    return String.format(Locale.US, "%02d:%02d.%d", minutes, seconds, tenths)
 }

@@ -7,29 +7,38 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.ui.components.CapCutIconFullscreen
 import com.example.ui.components.CapCutIconMagnetOn
 import com.example.ui.components.CapCutIconPlayTriangle
 
 /**
  * CapCut transport row:
- * - Left: Fullscreen preview button (corner brackets)
+ * - Left: Fullscreen preview button (corner brackets) + canvas aspect ratio chip
  * - Center: Play/Pause button (clean outline triangle)
  * - Right: Magnetic snap toggle (overlapping frames with "ON"), Undo, Redo
+ *
+ * The aspect ratio chip sits on this bar (below the preview) instead of being
+ * painted over the video frame, so the imported media is never obscured.
  */
 @Composable
 internal fun EditorTransportRow(
@@ -37,6 +46,8 @@ internal fun EditorTransportRow(
     canUndo: Boolean,
     canRedo: Boolean,
     magneticSnap: Boolean = true,
+    aspectRatioLabel: String = "16:9",
+    onAspectRatioClick: (() -> Unit)? = null,
     onTogglePlay: () -> Unit,
     onFullscreen: () -> Unit,
     onToggleMagneticSnap: () -> Unit = {},
@@ -64,6 +75,34 @@ internal fun EditorTransportRow(
             CapCutIconFullscreen(
                 tint = Color.White,
                 size = 20.dp
+            )
+        }
+
+        // Left (after fullscreen): canvas / imported-media aspect ratio chip.
+        // Tapping it opens the ratio picker, just like the top bar format action.
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 48.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .background(Color(0xFF2A2A31))
+                .then(
+                    if (onAspectRatioClick != null) {
+                        Modifier.clickable(onClick = onAspectRatioClick)
+                    } else {
+                        Modifier
+                    }
+                )
+                .padding(horizontal = 7.dp, vertical = 4.dp)
+                .testTag("editor_aspect_ratio_chip"),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = aspectRatioLabel,
+                color = Color.White,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
             )
         }
 

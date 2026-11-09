@@ -619,30 +619,17 @@ fun VideoCanvas(
                 }
             }
 
-            // Top Status Overlay (Quality & Active Filter)
+            // Top Status Overlay (Active Filter only).
+            // Canvas ratio is shown in the transport row below the preview, never
+            // on top of the video frame itself.
             Row(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
                     .padding(8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Aspect Ratio indicator
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color.Black.copy(alpha = 0.65f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = project.aspectRatio.label,
-                        color = Color.White,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
                 // Active Filter Pill
                 if (activeClip != null && activeClip.filter != VideoFilter.NONE) {
                     Box(
@@ -694,25 +681,8 @@ fun VideoCanvas(
                 }
             }
 
-            // Bottom Timecode Overlay
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp)
-                    .clip(RoundedCornerShape(5.dp))
-                    .background(Color.Black.copy(alpha = 0.7f))
-                    .padding(horizontal = 7.dp, vertical = 3.dp)
-            ) {
-                val currentSec = currentPositionMs / 1000f
-                val totalSec = project.totalDurationMs / 1000f
-                Text(
-                    text = String.format("%02d:%04.1f / %02d:%04.1f", (currentSec / 60).toInt(), currentSec % 60, (totalSec / 60).toInt(), totalSec % 60),
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            // The playhead timecode lives in the timeline's left gutter (see
+            // EditorTimecodeText). Nothing time-related is painted over the video.
         }
     }
 }

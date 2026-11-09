@@ -66,11 +66,14 @@ data class TimelineHeaderRow(
 
 /**
  * CapCut-exact left gutter for timeline:
- * - Top level (ruler height): Timecode display (00:01 / 00:16)
+ * - Top level (ruler height): Timecode display (00:01.8 / 00:16.0)
  * - Main Track: "Mute clip" speaker + "Cover" thumbnail
  * - Audio Track: Square with Music note ♪
  * - Text Track: Square with T
  * - Overlay Track: Square with Video icon
+ *
+ * Width is 108.dp so the sub-second timecode fits on one line; the timeline
+ * viewport measures this gutter at runtime, so no other offsets are hard-coded.
  */
 @Composable
 fun CapCutTimelineLeftGutter(
@@ -86,12 +89,12 @@ fun CapCutTimelineLeftGutter(
 ) {
     Column(
         modifier = modifier
-            .width(96.dp)
+            .width(108.dp)
             .fillMaxHeight()
             .background(Color(0xFF101014))
             .padding(horizontal = 4.dp)
     ) {
-        // 1. Ruler level (28.dp): Timecode display (00:01 / 00:16)
+        // 1. Ruler level (28.dp): Timecode display (00:01.8 / 00:16.0)
         Box(
             modifier = Modifier
                 .height(28.dp)
