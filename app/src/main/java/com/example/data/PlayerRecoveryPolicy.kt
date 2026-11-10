@@ -20,15 +20,103 @@ import androidx.media3.common.Player
  *  - [shouldRebuildOnHostResume]: the rebuild happens when the app returns to
  *    the foreground (and only then — a healthy resumed player must not be
  *    touched);
+ *  - [shouldRebuildBeforePlay]: pressing Play rebuilds only a player that
+ *    cannot answer play() — a stored error alone must not, otherwise every
+ *    press restarts the whole preview and playback looks laggy;
  *  - the composition path's failure latch is allowed to be retried on such a
  *    forced rebuild; if the composition still fails, the fallback path simply
- *    continues.
+ *    continues;
+ *  - [shouldRecoverStall]: a playhead that stops advancing is recovered with a
+ *    one-frame nudge seek, never by re-issuing play() alone — CompositionPlayer
+ *    can report isPlaying=true while its frames are frozen (androidx/media#3452);
+ *  - [countsAsStallCandidate]: a buffering player is never a freeze — at a
+ *    clip cut the incoming item legitimately stops the playhead until it is
+ *    loaded, and CompositionPlayer resumes by itself.
  */
 internal object PlayerRecoveryPolicy {
+
+    /** One preview-playback poll tick. */
+    const val TICK_MS = 50L
+
+    /** Ignore transient idle/ended states while a freshly issued play() settles. */
+    const val STARTUP_GRACE_TICKS = 4
+
+    /** Non-advancing ticks before the player is nudged out of a freeze. */
+    const val STALL_TICKS = 6
+
+    /**
+     * Ticks to wait for STATE_READY after a scrub seek before rebuilding the
+     * player from scratch (60 ticks = 3 s).
+     */
+    const val WAIT_READY_TICKS = 60
 
     /** True when the player can no longer play and must be rebuilt. */
     fun isBroken(lastError: String?, playbackState: Int): Boolean =
         lastError != null || playbackState == Player.STATE_IDLE
+
+    /**
+     * True when pressing Play has to rebuild the player instead of resuming it.
+     *
+     * A stored error string alone must NOT trigger a rebuild: the error stays
+     * recorded after the player recovered (the ExoPlayer fallback path keeps
+     * it set until a composition loads again), and rebuilding on every press
+     * re-created the media items each time — the preview then restarted with
+     * a visible lag instead of resuming.
+     *
+     * A rebuild is required only when the player cannot answer play() at all
+     * (STATE_IDLE — Media3 silently ignores play() there) or when it carries an
+     * error *and* sits in no usable state.
+     */
+    fun shouldRebuildBeforePlay(lastError: String?, playbackState: Int): Boolean {
+        if (playbackState == Player.STATE_IDLE) return true
+        val usable = playbackState == Player.STATE_READY ||
+            playbackState == Player.STATE_ENDED
+        return lastError != null && !usable
+    }
+
+    /**
+     * `play()` issued while the player is still BUFFERING from a scrub seek
+     * freezes CompositionPlayer: the device log shows every BUFFERING-state
+     * play() frozen (the playhead only ever moved when the recovery nudged it)
+     * and every READY-state play() smooth. The play() call must therefore be
+     * deferred until the player reports STATE_READY.
+     */
+    fun shouldDeferPlay(playbackState: Int): Boolean =
+        playbackState != Player.STATE_READY && playbackState != Player.STATE_ENDED
+
+    /**
+     * Media3 can silently drop `play()` while a seek is still settling (repro:
+     * play -> pause -> scrub the timeline -> press play), and CompositionPlayer
+     * can keep `isPlaying=true` while its frames stop after starting on an
+     * outgoing clip's last frame (androidx/media#3452). Both look identical from
+     * the outside: the playhead stops advancing. Position is therefore the only
+     * truthful signal — stall detection must NOT depend on `isPlaying`.
+     *
+     * Recovery itself is a seek to a different position plus play(); re-issuing
+     * play() alone cannot fix the last-frame freeze.
+     */
+    fun shouldRecoverStall(
+        startupGraceOver: Boolean,
+        stalledTicks: Int
+    ): Boolean = startupGraceOver && stalledTicks >= STALL_TICKS
+
+    /**
+     * True when a non-advancing playhead may be treated as a freeze.
+     *
+     * While the player is BUFFERING the playhead legitimately stops: at a clip
+     * cut the incoming item is still loading, and CompositionPlayer pauses its
+     * internal players and restores them by itself once every item is READY
+     * again. Counting that as a stall made the watchdog nudge-seek during
+     * every transition — the "playhead crawls and gets stuck in the middle"
+     * symptom. Only a READY (or otherwise live) player that stops advancing
+     * is a real freeze.
+     */
+    fun countsAsStallCandidate(playbackState: Int): Boolean =
+        playbackState != Player.STATE_BUFFERING
+
+    /** Only a real end-of-timeline stops playback; an ENDED state mid-seek must not. */
+    fun hasReachedEnd(positionMs: Long, durationMs: Long, playbackState: Int): Boolean =
+        playbackState == Player.STATE_ENDED && positionMs >= durationMs - 1L
 
     /**
      * True when the app just returned to the foreground AND the player is

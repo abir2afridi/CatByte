@@ -57,6 +57,14 @@ class PlayerManager(context: Context) {
     private val _isPlayingInternal = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlayingInternal.asStateFlow()
 
+    /**
+     * The user's last explicit intent. Media3's `pause()` is asynchronous, so
+     * `player.isPlaying` can still be true for a tick afterwards; without this
+     * flag `syncPosition()` used to resurrect a "playing" state right after a
+     * pause, which made the next play()/loadProject() decision inconsistent.
+     */
+    private var playRequested = false
+
     private val _currentPositionMs = MutableStateFlow(0L)
     val currentPositionMs: StateFlow<Long> = _currentPositionMs.asStateFlow()
 
@@ -102,7 +110,9 @@ class PlayerManager(context: Context) {
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            _isPlayingInternal.value = isPlaying
+            // A late "true" from an asynchronous pause must not flip the UI
+            // back into the playing state.
+            _isPlayingInternal.value = playRequested && isPlaying
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -170,12 +180,18 @@ class PlayerManager(context: Context) {
         if (released) return
         if (forceRebuild) {
             _lastError.value = null
-            if (compositionFailed) {
-                // Retry the composition path once per forced rebuild; if it
-                // errors again the fallback path continues as before.
-                compositionFailed = false
-                if (compositionPlayer == null) buildCompositionPlayer()
-            }
+            compositionFailed = false
+            // A forced rebuild must create a BRAND-NEW CompositionPlayer.
+            // Re-calling setComposition() on a player that already ran a
+            // composition — and seekTo() on it — leaves Media3 1.11.1 parked
+            // in STATE_BUFFERING forever: the device log shows rebuilds at
+            // the playhead that never reported READY even after seconds,
+            // while every first-ever load reached READY immediately.
+            // Releasing the surface here is fine: the editor attaches a fresh
+            // one via key(player) as soon as _activePlayer changes.
+            runCatching { compositionPlayer?.release() }
+            compositionPlayer = null
+            buildCompositionPlayer()
         }
         val previous = currentProject
         val start = (startPositionMs ?: _currentPositionMs.value)
@@ -209,7 +225,11 @@ class PlayerManager(context: Context) {
             _activePlayer.value?.let { player ->
                 if (startPositionMs != null) seekPlayer(player, start)
             }
-            if (wasPlaying) play() else pause()
+            // The prepared player is unchanged, so its play state must be left
+            // alone. This method is also called from startPlayback() and from
+            // debounced edit refreshes: pausing here could cancel a play() that
+            // was still settling after a timeline scrub. The caller owns the
+            // play state (startPlayback calls play() right after this returns).
             return
         }
 
@@ -339,42 +359,148 @@ class PlayerManager(context: Context) {
     // Playback controls
     // ------------------------------------------------------------------
 
-    fun play() {
-        if (_activePlayer.value == null) {
+    /**
+     * Starts playback.
+     *
+     * Returns true when the play request was actually handed to the player and
+     * false when it was deferred (the player was still BUFFERING) or dropped
+     * (no player). The caller must retry on false — otherwise a deferred play
+     * would be lost and the preview would stay silent.
+     */
+    fun play(): Boolean {
+        playRequested = true
+        val before = _activePlayer.value
+        if (before == null) {
             AppLog.warn(TAG, "play() called without an active preview player")
-            return
+            return false
         }
         // A player that errored sits in STATE_IDLE and silently ignores play()
         // (it needs prepare(), not play()). Rebuild it from the project so
-        // pressing play always recovers instead of doing nothing.
-        if (PlayerRecoveryPolicy.isBroken(_lastError.value, _playbackState.value)) {
+        // pressing play always recovers instead of doing nothing. Use the LIVE
+        // state: the cached flow can still say READY while a seek is settling.
+        // A stored error alone must NOT rebuild: the error string survives a
+        // successful recovery (the ExoPlayer fallback keeps it), and rebuilding
+        // on every press made playback restart from scratch — the laggy,
+        // stuttering start.
+        if (PlayerRecoveryPolicy.shouldRebuildBeforePlay(_lastError.value, before.playbackState)) {
             currentProject?.let { project ->
                 loadProject(project, _currentPositionMs.value, forceRebuild = true)
             }
         }
-        val player = _activePlayer.value ?: return
+        val player = _activePlayer.value ?: return false
         if (player.playbackState == Player.STATE_ENDED) {
-            seekPlayer(player, 0L)
-            _currentPositionMs.value = 0L
+            // Restart at the playhead instead of always at 0: a scrub near the
+            // end must resume where the user left it.
+            val restartAt = _currentPositionMs.value.coerceIn(
+                0L,
+                (totalDurationMs - 1L).coerceAtLeast(0L)
+            )
+            seekPlayer(player, restartAt)
+            _currentPositionMs.value = restartAt
         }
-        player.play()
+
+        // Media3 CompositionPlayer 1.11.1 freezes for good when playback
+        // starts on the last frame of an outgoing sequence item
+        // (androidx/media#3452). The fixed-centre timeline makes that easy to
+        // hit: scrubbing while paused can park the playhead on a clip's final
+        // frame, and the next Play then freezes. Start on the clip boundary
+        // instead — the tested-safe position. Only when paused: a redundant
+        // play() during playback must never jump the playhead.
+        if (_usesCompositionPreview.value && !_isPlayingInternal.value) {
+            val safeStart = safeStartPositionMs()
+            if (safeStart != _currentPositionMs.value) {
+                AppLog.info(
+                    TAG,
+                    "play(): moving start off a clip's last frame " +
+                        "${_currentPositionMs.value}ms -> ${safeStart}ms"
+                )
+                seekTo(safeStart)
+            }
+        }
+
+        val readyPlayer = _activePlayer.value ?: return false
+        // play() must not land while the player is still BUFFERING from a
+        // scrub seek: the device log shows every BUFFERING-state play() frozen
+        // (the playhead only ever moved when the recovery nudged it) while
+        // every READY-state play() played smoothly. The LIVE state decides
+        // here — the cached flow can still say READY while a seek settles.
+        // The caller retries once the player reports READY.
+        if (PlayerRecoveryPolicy.shouldDeferPlay(readyPlayer.playbackState)) {
+            AppLog.info(
+                TAG,
+                "play(): deferred until the player is ready (state=${readyPlayer.playbackState})"
+            )
+            return false
+        }
+        readyPlayer.play()
+        _playbackState.value = readyPlayer.playbackState
+        AppLog.info(
+            TAG,
+            "play(): playWhenReady=${readyPlayer.playWhenReady}, " +
+                "state=${readyPlayer.playbackState}, pos=${_currentPositionMs.value}ms"
+        )
+        return true
     }
 
     fun pause() {
+        playRequested = false
         _activePlayer.value?.pause()
+        // Never let an async player callback resurrect "playing" after a pause.
         _isPlayingInternal.value = false
     }
 
     /** Seeks to a position on the *project* timeline. */
     fun seekTo(positionMs: Long) {
         val clamped = positionMs.coerceIn(0L, totalDurationMs.coerceAtLeast(0L))
+        val previous = _currentPositionMs.value
         _currentPositionMs.value = clamped
         val player = _activePlayer.value ?: return
+        // CompositionPlayer flushes its audio graph on a same-position seek
+        // while paused, and the following play() then starts silent
+        // (androidx/media#3482). The playhead flow already holds the requested
+        // position, so this seek carries no new information.
+        if (!_isPlayingInternal.value && clamped == previous) return
         if (_usesCompositionPreview.value) {
             player.seekTo(clamped)
         } else {
             seekFallback(clamped)
         }
+    }
+
+    /** Safe playback start: never on the last frame of an outgoing clip. */
+    private fun safeStartPositionMs(positionMs: Long = _currentPositionMs.value): Long {
+        val project = currentProject ?: return positionMs
+        return PlaybackStartPolicy.safeStartMs(
+            positionMs = positionMs,
+            durationMs = totalDurationMs,
+            fps = project.fps,
+            boundariesMs = PlaybackStartPolicy.mainClipBoundariesMs(
+                project.clips.map { it.durationMs }
+            )
+        )
+    }
+
+    /**
+     * Tears the preview player down and rebuilds a BRAND-NEW one prepared at
+     * [positionMs].
+     *
+     * CompositionPlayer 1.11.1 cannot seek reliably: after a scrub seek it
+     * parks in STATE_BUFFERING forever (device log: even minutes of waiting
+     * never reported READY, and a full setComposition() rebuild on the same
+     * instance never did either), and the old one-frame nudge only faked
+     * progress because [seekTo] writes the target into the position flow
+     * synchronously without any frame being rendered. A brand-new player
+     * instance prepared at the playhead is the only path proven to reach
+     * READY — every first-ever load in the log did.
+     */
+    fun rebuildPreviewAt(positionMs: Long) {
+        val project = currentProject ?: return
+        val at = safeStartPositionMs(positionMs.coerceIn(0L, totalDurationMs))
+        AppLog.warn(TAG, "Rebuilding the preview player at ${at}ms")
+        // Pause while the old instance is still alive; loadProject's forced
+        // rebuild then releases it and prepares a fresh one at [at].
+        pause()
+        loadProject(project, at, forceRebuild = true)
     }
 
     private fun seekPlayer(player: Player, positionMs: Long) {
@@ -416,7 +542,9 @@ class PlayerManager(context: Context) {
         }
         _currentPositionMs.value = newPos
         _playbackState.value = player.playbackState
-        _isPlayingInternal.value = player.isPlaying
+        // Only trust the player's isPlaying flag when the user asked to play.
+        // Right after pause() ExoPlayer can still report true for one tick.
+        _isPlayingInternal.value = playRequested && player.isPlaying
     }
 
     fun setVolume(volume: Float) {

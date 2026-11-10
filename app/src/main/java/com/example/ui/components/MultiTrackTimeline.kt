@@ -119,6 +119,7 @@ fun MultiTrackTimeline(
     val latestZoom by rememberUpdatedState(zoom)
     val latestPositionMs by rememberUpdatedState(currentPositionMs)
     val latestOnSeek by rememberUpdatedState(onSeek)
+    val latestIsPlaying by rememberUpdatedState(isPlaying)
 
     val fps = project.fps.coerceIn(1, 120)
     val pxPerFrameDp = (msToDp * (1_000f / fps)).coerceAtLeast(0.0001f)
@@ -224,6 +225,12 @@ fun MultiTrackTimeline(
             .distinctUntilChanged()
             .collect { (offset, scrollInProgress) ->
                 if (!scrollInProgress || programmaticScroll) return@collect
+                // Playback scrolls this timeline itself (position -> scroll
+                // below). Seeking the player back from that auto-scroll used to
+                // queue dozens of expensive CompositionPlayer seeks per second
+                // and made playback stutter after a scrub. A real scrub always
+                // presses the timeline first, which pauses playback.
+                if (latestIsPlaying) return@collect
                 val expected = CenterPlayhead.offsetForFrame(
                     playheadFrame = latestPositionMs * fps / 1_000L,
                     pxPerFrame = pxPerFramePx,

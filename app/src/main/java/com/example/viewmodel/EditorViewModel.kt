@@ -16,6 +16,7 @@ import com.example.data.MediaDurationFallback
 import com.example.data.MediaMetadata
 import com.example.data.MediaVideoInfo
 import com.example.data.ProjectRepository
+import com.example.data.PlayerRecoveryPolicy
 import com.example.data.SettingsRepository
 import com.example.data.SpeechSynthesizer
 import com.example.data.VoiceRecorder
@@ -318,6 +319,20 @@ class EditorViewModel(
     }
 
     private var playbackJob: Job? = null
+    /** Pending throttled scrub seek (latest position wins). */
+    private var seekJob: Job? = null
+    /**
+     * Set by any user-driven position jump. CompositionPlayer cannot seek
+     * reliably afterwards (stuck BUFFERING), so the next startPlayback()
+     * rebuilds a fresh player at the playhead instead of seeking.
+     */
+    private var scrubbedSincePlay = false
+    /** Bounded self-healing attempts for a frozen preview. */
+    private companion object {
+        const val MAX_READY_REBUILDS = 2
+        const val RECOVERY_RESET_MS = 1_000L
+        const val SEEK_DEBOUNCE_MS = 60L
+    }
     private var voiceRecordJob: Job? = null
     private var exportJob: Job? = null
     private var importJob: Job? = null
@@ -427,7 +442,10 @@ class EditorViewModel(
         AppLog.info("EditorViewModel", "openProject() called: projectId=${project.id}, title=${project.title}, clips=${project.clips.size}, totalDuration=${project.totalDurationMs}ms")
         pausePlayback()
         val normalized = project.withMagneticMainTrack()
-        playerManager?.loadProject(normalized)
+        // Start the preview at 0 explicitly: leaving the default would keep the
+        // previous project's playhead inside PlayerManager, and the UI would
+        // show 0 while playback resumed somewhere else.
+        playerManager?.loadProject(normalized, startPositionMs = 0L)
         _currentProject.value = normalized
         _currentPositionMs.value = 0L
         _selectedClipId.value = normalized.clips.firstOrNull()?.id
@@ -682,32 +700,44 @@ class EditorViewModel(
         val project = _currentProject.value ?: return
         val totalMs = project.totalDurationMs
         if (_currentPositionMs.value >= totalMs) {
+            // Restarting from the end is a position jump - never seek the
+            // composition player for it (see scrubbedSincePlay below).
             _currentPositionMs.value = 0L
-            playerManager?.seekTo(0L)
+            scrubbedSincePlay = true
         }
         _isPlaying.value = true
+        AppLog.info("EditorViewModel", "startPlayback() at ${_currentPositionMs.value}ms")
 
         if (playerManager != null) {
-            // loadProject() is a no-op when the same project is already prepared.
-            playerManager.loadProject(project)
-            playerManager.seekTo(_currentPositionMs.value)
-            playerManager.play()
-            playbackJob?.cancel()
-            playbackJob = viewModelScope.launch {
-                while (isActive && _isPlaying.value) {
-                    delay(50L)
-                    playerManager.syncPosition()
-                    _currentPositionMs.value = playerManager.currentPositionMs.value
-                    val state = playerManager.playbackState.value
-                    if (state == androidx.media3.common.Player.STATE_ENDED ||
-                        (state == androidx.media3.common.Player.STATE_IDLE &&
-                            playerManager.lastError.value != null)
-                    ) {
-                        _isPlaying.value = false
-                        break
-                    }
+            // Drop any pending throttled scrub seek: the playhead flow already
+            // holds the final scrubbed position and a late seek would only
+            // wedge the player deeper.
+            seekJob?.cancel()
+            seekJob = null
+            if (scrubbedSincePlay) {
+                // CompositionPlayer cannot seek reliably: after a scrub it
+                // parks in STATE_BUFFERING forever (device log), and the old
+                // nudge recovery never rendered a frame. Give it a brand-new
+                // player prepared exactly at the playhead - the only path
+                // proven to reach READY.
+                playerManager.rebuildPreviewAt(_currentPositionMs.value)
+            } else {
+                // loadProject() is a no-op when the same project is already
+                // prepared. Only sync when the two positions genuinely diverged
+                // (e.g. a project switch reset the UI playhead to 0): a seek to
+                // the SAME position while paused flushes CompositionPlayer's
+                // audio graph and the following play() starts silent
+                // (androidx/media#3482).
+                playerManager.loadProject(project)
+                if (playerManager.currentPositionMs.value != _currentPositionMs.value) {
+                    playerManager.seekTo(_currentPositionMs.value)
                 }
             }
+            // play() itself defers while the player is BUFFERING; the polling
+            // loop below issues it as soon as the player reports READY.
+            playerManager.play()
+            startPlaybackPolling(totalMs, playerManager)
+            scrubbedSincePlay = false
         } else {
             playbackJob?.cancel()
             playbackJob = viewModelScope.launch {
@@ -727,22 +757,238 @@ class EditorViewModel(
         }
     }
 
+    /**
+     * Drives the playhead from the real player and self-heals a frozen preview.
+     *
+     * Two failure modes live here:
+     *  1. `play()` landing while the player is still BUFFERING from a scrub
+     *     seek freezes CompositionPlayer — the device log shows every
+     *     BUFFERING-state play() frozen and every READY-state play() smooth.
+     *     startPlayback() therefore hands over to phase 1 below, which issues
+     *     the real `play()` only once the player reports STATE_READY.
+     *  2. CompositionPlayer can freeze with a stuck playhead even after a
+     *     READY start (androidx/media#3452). Nudge seeks never rendered a
+     *     frame, so the recovery is a brand-new player rebuilt at the playhead
+     *     ([PlayerManager.rebuildPreviewAt]) — the only path proven to reach
+     *     READY again.
+     */
+    private fun startPlaybackPolling(totalMs: Long, manager: com.example.data.PlayerManager) {
+        playbackJob?.cancel()
+        playbackJob = viewModelScope.launch {
+            var tick = 0
+            var playIssued = false
+            var rebuilds = 0
+            var recoveries = 0
+            var lastRecoveryPosition = 0L
+            var stalledTicks = 0
+            var bufferingTicks = 0
+            var lastPosition = _currentPositionMs.value
+            while (isActive && _isPlaying.value) {
+                delay(PlayerRecoveryPolicy.TICK_MS)
+                tick++
+                manager.syncPosition()
+                val position = manager.currentPositionMs.value
+                _currentPositionMs.value = position
+                val state = manager.playbackState.value
+                val error = manager.lastError.value
+
+                if (PlayerRecoveryPolicy.hasReachedEnd(position, totalMs, state)) {
+                    _isPlaying.value = false
+                    break
+                }
+
+                // ---- Phase 1: reach STATE_READY at the playhead, THEN play ----
+                if (!playIssued) {
+                    when {
+                        state == androidx.media3.common.Player.STATE_READY -> {
+                            // A deferred play (the LIVE state was still
+                            // BUFFERING even though the cached state says
+                            // READY) must not be marked as issued — otherwise
+                            // the preview would stay silent forever.
+                            if (manager.play()) {
+                                playIssued = true
+                                tick = 0
+                                stalledTicks = 0
+                                bufferingTicks = 0
+                                lastPosition = manager.currentPositionMs.value
+                                _currentPositionMs.value = lastPosition
+                            }
+                        }
+
+                        state == androidx.media3.common.Player.STATE_IDLE && error != null -> {
+                            // Broken player: rebuild right away instead of
+                            // waiting out the whole READY timeout.
+                            rebuilds++
+                            tick = 0
+                            AppLog.warn(
+                                "EditorViewModel",
+                                "Preview player broken; rebuilding at ${_currentPositionMs.value}ms"
+                            )
+                            manager.rebuildPreviewAt(_currentPositionMs.value)
+                        }
+
+                        tick > PlayerRecoveryPolicy.WAIT_READY_TICKS -> {
+                            if (rebuilds < MAX_READY_REBUILDS) {
+                                rebuilds++
+                                tick = 0
+                                AppLog.warn(
+                                    "EditorViewModel",
+                                    "Preview never became READY after scrub; rebuilding at ${_currentPositionMs.value}ms"
+                                )
+                                manager.rebuildPreviewAt(_currentPositionMs.value)
+                            } else {
+                                AppLog.error(
+                                    "EditorViewModel",
+                                    "Preview player never became READY; stopping playback"
+                                )
+                                _isPlaying.value = false
+                                break
+                            }
+                        }
+                    }
+                    continue
+                }
+
+                // ---- Phase 2: playing — detect a frozen playhead ----
+                val graceOver = tick > PlayerRecoveryPolicy.STARTUP_GRACE_TICKS
+                if (graceOver &&
+                    state == androidx.media3.common.Player.STATE_IDLE &&
+                    error != null
+                ) {
+                    _isPlaying.value = false
+                    break
+                }
+
+                // A player that keeps buffering will never resume on its own:
+                // rebuild it at the playhead instead of waiting forever.
+                if (state == androidx.media3.common.Player.STATE_BUFFERING) {
+                    bufferingTicks++
+                    if (bufferingTicks >= PlayerRecoveryPolicy.WAIT_READY_TICKS &&
+                        rebuilds < MAX_READY_REBUILDS
+                    ) {
+                        rebuilds++
+                        bufferingTicks = 0
+                        AppLog.warn(
+                            "EditorViewModel",
+                            "Preview stayed buffering for " +
+                                "${PlayerRecoveryPolicy.WAIT_READY_TICKS} ticks; " +
+                                "rebuilding at ${position}ms"
+                        )
+                        manager.pause()
+                        manager.loadProject(
+                            _currentProject.value ?: return@launch,
+                            position,
+                            forceRebuild = true
+                        )
+                        playIssued = false
+                        tick = 0
+                        stalledTicks = 0
+                        lastPosition = manager.currentPositionMs.value
+                        continue
+                    }
+                } else {
+                    bufferingTicks = 0
+                }
+
+                // `isPlaying` is deliberately NOT part of this test:
+                // CompositionPlayer reports isPlaying=true while frames are
+                // frozen (#3452). Only a non-advancing playhead counts.
+                //
+                // A BUFFERING player is not a freeze: at a clip cut the incoming
+                // item is still loading, the playhead legitimately stops, and
+                // CompositionPlayer resumes by itself once every item is READY
+                // again. Counting that as a stall made the watchdog nudge-seek
+                // at every transition — the playhead crawled and got stuck.
+                val stallCandidate = PlayerRecoveryPolicy.countsAsStallCandidate(state)
+                if (graceOver && stallCandidate && position <= lastPosition + 1L) {
+                    stalledTicks++
+                } else {
+                    stalledTicks = 0
+                }
+                if (PlayerRecoveryPolicy.shouldRecoverStall(
+                        startupGraceOver = graceOver,
+                        stalledTicks = stalledTicks
+                    )
+                ) {
+                    stalledTicks = 0
+                    // A freeze the playhead escaped from long ago starts a new
+                    // recovery budget.
+                    if (position - lastRecoveryPosition > RECOVERY_RESET_MS) recoveries = 0
+                    lastRecoveryPosition = position
+                    recoveries++
+                    when {
+                        rebuilds < MAX_READY_REBUILDS -> {
+                            rebuilds++
+                            AppLog.warn(
+                                "EditorViewModel",
+                                "Playback froze at ${position}ms; rebuilding the preview player"
+                            )
+                            manager.rebuildPreviewAt(position)
+                            playIssued = false
+                        }
+
+                        else -> {
+                            AppLog.error(
+                                "EditorViewModel",
+                                "Preview keeps freezing at ${position}ms; stopping playback"
+                            )
+                            _isPlaying.value = false
+                            break
+                        }
+                    }
+                    // Recovery seeks are asynchronous: restart the grace window
+                    // so stale positions from the seek cannot trigger another
+                    // recovery immediately. PlayerManager applies the target to
+                    // its own position flow synchronously.
+                    tick = 0
+                    lastPosition = manager.currentPositionMs.value
+                    _currentPositionMs.value = lastPosition
+                    continue
+                }
+                lastPosition = position
+            }
+        }
+    }
+
     fun pausePlayback() {
+        if (_isPlaying.value) {
+            AppLog.info("EditorViewModel", "pausePlayback() at ${_currentPositionMs.value}ms")
+        }
         _isPlaying.value = false
         playbackJob?.cancel()
         playbackJob = null
-        playerManager?.pause()
-        // Snap to the frame the player actually stopped on; the 50 ms poll can
-        // be one frame behind, and a split must land on the visible frame.
-        playerManager?.syncPosition()
-        playerManager?.currentPositionMs?.value?.let { _currentPositionMs.value = it }
+        val manager = playerManager
+        if (manager != null) {
+            // Flush a pending throttled scrub seek first, so pause (and a split
+            // at the playhead) lands on the position the user actually chose.
+            if (seekJob?.isActive == true) {
+                seekJob?.cancel()
+                seekJob = null
+                manager.seekTo(_currentPositionMs.value)
+            }
+            manager.pause()
+            // Snap to the frame the player actually stopped on; the 50 ms poll can
+            // be one frame behind, and a split must land on the visible frame.
+            manager.syncPosition()
+            _currentPositionMs.value = manager.currentPositionMs.value
+        }
     }
 
     fun seekTo(positionMs: Long) {
         val project = _currentProject.value ?: return
         val clamped = positionMs.coerceIn(0L, project.totalDurationMs)
         _currentPositionMs.value = clamped
-        playerManager?.seekTo(clamped)
+        scrubbedSincePlay = true
+        val manager = playerManager ?: return
+        // A scrub fling emits dozens of seeks per second and every
+        // CompositionPlayer seek restarts decoding - that is what made playback
+        // stutter after a scrub. Coalesce them: the UI playhead moves instantly,
+        // the player lands on the latest position after a short debounce.
+        seekJob?.cancel()
+        seekJob = viewModelScope.launch {
+            delay(SEEK_DEBOUNCE_MS)
+            manager.seekTo(clamped)
+        }
     }
 
     fun stepForward() {

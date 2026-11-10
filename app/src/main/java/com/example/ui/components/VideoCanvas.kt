@@ -48,7 +48,6 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
@@ -87,7 +86,7 @@ import com.example.model.MaskType
 import com.example.model.MediaClip
 import com.example.model.TextAnimationType
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import com.example.model.TextFontStyle
 import com.example.model.TransitionType
 import com.example.model.VideoFilter
@@ -157,34 +156,39 @@ fun VideoCanvas(
         currentPositionMs >= it.startTimelineMs && currentPositionMs <= (it.startTimelineMs + it.durationMs)
     }
 
-    // Pulse animation - only runs when playing (coroutine-based to avoid divide-by-zero crash)
+    // Pulse animation - only runs while playing AND only when something actually
+    // renders the pulse (sample clips, the no-player preview, NEON_PULSE text).
+    // It must live inside LaunchedEffect's own scope: the previous version
+    // launched into rememberCoroutineScope() and looped on a captured Boolean,
+    // so every play/pause cycle leaked an immortal 60 fps coroutine and the
+    // editor got laggier with each one (repro: scrub, press play, watch the
+    // timeline stutter more and more).
     var canvasSize by remember { mutableStateOf(IntSize(1, 1)) }
     var reticlePos by remember { mutableStateOf(Offset(0.5f, 0.5f)) }
     val pulseAlphaState: androidx.compose.runtime.MutableState<Float> = remember { mutableStateOf(0.85f) }
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(isPlaying) {
-        if (isPlaying) {
-            scope.launch {
-                var growing = true
-                while (isPlaying) {
-                    val target = if (growing) 1.0f else 0.85f
-                    growing = !growing
-                    // Simple linear interpolation over 600ms
-                    val start = pulseAlphaState.value
-                    val duration = 600L
-                    val startTime = System.currentTimeMillis()
-                    while (System.currentTimeMillis() - startTime < duration) {
-                        if (!isPlaying) break
-                        val progress = (System.currentTimeMillis() - startTime).toFloat() / duration
-                        pulseAlphaState.value = start + (target - start) * progress
-                        delay(16) // ~60fps
-                    }
-                    if (!isPlaying) break
-                    pulseAlphaState.value = target
-                }
-            }
-        } else {
+    val needsPulse = player == null ||
+        (activeClip != null && activeClip.uriString == null && activeClip.drawableResId == null) ||
+        project.textOverlays.any { it.animation == TextAnimationType.NEON_PULSE }
+    LaunchedEffect(isPlaying, needsPulse) {
+        if (!isPlaying || !needsPulse) {
             pulseAlphaState.value = 0.85f
+            return@LaunchedEffect
+        }
+        var growing = true
+        val duration = 600L
+        while (isActive) {
+            val target = if (growing) 1.0f else 0.85f
+            growing = !growing
+            // Simple linear interpolation over 600ms
+            val start = pulseAlphaState.value
+            val startTime = System.currentTimeMillis()
+            while (isActive && System.currentTimeMillis() - startTime < duration) {
+                val progress = (System.currentTimeMillis() - startTime).toFloat() / duration
+                pulseAlphaState.value = start + (target - start) * progress
+                delay(16) // ~60fps
+            }
+            if (!isActive) return@LaunchedEffect
+            pulseAlphaState.value = target
         }
     }
 
@@ -703,9 +707,10 @@ private fun PlayerPreviewSurface(
                 runCatching { player.setVideoSurfaceView(surfaceView) }
             }
         },
-        update = { surfaceView ->
-            runCatching { player.setVideoSurfaceView(surfaceView) }
-        },
+        // No `update` block on purpose: it runs on EVERY recomposition (the
+        // playhead state changes ~20x/s during playback), and re-binding the
+        // surface that often starves the decoder. `key(player)` at the call
+        // site already re-runs `factory` when the player instance changes.
         modifier = modifier
     )
     DisposableEffect(player) {
