@@ -22,6 +22,10 @@ Cargo.lock
 *~
 opencode.json
 
+
+#Ai Memory
+.workbuddy-ai/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -51,3 +55,5 @@ coverage/
 # Tauri specific
 src-tauri/gen/
 src-tauri/.cargo/
+.workbuddy-ai/memory/2026-11-10.md
+.workbuddy-ai/memory/2026-11-10.md

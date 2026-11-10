@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -103,6 +104,8 @@ fun MultiTrackTimeline(
     onToggleClipSelection: (String) -> Unit = {},
     beats: List<Long> = emptyList(),
     onUserInteraction: () -> Unit = {},
+    /** Tapping empty timeline space clears the clip selection. */
+    onClearSelection: () -> Unit = {},
     onAddAudioClick: () -> Unit = {},
     onAddTextClick: () -> Unit = {},
     onCoverClick: () -> Unit = {},
@@ -122,6 +125,7 @@ fun MultiTrackTimeline(
     var programmaticScroll by remember { mutableStateOf(false) }
 
     val latestInteraction by rememberUpdatedState(onUserInteraction)
+    val latestClearSelection by rememberUpdatedState(onClearSelection)
     val latestOnZoom by rememberUpdatedState(onZoomChange)
     val latestZoom by rememberUpdatedState(zoom)
     val latestOnSeek by rememberUpdatedState(onSeek)
@@ -253,8 +257,7 @@ fun MultiTrackTimeline(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF101014))
-            .border(0.6.dp, Color(0xFF1E2028))
+            .background(Color(0xFF0C0C0F))
             .testTag("multi_track_timeline")
     ) {
         Row(
@@ -369,6 +372,13 @@ fun MultiTrackTimeline(
                                 )
                             }
                         }
+                    }
+                    .pointerInput(Unit) {
+                        // A tap that reaches this parent is a tap on EMPTY
+                        // timeline space: clips have their own clickable, which
+                        // consumes the down before it gets here. Deselect the
+                        // clip so the white border / trim handles go away.
+                        detectTapGestures(onTap = { latestClearSelection() })
                     }
                     .onSizeChanged { viewportWidthPx = it.width }
             ) {

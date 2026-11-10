@@ -428,6 +428,15 @@ class PlayerManager(context: Context) {
         // instead — the tested-safe position. Only when paused: a redundant
         // play() during playback must never jump the playhead.
         if (_usesCompositionPreview.value && !_isPlayingInternal.value) {
+            // Correcting the start position is a SEEK, and a seek on a PAUSED
+            // CompositionPlayer parks it in BUFFERING forever: its frame
+            // processor only clears `waitingForFrameAfterSeek` from
+            // `onFrameProcessed()`, which needs the render loop to be running.
+            // The user pressed Play, so render first and seek while playing.
+            val startPlayer = _activePlayer.value
+            if (startPlayer != null && !startPlayer.playWhenReady) {
+                startPlayer.playWhenReady = true
+            }
             val safeStart = safeStartPositionMs()
             if (safeStart != _currentPositionMs.value) {
                 AppLog.info(
@@ -488,6 +497,66 @@ class PlayerManager(context: Context) {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Timeline scrubbing
+    // ------------------------------------------------------------------
+
+    private var scrubbing = false
+    private var scrubRestoreVolume = 1f
+
+    /**
+     * Enters scrub mode: the player keeps rendering (muted) while the user drags
+     * the timeline.
+     *
+     * CompositionPlayer only settles a seek while its frame processor is
+     * processing frames — `waitingForFrameAfterSeek` is cleared from
+     * `onFrameProcessed()`. With rendering stopped, every seek parks the player
+     * in STATE_BUFFERING and the preview stays black until a full player
+     * rebuild; that is the "1-2 s black screen while scrolling" report. Keeping
+     * the render loop alive during the gesture is also what makes the preview
+     * follow the playhead in real time instead of jumping once at the end.
+     */
+    fun beginScrub() {
+        if (scrubbing) return
+        val player = _activePlayer.value ?: return
+        scrubbing = true
+        scrubRestoreVolume = player.volume
+        player.volume = 0f
+        player.playWhenReady = true
+        _isPlayingInternal.value = true
+        AppLog.info(TAG, "Scrub preview started (rendering, muted)")
+    }
+
+    /**
+     * Stops the scrub rendering. The last frame stays on the surface, so the
+     * preview keeps showing the frame the user dragged to.
+     */
+    fun endScrub() {
+        if (!scrubbing) return
+        scrubbing = false
+        val player = _activePlayer.value ?: return
+        player.playWhenReady = false
+        player.volume = scrubRestoreVolume
+        _isPlayingInternal.value = false
+        AppLog.info(TAG, "Scrub preview ended at ${_currentPositionMs.value}ms")
+    }
+
+    /** Leaves a scrub playing (the user pressed Play while still dragging). */
+    fun endScrubKeepPlaying() {
+        if (!scrubbing) return
+        scrubbing = false
+        val player = _activePlayer.value ?: return
+        player.volume = scrubRestoreVolume
+        _isPlayingInternal.value = player.isPlaying
+    }
+
+    /**
+     * True while the preview can actually show a frame. Used to detect a seek
+     * that never settled (the only failure the heavy rebuild path exists for).
+     */
+    fun previewIsReady(): Boolean =
+        _activePlayer.value?.playbackState == Player.STATE_READY
+
     /** Safe playback start: never on the last frame of an outgoing clip. */
     private fun safeStartPositionMs(positionMs: Long = _currentPositionMs.value): Long {
         val project = currentProject ?: return positionMs
@@ -505,19 +574,21 @@ class PlayerManager(context: Context) {
      * Tears the preview player down and rebuilds a BRAND-NEW one prepared at
      * [positionMs].
      *
-     * CompositionPlayer 1.11.1 cannot seek reliably: after a scrub seek it
-     * parks in STATE_BUFFERING forever (device log: even minutes of waiting
-     * never reported READY, and a full setComposition() rebuild on the same
-     * instance never did either), and the old one-frame nudge only faked
-     * progress because [seekTo] writes the target into the position flow
-     * synchronously without any frame being rendered. A brand-new player
-     * instance prepared at the playhead is the only path proven to reach
-     * READY — every first-ever load in the log did.
+     * The LAST RESORT, used only when a live scrub seek cannot settle (the
+     * preview stays black): on that path releasing the surface is unavoidable
+     * and the user sees a black flash while the fresh player prepares.
+     *
+     * The historical reason this was the default is that CompositionPlayer
+     * 1.11.1 parks a seek in STATE_BUFFERING while rendering is stopped. That is
+     * now handled by [beginScrub] (the render loop stays alive during a drag),
+     * so scrubbing no longer rebuilds and the preview stays live.
      */
     fun rebuildPreviewAt(positionMs: Long) {
         val project = currentProject ?: return
         val at = safeStartPositionMs(positionMs.coerceIn(0L, totalDurationMs))
         AppLog.warn(TAG, "Rebuilding the preview player at ${at}ms")
+        // Leave scrub mode first (it would otherwise mute the fresh player).
+        scrubbing = false
         // Pause while the old instance is still alive; loadProject's forced
         // rebuild then releases it and prepares a fresh one at [at].
         pause()

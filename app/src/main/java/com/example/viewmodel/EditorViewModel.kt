@@ -319,24 +319,40 @@ class EditorViewModel(
     }
 
     private var playbackJob: Job? = null
-    /** Pending throttled scrub seek (latest position wins). */
-    private var seekJob: Job? = null
+    /** The single live scrub-preview loop (see [scrubLoop]). */
+    private var scrubLoopActive = false
+    /** Latest playhead the scrub loop should land the preview on. */
+    private var scrubTargetMs = 0L
     /**
-     * Set by any user-driven position jump. CompositionPlayer cannot seek
-     * reliably afterwards (stuck BUFFERING), so the next startPlayback()
-     * rebuilds a fresh player at the playhead instead of seeking.
+     * True while the scrub gesture is live (the timeline moved recently and the
+     * preview has not landed on the playhead yet).
      */
-    private var scrubbedSincePlay = false
+    private var scrubSettlePending = false
     /** Bounded self-healing attempts for a frozen preview. */
     private companion object {
         const val MAX_READY_REBUILDS = 2
         const val RECOVERY_RESET_MS = 1_000L
 
-        /** Silence after a scrub before the preview player is rebuilt. */
+        /**
+         * How long the timeline stays quiet before the scrub gesture is over.
+         * The preview then stops rendering on the frame the user dragged to.
+         */
         const val SCRUB_SETTLE_MS = 250L
 
-        /** Deltas up to this are seeked directly; bigger ones need a rebuild. */
-        const val SCRUB_SETTLE_MAX_CHEAP_SEEK_MS = 100L
+        /**
+         * Scrub-preview poll interval. The loop never fires a seek faster than
+         * the player can settle one (CompositionPlayer renders nothing while a
+         * seek is in flight), so this only bounds the loop's reaction time.
+         */
+        const val SCRUB_POLL_MS = 24L
+
+        /**
+         * Playback only re-syncs the player to the UI playhead when the two
+         * really diverged (a project switch). A scrub legitimately leaves the
+         * player a few frames ahead of the playhead, and seeking back there is
+         * what parked the preview in BUFFERING.
+         */
+        const val PLAYHEAD_RESYNC_TOLERANCE_MS = 750L
     }
     private var voiceRecordJob: Job? = null
     private var exportJob: Job? = null
@@ -367,8 +383,10 @@ class EditorViewModel(
         if (initialList.isNotEmpty()) {
             val firstProject = initialList.first().withMagneticMainTrack()
             _currentProject.value = firstProject
-            _selectedClipId.value = firstProject.clips.firstOrNull()?.id
-                ?: firstProject.overlayTracks.firstOrNull()?.clips?.firstOrNull()?.id
+            // CapCut opens with nothing selected: the user taps a clip to
+            // select it. Auto-selecting the first clip kept the timeline in a
+            // permanently "selected" state (white border + trim handles).
+            clearSelection()
         }
 
         if (settingsRepository != null) {
@@ -453,9 +471,8 @@ class EditorViewModel(
         playerManager?.loadProject(normalized, startPositionMs = 0L)
         _currentProject.value = normalized
         _currentPositionMs.value = 0L
-        _selectedClipId.value = normalized.clips.firstOrNull()?.id
-            ?: normalized.overlayTracks.firstOrNull()?.clips?.firstOrNull()?.id
-        _selectedTextId.value = null
+        // Opening a project never pre-selects a clip (CapCut behaviour).
+        clearSelection()
         _activeSheet.value = ActiveToolSheet.NONE
         undoStack.clear()
         redoStack.clear()
@@ -543,7 +560,12 @@ class EditorViewModel(
     }
 
     fun clearSelection() {
+        // Deselect EVERYTHING: single clip, multi-select set and text overlay.
+        // Clearing only the multi-select set used to leave the white selection
+        // border on the timeline forever.
+        _selectedClipId.value = null
         _selectedClipIds.value = emptySet()
+        _selectedTextId.value = null
     }
 
     fun selectAllClips() {
@@ -705,44 +727,48 @@ class EditorViewModel(
         val project = _currentProject.value ?: return
         val totalMs = project.totalDurationMs
         if (_currentPositionMs.value >= totalMs) {
-            // Restarting from the end is a position jump - never seek the
-            // composition player for it (see scrubbedSincePlay below).
+            // Restarting from the end is a position jump. Land it with a live
+            // seek (a plain seek on a paused player parks the preview).
             _currentPositionMs.value = 0L
-            scrubbedSincePlay = true
+            val restartManager = playerManager
+            if (restartManager != null) {
+                restartManager.beginScrub()
+                restartManager.seekTo(0L)
+            }
         }
         _isPlaying.value = true
         AppLog.info("EditorViewModel", "startPlayback() at ${_currentPositionMs.value}ms")
 
         if (playerManager != null) {
-            // Drop any pending throttled scrub seek: the playhead flow already
-            // holds the final scrubbed position and a late seek would only
-            // wedge the player deeper.
-            seekJob?.cancel()
-            seekJob = null
-            if (scrubbedSincePlay) {
-                // CompositionPlayer cannot seek reliably: after a scrub it
-                // parks in STATE_BUFFERING forever (device log), and the old
-                // nudge recovery never rendered a frame. Give it a brand-new
-                // player prepared exactly at the playhead - the only path
-                // proven to reach READY.
-                playerManager.rebuildPreviewAt(_currentPositionMs.value)
-            } else {
-                // loadProject() is a no-op when the same project is already
-                // prepared. Only sync when the two positions genuinely diverged
-                // (e.g. a project switch reset the UI playhead to 0): a seek to
-                // the SAME position while paused flushes CompositionPlayer's
-                // audio graph and the following play() starts silent
-                // (androidx/media#3482).
-                playerManager.loadProject(project)
-                if (playerManager.currentPositionMs.value != _currentPositionMs.value) {
-                    playerManager.seekTo(_currentPositionMs.value)
-                }
+            // Stop the scrub loop: the play button owns the play state now, and
+            // a late settle would pause the fresh playback. The loop's tail sees
+            // _isPlaying == true and leaves the player rendering.
+            scrubSettlePending = false
+            // A scrub keeps the player rendering (muted): keep playing from where
+            // the video actually is instead of seeking, which is what used to
+            // wedge the preview in BUFFERING.
+            playerManager.endScrubKeepPlaying()
+            // loadProject() is a no-op when the same project is already prepared.
+            // Only re-sync for a REAL divergence (e.g. a project switch reset
+            // the UI playhead): a seek to the SAME position while paused flushes
+            // CompositionPlayer's audio graph and the following play() starts
+            // silent (androidx/media#3482).
+            playerManager.loadProject(project)
+            playerManager.syncPosition()
+            val drift = kotlin.math.abs(
+                playerManager.currentPositionMs.value - _currentPositionMs.value
+            )
+            if (drift > PLAYHEAD_RESYNC_TOLERANCE_MS) {
+                // A real divergence (project switch): seek while the render loop
+                // is alive, or the composition player parks in BUFFERING.
+                playerManager.beginScrub()
+                playerManager.seekTo(_currentPositionMs.value)
+                playerManager.endScrubKeepPlaying()
             }
             // play() itself defers while the player is BUFFERING; the polling
             // loop below issues it as soon as the player reports READY.
             playerManager.play()
             startPlaybackPolling(totalMs, playerManager)
-            scrubbedSincePlay = false
         } else {
             playbackJob?.cancel()
             playbackJob = viewModelScope.launch {
@@ -979,26 +1005,16 @@ class EditorViewModel(
         playbackJob = null
         val manager = playerManager
         if (manager != null) {
-            // Flush a pending scrub settle first, so pause (and a split at the
-            // playhead) lands on the position the user actually chose.
-            if (seekJob?.isActive == true) {
-                seekJob?.cancel()
-                seekJob = null
-                val target = _currentPositionMs.value
-                if (scrubbedSincePlay &&
-                    kotlin.math.abs(manager.currentPositionMs.value - target) > SCRUB_SETTLE_MAX_CHEAP_SEEK_MS
-                ) {
-                    // Big jumps wedge the composition player in BUFFERING:
-                    // a fresh player is the only reliable way to show the frame.
-                    manager.rebuildPreviewAt(target)
-                    scrubbedSincePlay = false
-                } else {
-                    manager.seekTo(target)
-                }
+            if (scrubLoopActive) {
+                // The scrub loop is landing the preview on the playhead and then
+                // pauses the player itself. Pausing HERE would stop the render
+                // loop and wedge its final seek (seeks only settle while frames
+                // are rendering).
+                scrubSettlePending = false
+                return
             }
+            scrubSettlePending = false
             manager.pause()
-            // Snap to the frame the player actually stopped on; the 50 ms poll can
-            // be one frame behind, and a split must land on the visible frame.
             manager.syncPosition()
             _currentPositionMs.value = manager.currentPositionMs.value
         }
@@ -1008,29 +1024,65 @@ class EditorViewModel(
         val project = _currentProject.value ?: return
         val clamped = positionMs.coerceIn(0L, project.totalDurationMs)
         _currentPositionMs.value = clamped
-        scrubbedSincePlay = true
+        scrubTargetMs = clamped
+        scrubSettlePending = true
         val manager = playerManager ?: return
-        // A scrub fling emits dozens of seeks per second and every
-        // CompositionPlayer seek restarts decoding. So while the finger moves,
-        // only the playhead updates; once it settles, a brand-new player is
-        // prepared at the final frame. That shows the correct preview frame
-        // AND makes the next Play start instantly from a READY player.
-        seekJob?.cancel()
-        seekJob = viewModelScope.launch {
-            delay(SCRUB_SETTLE_MS)
-            if (!scrubbedSincePlay || _isPlaying.value) return@launch
-            val diverged = kotlin.math.abs(manager.currentPositionMs.value - clamped)
-            if (diverged <= SCRUB_SETTLE_MAX_CHEAP_SEEK_MS &&
-                manager.playbackState.value == androidx.media3.common.Player.STATE_READY
-            ) {
-                // Small moves seek fine; skip the rebuild.
-                manager.seekTo(clamped)
-            } else {
-                manager.rebuildPreviewAt(clamped)
+        if (manager.activePlayer.value == null) return
+        if (!scrubLoopActive) {
+            scrubLoopActive = true
+            viewModelScope.launch {
+                try {
+                    scrubLoop()
+                } finally {
+                    scrubLoopActive = false
+                }
             }
-            // The rebuild may snap onto a safe clip boundary; follow it.
-            _currentPositionMs.value = manager.currentPositionMs.value
-            scrubbedSincePlay = false
+        }
+    }
+
+    private suspend fun scrubLoop() {
+        val manager = playerManager ?: return
+        var lastSeekedMs = Long.MIN_VALUE
+        var lastSeenTarget = Long.MIN_VALUE
+        var idleTicks = 0
+        manager.beginScrub()
+        try {
+            while (scrubSettlePending && !_isPlaying.value &&
+                idleTicks * SCRUB_POLL_MS < SCRUB_SETTLE_MS
+            ) {
+                val target = scrubTargetMs
+                if (target != lastSeenTarget) {
+                    lastSeenTarget = target
+                    idleTicks = 0
+                }
+                if (target != lastSeekedMs && manager.previewIsReady()) {
+                    manager.seekTo(target)
+                    lastSeekedMs = target
+                }
+                idleTicks++
+                delay(SCRUB_POLL_MS)
+            }
+            if (_isPlaying.value) {
+                manager.endScrubKeepPlaying()
+                return
+            }
+            manager.seekTo(scrubTargetMs)
+            var waited = 0L
+            while (!manager.previewIsReady() && waited < SCRUB_SETTLE_MS) {
+                delay(SCRUB_POLL_MS)
+                waited += SCRUB_POLL_MS
+            }
+            if (!manager.previewIsReady()) {
+                AppLog.warn("EditorViewModel", "Scrub seek did not settle at ${scrubTargetMs}ms; rebuilding")
+                manager.rebuildPreviewAt(scrubTargetMs)
+            }
+            manager.endScrub()
+            if (!_isPlaying.value) {
+                manager.syncPosition()
+                _currentPositionMs.value = manager.currentPositionMs.value
+            }
+        } finally {
+            scrubSettlePending = false
         }
     }
 

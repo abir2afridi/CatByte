@@ -3,6 +3,7 @@ package com.example.ui.components
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
@@ -63,7 +64,7 @@ class TimelineGestureTest {
             Box(modifier = Modifier.size(width = 360.dp, height = 175.dp)) {
                 MultiTrackTimeline(
                     project = project,
-                    currentPositionMs = 0L,
+                    currentPositionMs = mutableStateOf(0L),
                     isPlaying = false,
                     selectedClipId = null,
                     selectedTextId = null,
@@ -104,7 +105,7 @@ class TimelineGestureTest {
             Box(modifier = Modifier.size(width = 360.dp, height = 175.dp)) {
                 MultiTrackTimeline(
                     project = project,
-                    currentPositionMs = 0L,
+                    currentPositionMs = mutableStateOf(0L),
                     isPlaying = false,
                     selectedClipId = null,
                     selectedTextId = null,
@@ -141,7 +142,7 @@ class TimelineGestureTest {
             Box(modifier = Modifier.size(width = 360.dp, height = 175.dp)) {
                 MultiTrackTimeline(
                     project = project,
-                    currentPositionMs = 0L,
+                    currentPositionMs = mutableStateOf(0L),
                     isPlaying = false,
                     selectedClipId = null,
                     selectedTextId = null,
@@ -199,7 +200,7 @@ class TimelineGestureTest {
             Box(modifier = Modifier.size(width = 360.dp, height = 175.dp)) {
                 MultiTrackTimeline(
                     project = project,
-                    currentPositionMs = 0L,
+                    currentPositionMs = mutableStateOf(0L),
                     isPlaying = false,
                     selectedClipId = null,
                     selectedTextId = null,

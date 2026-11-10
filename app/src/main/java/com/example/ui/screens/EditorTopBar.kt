@@ -118,42 +118,48 @@ internal fun EditorTopBar(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Right side: format chip + Export pill
+            // Right side: AI UHD format chip + Export button
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF24252A))
-                        .clickable { onToggleExportDropdown() }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                        .testTag("editor_ai_uhd_chip"),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = if (exportTab == "gif") "GIF" else "AI UHD",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "AI UHD menu",
-                        tint = Color(0xFFA5A8B2),
-                        modifier = Modifier
-                            .size(16.dp)
-                            .rotate(if (exportOpen) 180f else 0f)
-                    )
-                }
-
-                // Cyan "Export" pill: ONE click starts the export.
+                // "AI UHD ▾" chip button
                 Box(
                     modifier = Modifier
-                        .height(34.dp)
-                        .clip(RoundedCornerShape(17.dp))
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xFF24252A))
+                        .clickable { onToggleExportDropdown() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .testTag("editor_ai_uhd_chip"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = if (exportTab == "gif") "GIF" else "AI UHD",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "AI UHD menu",
+                            tint = Color(0xFFA5A8B2),
+                            modifier = Modifier
+                                .size(16.dp)
+                                .rotate(if (exportOpen) 180f else 0f)
+                        )
+                    }
+                }
+
+                // Vibrant Cyan "Export" button: ONE click starts the export.
+                Box(
+                    modifier = Modifier
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(18.dp))
                         .background(Color(0xFF26E5D7))
                         .clickable { onStartExport() }
                         .padding(horizontal = 18.dp)

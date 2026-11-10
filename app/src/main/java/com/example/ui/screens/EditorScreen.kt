@@ -540,24 +540,11 @@ fun EditorScreen(
             )
         }
 
-        // Adaptive heights: small phones must not overlap the bottom bar.
-        // +24 dp reserves the strip above the ruler where the playhead head
-        // (pencil) lives, so the ruler's time labels stay uncovered.
-        val timelineHeight = if (LocalConfiguration.current.screenHeightDp < 640) {
-            148.dp + 24.dp
-        } else {
-            175.dp + 24.dp
-        }
-
-        // Small gap under the transport row: keeps the playhead head clear of
-        // the play/pause button above.
-        Spacer(modifier = Modifier.height(8.dp))
-
         // 4. Multi-Track Timeline (integrated CapCut left gutter and timecode)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(timelineHeight)
+                .heightIn(min = 150.dp, max = 220.dp)
         ) {
             MultiTrackTimeline(
                 project = project!!,
@@ -609,15 +596,13 @@ fun EditorScreen(
                 selectedClipIds = selectedClipIds,
                 beats = snapBeats,
                 onUserInteraction = { viewModel.pausePlayback() },
+                onClearSelection = { viewModel.clearSelection() },
                 onAddAudioClick = { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY) },
                 onAddTextClick = { viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR) },
                 onCoverClick = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
                 modifier = Modifier.fillMaxSize()
             )
         }
-
-        // Balanced spacer to lift timeline and transport controls slightly higher up (CapCut balance)
-        Spacer(modifier = Modifier.weight(0.15f))
 
         // 5. Bottom Action Bar
         Box(
@@ -1048,23 +1033,30 @@ fun EditorScreen(
 
         // Export dialog: shows render progress / completion automatically once
         // an export starts (one-click from the top bar), or the full settings
-        // AI UHD Animated Dropdown Panel Overlay (slides down from top right below EditorTopBar)
+
+
+        // Floating AI UHD Animated Dropdown Panel Overlay (slides down directly below EditorTopBar over VideoCanvas)
         if (!isPreviewFullscreen) {
             AnimatedVisibility(
                 visible = showExportDropdown,
-                enter = expandVertically(animationSpec = tween(220)) +
-                    fadeIn(animationSpec = tween(220)),
-                exit = shrinkVertically(animationSpec = tween(180)) +
-                    fadeOut(animationSpec = tween(180)),
+                enter = expandVertically(
+                    animationSpec = tween(280),
+                    expandFrom = Alignment.Top
+                ) + fadeIn(animationSpec = tween(280)),
+                exit = shrinkVertically(
+                    animationSpec = tween(220),
+                    shrinkTowards = Alignment.Top
+                ) + fadeOut(animationSpec = tween(220)),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 50.dp)
+                    .padding(top = 52.dp)
                     .fillMaxWidth()
                     .zIndex(100f)
             ) {
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .heightIn(max = 480.dp)
                         .background(Color(0xFF141416))
                         .verticalScroll(rememberScrollState())
                 ) {

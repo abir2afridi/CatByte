@@ -57,6 +57,28 @@ class EditorWorkflowTest {
     }
 
     @Test
+    fun `opening a project starts with nothing selected`() {
+        // The timeline kept showing a white selection border on the first clip
+        // from the moment the editor opened.
+        val viewModel = vmWithOneClip()
+        assertNull(viewModel.selectedClipId.value)
+        assertTrue(viewModel.selectedClipIds.value.isEmpty())
+    }
+
+    @Test
+    fun `clearSelection clears the single clip selection too`() {
+        val viewModel = vmWithOneClip()
+        viewModel.selectClip("clip_1")
+        assertNotNull(viewModel.selectedClipId.value)
+        assertTrue(viewModel.selectedClipIds.value.isNotEmpty())
+
+        viewModel.clearSelection()
+        assertNull(viewModel.selectedClipId.value)
+        assertTrue(viewModel.selectedClipIds.value.isEmpty())
+        assertNull(viewModel.selectedTextId.value)
+    }
+
+    @Test
     fun `setAspectRatio is undoable`() {
         val viewModel = vmWithOneClip()
         viewModel.setAspectRatio(AspectRatioType.RATIO_16_9)
