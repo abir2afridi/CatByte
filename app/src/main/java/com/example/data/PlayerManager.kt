@@ -82,6 +82,11 @@ class PlayerManager(context: Context) {
     private var lastCompositionProject: VideoProject? = null
     private var watermarkEnabled: Boolean = false
 
+    /** Last built composition, reused while the project is unchanged. */
+    private var cachedBuild: ProjectCompositionFactory.Result? = null
+    private var cachedBuildProject: VideoProject? = null
+    private var cachedBuildWatermark: Boolean = false
+
     /**
      * Timeline slots for the fallback playlist. The composition path does not
      * need them because Media3 maps the full timeline itself.
@@ -235,7 +240,23 @@ class PlayerManager(context: Context) {
 
         if (!compositionFailed) {
             val result = runCatching {
-                ProjectCompositionFactory.buildPreview(project, watermarkEnabled)
+                // The built Composition is immutable, so it is reused while the
+                // project (and watermark flag) are unchanged. Scrub rebuilds and
+                // debounced edit refreshes then skip the ~150 ms factory pass
+                // and only re-prepare the player at the new start position.
+                val cached = cachedBuild
+                if (cached != null &&
+                    cachedBuildProject == project &&
+                    cachedBuildWatermark == watermarkEnabled
+                ) {
+                    cached
+                } else {
+                    ProjectCompositionFactory.buildPreview(project, watermarkEnabled).also {
+                        cachedBuild = it
+                        cachedBuildProject = project
+                        cachedBuildWatermark = watermarkEnabled
+                    }
+                }
             }
             val built = result.getOrNull()
             val player = compositionPlayer

@@ -35,6 +35,14 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import com.example.model.MediaClip
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -75,6 +83,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.flow.collect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -111,6 +120,7 @@ import com.example.ui.components.CanvasRatioSheet
 import com.example.ui.components.CaptionsSheet
 import com.example.ui.components.CropSheet
 import com.example.ui.components.EditorSearchEntry
+import com.example.ui.components.ExportDropdownPanel
 import com.example.ui.components.FeatureSearchDialog
 import com.example.ui.components.OpacitySheet
 import com.example.ui.components.SelectionControlsBar
@@ -145,7 +155,15 @@ fun EditorScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     val project by viewModel.currentProject.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
-    val currentPositionMs by viewModel.currentPositionMs.collectAsState()
+    // The playhead changes ~60x/s while playing. Collecting it at the screen
+    // level used to recompose the WHOLE editor (canvas + timeline + toolbars)
+    // on every tick, which made the timeline scroll feel laggy. The position
+    // is handed down as a State instead, so only the few components that
+    // really need the playhead recompose.
+    val positionState = remember(viewModel) { mutableStateOf(viewModel.currentPositionMs.value) }
+    LaunchedEffect(viewModel) {
+        viewModel.currentPositionMs.collect { positionState.value = it }
+    }
     val selectedClipId by viewModel.selectedClipId.collectAsState()
     val selectedClipIds by viewModel.selectedClipIds.collectAsState()
     val overlayClipboard by viewModel.overlayClipboard.collectAsState()
@@ -160,6 +178,7 @@ fun EditorScreen(
     val magneticSnap by viewModel.magneticSnap.collectAsState()
     val watermarkEnabled by viewModel.watermarkEnabled.collectAsState()
     val snapBeats by viewModel.snapBeats.collectAsState()
+    val exportSettings by viewModel.exportSettings.collectAsState()
 
     var activeTransitionClipId by remember { mutableStateOf<String?>(null) }
     var showTtsDialog by remember { mutableStateOf(false) }
@@ -167,6 +186,7 @@ fun EditorScreen(
     var isMultiSelect by remember { mutableStateOf(false) }
     var showFeatureSearch by remember { mutableStateOf(false) }
     var isPreviewFullscreen by remember { mutableStateOf(false) }
+    var showExportDropdown by remember { mutableStateOf(false) }
 
     // Intercept back button if any sheet is open
     BackHandler {
@@ -333,8 +353,8 @@ fun EditorScreen(
                     Shortcuts.Command.ZOOM_IN -> viewModel.setTimelineZoom(timelineZoom + 0.25f)
                     Shortcuts.Command.ZOOM_OUT -> viewModel.setTimelineZoom(timelineZoom - 0.25f)
                     Shortcuts.Command.PREV_FRAME ->
-                        viewModel.seekTo((currentPositionMs - FRAME_STEP_MS).coerceAtLeast(0L))
-                    Shortcuts.Command.NEXT_FRAME -> viewModel.seekTo(currentPositionMs + FRAME_STEP_MS)
+                        viewModel.seekTo((positionState.value - FRAME_STEP_MS).coerceAtLeast(0L))
+                    Shortcuts.Command.NEXT_FRAME -> viewModel.seekTo(positionState.value + FRAME_STEP_MS)
                     // No mute toggle exists in the editor yet, so let the key pass.
                     Shortcuts.Command.TOGGLE_MUTE -> return@onPreviewKeyEvent false
                 }
@@ -348,11 +368,22 @@ fun EditorScreen(
                 project = project!!,
                 canUndo = canUndo,
                 canRedo = canRedo,
+                exportOpen = showExportDropdown,
+                exportTab = exportSettings.tab,
                 onBack = onBackToHome,
                 onUndo = { viewModel.undo() },
                 onRedo = { viewModel.redo() },
-                onOpenFormat = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
-                onExport = { viewModel.setActiveSheet(ActiveToolSheet.EXPORT_MODAL) },
+                onToggleExportDropdown = { showExportDropdown = !showExportDropdown },
+                onExportTabSelected = { tab ->
+                    viewModel.updateExportSettings(exportSettings.copy(tab = tab))
+                    showExportDropdown = true
+                },
+                // ONE click: export with the settings pre-selected in the
+                // AI UHD dropdown - no extra dialog.
+                onStartExport = {
+                    showExportDropdown = false
+                    viewModel.startSelectedExport()
+                },
                 onOpenSettings = onOpenSettings,
                 onSearch = { showFeatureSearch = true },
                 onExportDraft = {
@@ -415,7 +446,7 @@ fun EditorScreen(
             ) {
                 VideoCanvas(
                     project = project!!,
-                    currentPositionMs = currentPositionMs,
+                    currentPositionMs = positionState,
                     isPlaying = isPlaying,
                     onTogglePlay = { viewModel.togglePlayback() },
                     watermarkEnabled = watermarkEnabled,
@@ -530,7 +561,7 @@ fun EditorScreen(
         ) {
             MultiTrackTimeline(
                 project = project!!,
-                currentPositionMs = currentPositionMs,
+                currentPositionMs = positionState,
                 isPlaying = isPlaying,
                 selectedClipId = selectedClipId,
                 selectedTextId = selectedTextId,
@@ -1015,25 +1046,64 @@ fun EditorScreen(
             }
         }
 
-        if (activeSheet == ActiveToolSheet.EXPORT_MODAL) {
+        // Export dialog: shows render progress / completion automatically once
+        // an export starts (one-click from the top bar), or the full settings
+        // AI UHD Animated Dropdown Panel Overlay (slides down from top right below EditorTopBar)
+        if (!isPreviewFullscreen) {
+            AnimatedVisibility(
+                visible = showExportDropdown,
+                enter = expandVertically(animationSpec = tween(220)) +
+                    fadeIn(animationSpec = tween(220)),
+                exit = shrinkVertically(animationSpec = tween(180)) +
+                    fadeOut(animationSpec = tween(180)),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 50.dp)
+                    .fillMaxWidth()
+                    .zIndex(100f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF141416))
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    ExportDropdownPanel(
+                        settings = exportSettings,
+                        watermarkEnabled = watermarkEnabled,
+                        currentAspectRatio = project?.aspectRatio
+                            ?: com.example.model.AspectRatioType.RATIO_16_9,
+                        projectLengthMs = project?.totalDurationMs ?: 60_000L,
+                        onUpdateSettings = { viewModel.updateExportSettings(it) },
+                        onToggleWatermark = { viewModel.toggleWatermark(it) }
+                    )
+                }
+            }
+        }
+
+        if (activeSheet == ActiveToolSheet.EXPORT_MODAL ||
+            exportState.isExporting ||
+            exportState.isCompleted
+        ) {
             ExportDialog(
                 exportState = exportState,
-                defaultResolution = project?.resolution ?: "1080P",
-                defaultFps = project?.fps ?: 30,
+                settings = exportSettings,
+                onUpdateSettings = { viewModel.updateExportSettings(it) },
                 watermarkEnabled = watermarkEnabled,
                 currentAspectRatio = project?.aspectRatio ?: com.example.model.AspectRatioType.RATIO_16_9,
                 projectLengthMs = project?.totalDurationMs ?: 60_000L,
-                onSelectAspectRatio = { viewModel.setAspectRatio(it) },
                 onToggleWatermark = { viewModel.toggleWatermark(it) },
-                onStartExport = { res, fps, _, bitrate ->
-                    viewModel.startExport(res, fps, bitrate)
-                },
+                onStartSelectedExport = { viewModel.startSelectedExport() },
                 onCancelExport = { viewModel.cancelExport() },
-                onDismiss = { viewModel.setActiveSheet(ActiveToolSheet.NONE) },
-                onShareExport = { platform -> viewModel.shareExportMessage(platform) },
-                onStartBackgroundExport = { res, fps, _, bitrate ->
-                    startBackgroundExport(res, fps, bitrate)
-                }
+                onDismiss = {
+                    if (exportState.isExporting) {
+                        // Keep the render alive; only close the sheet.
+                        viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                    } else {
+                        viewModel.dismissExport()
+                    }
+                },
+                onShareExport = { platform -> viewModel.shareExportMessage(platform) }
             )
         }
     }

@@ -331,7 +331,12 @@ class EditorViewModel(
     private companion object {
         const val MAX_READY_REBUILDS = 2
         const val RECOVERY_RESET_MS = 1_000L
-        const val SEEK_DEBOUNCE_MS = 60L
+
+        /** Silence after a scrub before the preview player is rebuilt. */
+        const val SCRUB_SETTLE_MS = 250L
+
+        /** Deltas up to this are seeked directly; bigger ones need a rebuild. */
+        const val SCRUB_SETTLE_MAX_CHEAP_SEEK_MS = 100L
     }
     private var voiceRecordJob: Job? = null
     private var exportJob: Job? = null
@@ -776,6 +781,8 @@ class EditorViewModel(
         playbackJob?.cancel()
         playbackJob = viewModelScope.launch {
             var tick = 0
+            var readyTicks = 0
+            var watchdogTicks = 0
             var playIssued = false
             var rebuilds = 0
             var recoveries = 0
@@ -784,8 +791,14 @@ class EditorViewModel(
             var bufferingTicks = 0
             var lastPosition = _currentPositionMs.value
             while (isActive && _isPlaying.value) {
-                delay(PlayerRecoveryPolicy.TICK_MS)
-                tick++
+                // The playhead follows the player at display rate (~60 Hz).
+                // With the old 50 ms poll the timeline moved in visible 20 Hz
+                // steps, which read as "laggy" even when the playback itself
+                // was perfectly smooth. The recovery watchdog keeps its old
+                // ~50 ms cadence (it runs every WATCHDOG_STRIDE position
+                // ticks), so all of its budgets mean exactly what they meant
+                // before.
+                delay(PlayerRecoveryPolicy.POSITION_TICK_MS)
                 manager.syncPosition()
                 val position = manager.currentPositionMs.value
                 _currentPositionMs.value = position
@@ -799,6 +812,7 @@ class EditorViewModel(
 
                 // ---- Phase 1: reach STATE_READY at the playhead, THEN play ----
                 if (!playIssued) {
+                    readyTicks++
                     when {
                         state == androidx.media3.common.Player.STATE_READY -> {
                             // A deferred play (the LIVE state was still
@@ -808,6 +822,7 @@ class EditorViewModel(
                             if (manager.play()) {
                                 playIssued = true
                                 tick = 0
+                                readyTicks = 0
                                 stalledTicks = 0
                                 bufferingTicks = 0
                                 lastPosition = manager.currentPositionMs.value
@@ -819,7 +834,7 @@ class EditorViewModel(
                             // Broken player: rebuild right away instead of
                             // waiting out the whole READY timeout.
                             rebuilds++
-                            tick = 0
+                            readyTicks = 0
                             AppLog.warn(
                                 "EditorViewModel",
                                 "Preview player broken; rebuilding at ${_currentPositionMs.value}ms"
@@ -827,10 +842,10 @@ class EditorViewModel(
                             manager.rebuildPreviewAt(_currentPositionMs.value)
                         }
 
-                        tick > PlayerRecoveryPolicy.WAIT_READY_TICKS -> {
+                        readyTicks > PlayerRecoveryPolicy.WAIT_READY_POSITION_TICKS -> {
                             if (rebuilds < MAX_READY_REBUILDS) {
                                 rebuilds++
-                                tick = 0
+                                readyTicks = 0
                                 AppLog.warn(
                                     "EditorViewModel",
                                     "Preview never became READY after scrub; rebuilding at ${_currentPositionMs.value}ms"
@@ -849,7 +864,17 @@ class EditorViewModel(
                     continue
                 }
 
-                // ---- Phase 2: playing — detect a frozen playhead ----
+                // ---- Phase 2: playing — the watchdog runs at the slow cadence ----
+                watchdogTicks++
+                if (watchdogTicks < PlayerRecoveryPolicy.WATCHDOG_STRIDE) {
+                    // Fast path: only the playhead moves. The freeze watchdog
+                    // below needs its own cadence, otherwise a 300 ms stall
+                    // would be detected after 100 ms.
+                    lastPosition = position
+                    continue
+                }
+                watchdogTicks = 0
+                tick++
                 val graceOver = tick > PlayerRecoveryPolicy.STARTUP_GRACE_TICKS
                 if (graceOver &&
                     state == androidx.media3.common.Player.STATE_IDLE &&
@@ -863,7 +888,7 @@ class EditorViewModel(
                 // rebuild it at the playhead instead of waiting forever.
                 if (state == androidx.media3.common.Player.STATE_BUFFERING) {
                     bufferingTicks++
-                    if (bufferingTicks >= PlayerRecoveryPolicy.WAIT_READY_TICKS &&
+                    if (bufferingTicks >= PlayerRecoveryPolicy.WAIT_BUFFERING_WATCHDOG_TICKS &&
                         rebuilds < MAX_READY_REBUILDS
                     ) {
                         rebuilds++
@@ -871,15 +896,10 @@ class EditorViewModel(
                         AppLog.warn(
                             "EditorViewModel",
                             "Preview stayed buffering for " +
-                                "${PlayerRecoveryPolicy.WAIT_READY_TICKS} ticks; " +
+                                "${PlayerRecoveryPolicy.WAIT_BUFFERING_WATCHDOG_TICKS} ticks; " +
                                 "rebuilding at ${position}ms"
                         )
-                        manager.pause()
-                        manager.loadProject(
-                            _currentProject.value ?: return@launch,
-                            position,
-                            forceRebuild = true
-                        )
+                        manager.rebuildPreviewAt(position)
                         playIssued = false
                         tick = 0
                         stalledTicks = 0
@@ -959,12 +979,22 @@ class EditorViewModel(
         playbackJob = null
         val manager = playerManager
         if (manager != null) {
-            // Flush a pending throttled scrub seek first, so pause (and a split
-            // at the playhead) lands on the position the user actually chose.
+            // Flush a pending scrub settle first, so pause (and a split at the
+            // playhead) lands on the position the user actually chose.
             if (seekJob?.isActive == true) {
                 seekJob?.cancel()
                 seekJob = null
-                manager.seekTo(_currentPositionMs.value)
+                val target = _currentPositionMs.value
+                if (scrubbedSincePlay &&
+                    kotlin.math.abs(manager.currentPositionMs.value - target) > SCRUB_SETTLE_MAX_CHEAP_SEEK_MS
+                ) {
+                    // Big jumps wedge the composition player in BUFFERING:
+                    // a fresh player is the only reliable way to show the frame.
+                    manager.rebuildPreviewAt(target)
+                    scrubbedSincePlay = false
+                } else {
+                    manager.seekTo(target)
+                }
             }
             manager.pause()
             // Snap to the frame the player actually stopped on; the 50 ms poll can
@@ -981,13 +1011,26 @@ class EditorViewModel(
         scrubbedSincePlay = true
         val manager = playerManager ?: return
         // A scrub fling emits dozens of seeks per second and every
-        // CompositionPlayer seek restarts decoding - that is what made playback
-        // stutter after a scrub. Coalesce them: the UI playhead moves instantly,
-        // the player lands on the latest position after a short debounce.
+        // CompositionPlayer seek restarts decoding. So while the finger moves,
+        // only the playhead updates; once it settles, a brand-new player is
+        // prepared at the final frame. That shows the correct preview frame
+        // AND makes the next Play start instantly from a READY player.
         seekJob?.cancel()
         seekJob = viewModelScope.launch {
-            delay(SEEK_DEBOUNCE_MS)
-            manager.seekTo(clamped)
+            delay(SCRUB_SETTLE_MS)
+            if (!scrubbedSincePlay || _isPlaying.value) return@launch
+            val diverged = kotlin.math.abs(manager.currentPositionMs.value - clamped)
+            if (diverged <= SCRUB_SETTLE_MAX_CHEAP_SEEK_MS &&
+                manager.playbackState.value == androidx.media3.common.Player.STATE_READY
+            ) {
+                // Small moves seek fine; skip the rebuild.
+                manager.seekTo(clamped)
+            } else {
+                manager.rebuildPreviewAt(clamped)
+            }
+            // The rebuild may snap onto a safe clip boundary; follow it.
+            _currentPositionMs.value = manager.currentPositionMs.value
+            scrubbedSincePlay = false
         }
     }
 
@@ -2715,6 +2758,55 @@ class EditorViewModel(
     // ==========================================
     // Export & Rendering Pipeline
     // ==========================================
+
+    // ==========================================
+    // Export settings (AI UHD dropdown)
+    // ==========================================
+
+    /**
+     * CapCut-style export settings chosen in the AI UHD dropdown. They persist
+     * across dropdown open/close so a single click on Export starts the render
+     * with exactly the format the user pre-selected.
+     */
+    data class ExportSettings(
+        /** "video" or "gif" - which tab is active in the dropdown. */
+        val tab: String = "video",
+        val resolution: String = "720P",
+        val fps: Int = 30,
+        val bitrateMbps: Int = 10,
+        val gifQuality: String = "240P",
+        val watermarkPosition: String = "Upper left"
+    )
+
+    private val _exportSettings = MutableStateFlow(ExportSettings())
+    val exportSettings: StateFlow<ExportSettings> = _exportSettings.asStateFlow()
+
+    fun updateExportSettings(settings: ExportSettings) {
+        _exportSettings.value = settings
+    }
+
+    /**
+     * One-click export with the pre-selected settings. The GIF tab renders
+     * through the video pipeline at the matching resolution until a dedicated
+     * GIF encoder lands in [ExportManager].
+     */
+    fun startSelectedExport() {
+        val settings = _exportSettings.value
+        if (settings.tab == "gif") {
+            val resolution = when (settings.gifQuality) {
+                "320P" -> "720P"
+                "640P" -> "1080P"
+                else -> "480P"
+            }
+            startExport(resolution = resolution, fps = 30, bitrateMbps = 8)
+        } else {
+            startExport(
+                resolution = settings.resolution,
+                fps = settings.fps,
+                bitrateMbps = settings.bitrateMbps
+            )
+        }
+    }
 
     fun startExport(
         resolution: String = _defaultResolution.value,

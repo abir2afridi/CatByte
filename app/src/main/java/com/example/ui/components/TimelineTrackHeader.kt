@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,7 +78,7 @@ data class TimelineHeaderRow(
  */
 @Composable
 fun CapCutTimelineLeftGutter(
-    currentPositionMs: Long,
+    currentPositionMs: State<Long>,
     totalDurationMs: Long,
     isMainMuted: Boolean,
     onToggleMainMute: () -> Unit,
@@ -102,7 +103,7 @@ fun CapCutTimelineLeftGutter(
             contentAlignment = Alignment.CenterStart
         ) {
             EditorTimecodeText(
-                currentPositionMs = currentPositionMs,
+                currentPositionMs = currentPositionMs.value,
                 totalDurationMs = totalDurationMs
             )
         }

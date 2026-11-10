@@ -49,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.State
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,7 +103,7 @@ val LocalVideoPlayer = compositionLocalOf<androidx.media3.common.Player?> { null
 @Composable
 fun VideoCanvas(
     project: VideoProject,
-    currentPositionMs: Long,
+    currentPositionMs: State<Long>,
     isPlaying: Boolean,
     onTogglePlay: () -> Unit,
     watermarkEnabled: Boolean = false,
@@ -125,6 +126,11 @@ fun VideoCanvas(
     val colors = PencilTheme.colors
     val ratio = project.aspectRatio
     val targetAspect = ratio.ratioWidth / ratio.ratioHeight
+    // The playhead changes ~60x/s while playing; this composable is the only
+    // one that genuinely needs it (active clip, overlay animations, fallback
+    // canvas). It therefore recomposes per tick, but the editor screen and the
+    // timeline around it stay untouched.
+    val positionMs = currentPositionMs.value
 
     // Active clip resolution
     var accumulatedMs = 0L
@@ -133,9 +139,9 @@ fun VideoCanvas(
 
     for (clip in project.clips) {
         val clipEnd = accumulatedMs + clip.durationMs
-        if (currentPositionMs in accumulatedMs..clipEnd) {
+        if (positionMs in accumulatedMs..clipEnd) {
             activeClip = clip
-            clipLocalTimeMs = currentPositionMs - accumulatedMs
+            clipLocalTimeMs = positionMs - accumulatedMs
             break
         }
         accumulatedMs = clipEnd
@@ -147,13 +153,13 @@ fun VideoCanvas(
 
     // Active overlays
     val activeTexts = project.textOverlays.filter {
-        currentPositionMs >= it.startTimelineMs && currentPositionMs <= (it.startTimelineMs + it.durationMs)
+        positionMs >= it.startTimelineMs && positionMs <= (it.startTimelineMs + it.durationMs)
     }
     val activeStickers = project.stickers.filter {
-        currentPositionMs >= it.startTimelineMs && currentPositionMs <= (it.startTimelineMs + it.durationMs)
+        positionMs >= it.startTimelineMs && positionMs <= (it.startTimelineMs + it.durationMs)
     }
     val activeEffects = project.effects.filter {
-        currentPositionMs >= it.startTimelineMs && currentPositionMs <= (it.startTimelineMs + it.durationMs)
+        positionMs >= it.startTimelineMs && positionMs <= (it.startTimelineMs + it.durationMs)
     }
 
     // Pulse animation - only runs while playing AND only when something actually
@@ -354,7 +360,7 @@ fun VideoCanvas(
             if (!compositionPreview) {
             activeTexts.forEach { textOverlay ->
                 val displayText = if (textOverlay.animation == TextAnimationType.TYPEWRITER) {
-                    val progress = ((currentPositionMs - textOverlay.startTimelineMs).toFloat() / textOverlay.durationMs).coerceIn(0f, 1f)
+                    val progress = ((positionMs - textOverlay.startTimelineMs).toFloat() / textOverlay.durationMs).coerceIn(0f, 1f)
                     val charCount = (textOverlay.text.length * progress * 2).toInt().coerceIn(1, textOverlay.text.length)
                     textOverlay.text.take(charCount)
                 } else {
@@ -362,7 +368,7 @@ fun VideoCanvas(
                 }
 
                 val textScale = if (textOverlay.animation == TextAnimationType.POP_UP) {
-                    val p = ((currentPositionMs - textOverlay.startTimelineMs).toFloat() / 300f).coerceIn(0f, 1f)
+                    val p = ((positionMs - textOverlay.startTimelineMs).toFloat() / 300f).coerceIn(0f, 1f)
                     0.6f + (0.4f * p)
                 } else if (textOverlay.animation == TextAnimationType.NEON_PULSE) {
                     pulseAlphaState.value

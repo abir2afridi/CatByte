@@ -35,8 +35,21 @@ import androidx.media3.common.Player
  */
 internal object PlayerRecoveryPolicy {
 
-    /** One preview-playback poll tick. */
-    const val TICK_MS = 50L
+    /**
+     * Playhead refresh interval.
+     *
+     * The playhead and the timeline auto-scroll follow the player at ~60 Hz.
+     * With the old 50 ms poll the timeline moved in visible 20 Hz steps, which
+     * read as "laggy" even when the playback itself was perfectly smooth.
+     */
+    const val POSITION_TICK_MS = 16L
+
+    /**
+     * The recovery watchdog runs every Nth position tick, so all of its
+     * budgets keep their old ~50 ms cadence (3 * 16 ms = 48 ms) while the
+     * playhead itself updates at display rate.
+     */
+    const val WATCHDOG_STRIDE = 3
 
     /** Ignore transient idle/ended states while a freshly issued play() settles. */
     const val STARTUP_GRACE_TICKS = 4
@@ -45,10 +58,16 @@ internal object PlayerRecoveryPolicy {
     const val STALL_TICKS = 6
 
     /**
-     * Ticks to wait for STATE_READY after a scrub seek before rebuilding the
-     * player from scratch (60 ticks = 3 s).
+     * Position ticks to wait for STATE_READY after a scrub seek before
+     * rebuilding the player from scratch (180 * 16 ms = ~2.9 s).
      */
-    const val WAIT_READY_TICKS = 60
+    const val WAIT_READY_POSITION_TICKS = 180
+
+    /**
+     * Watchdog ticks a player may stay buffering before it is rebuilt at the
+     * playhead (60 * 48 ms = ~2.9 s).
+     */
+    const val WAIT_BUFFERING_WATCHDOG_TICKS = 60
 
     /** True when the player can no longer play and must be rebuilt. */
     fun isBroken(lastError: String?, playbackState: Int): Boolean =

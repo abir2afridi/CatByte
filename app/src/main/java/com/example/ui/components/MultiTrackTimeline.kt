@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,7 +68,13 @@ import kotlin.math.roundToLong
 @Composable
 fun MultiTrackTimeline(
     project: VideoProject,
-    currentPositionMs: Long,
+    /**
+     * Live playhead. Passed as a State on purpose: reading it directly in this
+     * composable's body would re-compose every track clip ~60x/s while playing
+     * (the "timeline moves with a lag" complaint). It is only needed by the two
+     * scroll-sync effects below, so the State is read inside them.
+     */
+    currentPositionMs: State<Long>,
     isPlaying: Boolean,
     selectedClipId: String?,
     selectedTextId: String?,
@@ -117,7 +124,6 @@ fun MultiTrackTimeline(
     val latestInteraction by rememberUpdatedState(onUserInteraction)
     val latestOnZoom by rememberUpdatedState(onZoomChange)
     val latestZoom by rememberUpdatedState(zoom)
-    val latestPositionMs by rememberUpdatedState(currentPositionMs)
     val latestOnSeek by rememberUpdatedState(onSeek)
     val latestIsPlaying by rememberUpdatedState(isPlaying)
 
@@ -193,9 +199,9 @@ fun MultiTrackTimeline(
     // Skipped while the user is dragging/flinging; when the finger lifts the
     // same flow re-emits with inProgress = false and settles the needle.
     // ------------------------------------------------------------------
-    LaunchedEffect(pxPerFramePx, viewportWidthPx, timelineWidthPx, fps) {
+    LaunchedEffect(pxPerFramePx, viewportWidthPx, timelineWidthPx, fps, currentPositionMs) {
         if (viewportWidthPx <= 0 || pxPerFramePx <= 0f) return@LaunchedEffect
-        snapshotFlow { latestPositionMs to scrollState.isScrollInProgress }
+        snapshotFlow { currentPositionMs.value to scrollState.isScrollInProgress }
             .distinctUntilChanged()
             .collect { (positionMs, scrollInProgress) ->
                 if (scrollInProgress) return@collect
@@ -219,20 +225,20 @@ fun MultiTrackTimeline(
     // Scroll -> position: the frame under the needle while the user scrolls.
     // This is the whole scrub gesture now that the playhead cannot move.
     // ------------------------------------------------------------------
-    LaunchedEffect(pxPerFramePx, viewportWidthPx, timelineWidthPx, fps, totalMs) {
+    LaunchedEffect(pxPerFramePx, viewportWidthPx, timelineWidthPx, fps, totalMs, currentPositionMs) {
         if (viewportWidthPx <= 0 || pxPerFramePx <= 0f) return@LaunchedEffect
         snapshotFlow { scrollState.value to scrollState.isScrollInProgress }
             .distinctUntilChanged()
             .collect { (offset, scrollInProgress) ->
                 if (!scrollInProgress || programmaticScroll) return@collect
                 // Playback scrolls this timeline itself (position -> scroll
-                // below). Seeking the player back from that auto-scroll used to
+                // above). Seeking the player back from that auto-scroll used to
                 // queue dozens of expensive CompositionPlayer seeks per second
                 // and made playback stutter after a scrub. A real scrub always
                 // presses the timeline first, which pauses playback.
                 if (latestIsPlaying) return@collect
                 val expected = CenterPlayhead.offsetForFrame(
-                    playheadFrame = latestPositionMs * fps / 1_000L,
+                    playheadFrame = currentPositionMs.value * fps / 1_000L,
                     pxPerFrame = pxPerFramePx,
                     timelineWidthPx = timelineWidthPx,
                     viewportWidthPx = viewportWidthPx.toFloat()
@@ -240,7 +246,7 @@ fun MultiTrackTimeline(
                 if (abs(offset - expected) < 1.5f) return@collect
                 val frame = CenterPlayhead.frameAtPlayhead(offset.toFloat(), pxPerFramePx)
                 val ms = (frame * 1_000L / fps).coerceIn(0L, totalMs)
-                if (abs(ms - latestPositionMs) >= 2L) latestOnSeek(ms)
+                if (abs(ms - currentPositionMs.value) >= 2L) latestOnSeek(ms)
             }
     }
 
