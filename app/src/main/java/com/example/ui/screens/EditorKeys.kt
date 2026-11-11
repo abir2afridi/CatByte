@@ -105,7 +105,7 @@ import com.example.ui.components.CanvasRatioSheet
 import com.example.ui.components.PlaybackControlsStrip
 import com.example.ui.components.EditClipSheet
 import com.example.ui.components.EffectsSheet
-import com.example.ui.components.ExportDialog
+import com.example.ui.export.ExportDialog
 import com.example.ui.components.FiltersSheet
 import com.example.ui.components.KeyframeSheet
 import com.example.ui.components.MaskSheet

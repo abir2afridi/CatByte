@@ -22,7 +22,7 @@ import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
 import com.example.data.export.ColorGradeEffect
-import com.example.data.export.ExportPresets
+import com.example.data.export.ExportResolution
 import com.example.data.export.FilterMapper
 import com.example.engine.ClipAnimationMath
 import com.example.data.export.HslColorEffect
@@ -90,8 +90,8 @@ object ProjectCompositionFactory {
      * place when the project is exported.
      */
     fun buildPreview(project: VideoProject, watermarkEnabled: Boolean): Result {
-        val height = ExportPresets.heightFor(project.resolution).coerceIn(360, 720)
-        val (width, safeHeight) = ExportPresets.outputSizeForHeight(project.aspectRatio, height)
+        val height = ExportResolution.heightFor(project.resolution).coerceIn(360, 720)
+        val (width, safeHeight) = ExportResolution.outputSizeForHeight(project.aspectRatio, height)
         return build(project, width, safeHeight, project.fps.coerceIn(15, 60), watermarkEnabled)
     }
 
@@ -101,7 +101,7 @@ object ProjectCompositionFactory {
         fps: Int,
         watermarkEnabled: Boolean
     ): Result {
-        val (width, height) = ExportPresets.outputSize(project.aspectRatio, resolution)
+        val (width, height) = ExportResolution.outputSize(project.aspectRatio, resolution)
         return build(project, width, height, fps.coerceIn(15, 60), watermarkEnabled)
     }
 

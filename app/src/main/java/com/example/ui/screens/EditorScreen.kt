@@ -118,15 +118,20 @@ import com.example.ui.components.BackgroundSheet
 import com.example.ui.components.BlendModeSheet
 import com.example.ui.components.CanvasRatioSheet
 import com.example.ui.components.CaptionsSheet
+import com.example.ui.components.CoverEditorSheet
 import com.example.ui.components.CropSheet
 import com.example.ui.components.EditorSearchEntry
-import com.example.ui.components.ExportDropdownPanel
+import com.example.ui.export.ExportDropdownPanel
 import com.example.ui.components.FeatureSearchDialog
 import com.example.ui.components.OpacitySheet
 import com.example.ui.components.SelectionControlsBar
 import com.example.ui.components.EditClipSheet
 import com.example.ui.components.EffectsSheet
-import com.example.ui.components.ExportDialog
+import com.example.export.ExportSettings
+import com.example.export.ExportUiState
+import com.example.ui.export.ExportDialog
+import com.example.ui.export.ExportOptionsBottomSheet
+import com.example.ui.export.QuitExportingDialog
 import com.example.ui.components.FiltersSheet
 import com.example.ui.components.KeyframeSheet
 import com.example.ui.components.MaskSheet
@@ -196,10 +201,15 @@ fun EditorScreen(
     var isPreviewFullscreen by remember { mutableStateOf(false) }
     var showExportDropdown by remember { mutableStateOf(false) }
     var showExportOptionsBottomSheet by remember { mutableStateOf(false) }
+    var showQuitExportDialog by remember { mutableStateOf(false) }
 
-    // Intercept back button if any sheet is open
+    // Intercept back button if any sheet or export is open
     BackHandler {
-        if (isPreviewFullscreen) {
+        if (showQuitExportDialog) {
+            showQuitExportDialog = false
+        } else if (exportState.isExporting) {
+            showQuitExportDialog = true
+        } else if (isPreviewFullscreen) {
             isPreviewFullscreen = false
         } else if (showExportOptionsBottomSheet) {
             showExportOptionsBottomSheet = false
@@ -626,7 +636,7 @@ fun EditorScreen(
                 onClearSelection = { viewModel.clearSelection() },
                 onAddAudioClick = { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY) },
                 onAddTextClick = { viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR) },
-                onCoverClick = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
+                onCoverClick = { viewModel.setActiveSheet(ActiveToolSheet.COVER_EDITOR) },
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -1053,6 +1063,15 @@ fun EditorScreen(
                         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
                     )
                 }
+                ActiveToolSheet.COVER_EDITOR -> {
+                    CoverEditorSheet(
+                        project = project!!,
+                        onSaveCover = { _, _ ->
+                            Toast.makeText(context, "Cover saved successfully", Toast.LENGTH_SHORT).show()
+                        },
+                        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                    )
+                }
                 ActiveToolSheet.EXPORT_MODAL -> {}
                 ActiveToolSheet.NONE -> {}
             }
@@ -1101,6 +1120,34 @@ fun EditorScreen(
             }
         }
 
+        // Export Options Bottom Sheet Drawer (Screenshot 1: TikTok, Instagram, Save to Device cards)
+        if (showExportOptionsBottomSheet) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .zIndex(150f)
+            ) {
+                ExportOptionsBottomSheet(
+                    watermarkEnabled = watermarkEnabled,
+                    onToggleWatermark = { viewModel.toggleWatermark(it) },
+                    onSaveToDevice = {
+                        showExportOptionsBottomSheet = false
+                        viewModel.startSelectedExport()
+                    },
+                    onShareTikTok = {
+                        showExportOptionsBottomSheet = false
+                        viewModel.startSelectedExport()
+                    },
+                    onShareInstagram = {
+                        showExportOptionsBottomSheet = false
+                        viewModel.startSelectedExport()
+                    },
+                    onDismiss = { showExportOptionsBottomSheet = false }
+                )
+            }
+        }
+
         if (activeSheet == ActiveToolSheet.EXPORT_MODAL ||
             exportState.isExporting ||
             exportState.isCompleted ||
@@ -1125,6 +1172,17 @@ fun EditorScreen(
                     }
                 },
                 onShareExport = { platform -> viewModel.shareExportMessage(platform) }
+            )
+        }
+
+        // Quit Exporting Confirmation Alert Dialog
+        if (showQuitExportDialog) {
+            QuitExportingDialog(
+                onContinue = { showQuitExportDialog = false },
+                onQuit = {
+                    showQuitExportDialog = false
+                    viewModel.cancelExport()
+                }
             )
         }
 

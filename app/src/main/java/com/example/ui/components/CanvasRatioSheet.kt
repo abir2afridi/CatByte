@@ -135,7 +135,6 @@ import com.example.ui.theme.WashiTapeCorner
 import com.example.ui.theme.WashiTapeSticker
 import com.example.ui.theme.pencilHatching
 import com.example.ui.theme.sketchPencilBorder
-import com.example.viewmodel.ExportUiState
 
 @Composable
 fun CanvasRatioSheet(

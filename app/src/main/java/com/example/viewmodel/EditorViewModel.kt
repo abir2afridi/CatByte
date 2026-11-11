@@ -17,6 +17,8 @@ import com.example.data.MediaDurationFallback
 import com.example.data.MediaMetadata
 import com.example.data.MediaVideoInfo
 import com.example.data.ProjectRepository
+import com.example.export.ExportSettings
+import com.example.export.ExportUiState
 import com.example.data.PlayerRecoveryPolicy
 import com.example.data.ScrubFrameAccuracy
 import com.example.data.ScrubFrameLoader
@@ -107,23 +109,9 @@ enum class ActiveToolSheet {
     OPACITY,
     AI_TOOLS,
     TIMELINE_TOOLS,
-    BACKGROUND
+    BACKGROUND,
+    COVER_EDITOR
 }
-
-data class ExportUiState(
-    val isExporting: Boolean = false,
-    val progress: Float = 0f,
-    val stage: String = "",
-    val isCompleted: Boolean = false,
-    val resolution: String = "1080P",
-    val fps: Int = 30,
-    val videoPath: String = "",
-    val galleryUri: String = "",
-    /** Set when the render failed; the export sheet shows the reason. */
-    val error: String? = null,
-    /** Features that were approximated or skipped by the renderer. */
-    val warnings: List<String> = emptyList()
-)
 
 /**
  * Snapshot of the audio clip that drives beat detection. Comparing this value
@@ -3216,21 +3204,7 @@ class EditorViewModel(
     // ==========================================
     // Export settings (AI UHD dropdown)
     // ==========================================
-
-    /**
-     * CapCut-style export settings chosen in the AI UHD dropdown. They persist
-     * across dropdown open/close so a single click on Export starts the render
-     * with exactly the format the user pre-selected.
-     */
-    data class ExportSettings(
-        /** "video" or "gif" - which tab is active in the dropdown. */
-        val tab: String = "video",
-        val resolution: String = "720P",
-        val fps: Int = 30,
-        val bitrateMbps: Int = 10,
-        val gifQuality: String = "240P",
-        val watermarkPosition: String = "Upper left"
-    )
+    // The settings model lives in com.example.export.ExportSettings.
 
     private val _exportSettings = MutableStateFlow(ExportSettings())
     val exportSettings: StateFlow<ExportSettings> = _exportSettings.asStateFlow()

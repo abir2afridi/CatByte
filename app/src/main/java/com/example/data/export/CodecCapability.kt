@@ -122,7 +122,7 @@ object CodecCapabilityChecker {
         requestedResolution: String,
         fps: Int
     ): ResolvedTarget {
-        val requestedHeight = ExportPresets.heightFor(requestedResolution)
+        val requestedHeight = ExportResolution.heightFor(requestedResolution)
         // Never propose something LARGER than the user asked for, only smaller.
         val heights = (listOf(requestedHeight) + heightLadder.filter { it < requestedHeight })
             .distinct()

@@ -24,34 +24,6 @@ import kotlin.math.min
  * effects so that what the user sees in the preview is actually burned into the
  * exported MP4 file.
  */
-object ExportPresets {
-
-    /** Target height (in pixels) for the exported video. */
-    fun heightFor(resolution: String): Int = when (resolution.uppercase().replace(" ", "")) {
-        "360P" -> 360
-        "480P" -> 480
-        "540P" -> 540
-        "720P" -> 720
-        "1080P" -> 1080
-        "2K", "1440P" -> 1440
-        "4K", "2160P" -> 2160
-        else -> 1080
-    }
-
-    /** Output frame size for the given aspect ratio and resolution. */
-    fun outputSize(ratio: AspectRatioType, resolution: String): Pair<Int, Int> =
-        outputSizeForHeight(ratio, heightFor(resolution))
-
-    /** Output frame size for an explicit height, rounded down to even dimensions. */
-    fun outputSizeForHeight(ratio: AspectRatioType, height: Int): Pair<Int, Int> {
-        val safeHeight = height.coerceAtLeast(2)
-        val width = (safeHeight * ratio.ratioWidth / ratio.ratioHeight).toInt()
-        return Pair(
-            (width - (width % 2)).coerceAtLeast(2),
-            (safeHeight - (safeHeight % 2)).coerceAtLeast(2)
-        )
-    }
-}
 
 /**
  * Applies the per-channel HSL adjustments to the colour grade.

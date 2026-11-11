@@ -18,6 +18,8 @@ import com.example.data.export.CodecCapabilityChecker
 import com.example.engine.AudioMath
 import com.example.engine.ExportPresets as EngineExportPresets
 import com.example.engine.ExportQuality
+import com.example.export.ExportOutput
+import com.example.export.ExportProgress
 import com.example.model.VideoProject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -42,25 +44,7 @@ import kotlin.coroutines.resume
 @UnstableApi
 class ExportManager(private val context: Context) {
 
-    data class ExportProgress(
-        val progress: Float = 0f,
-        val stage: String = "",
-        val isDone: Boolean = false,
-        val outputPath: String? = null,
-        val galleryUri: Uri? = null,
-        val error: String? = null,
-        val isCancelled: Boolean = false,
-        /** Features that could not be rendered exactly (never silently dropped). */
-        val warnings: List<String> = emptyList()
-    )
-
-    data class ExportOutput(
-        val file: File,
-        val galleryUri: Uri?,
-        val durationMs: Long,
-        val width: Int,
-        val height: Int
-    )
+    // Render models (ExportProgress / ExportOutput) live in com.example.export.
 
     private val _progress = MutableStateFlow(ExportProgress())
     val progress: StateFlow<ExportProgress> = _progress.asStateFlow()

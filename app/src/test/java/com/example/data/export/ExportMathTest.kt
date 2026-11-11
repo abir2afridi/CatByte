@@ -17,22 +17,22 @@ class ExportMathTest {
 
     @Test
     fun `heightFor maps all known labels`() {
-        assertEquals(360, ExportPresets.heightFor("360P"))
-        assertEquals(480, ExportPresets.heightFor("480P"))
-        assertEquals(540, ExportPresets.heightFor("540P"))
-        assertEquals(720, ExportPresets.heightFor("720P"))
-        assertEquals(1080, ExportPresets.heightFor("1080P"))
-        assertEquals(1080, ExportPresets.heightFor("1080p"))
-        assertEquals(1080, ExportPresets.heightFor("1080"))
-        assertEquals(1440, ExportPresets.heightFor("2K"))
-        assertEquals(2160, ExportPresets.heightFor("2160P"))
-        assertEquals(2160, ExportPresets.heightFor("4K"))
-        assertEquals(1080, ExportPresets.heightFor("garbage"))
+        assertEquals(360, ExportResolution.heightFor("360P"))
+        assertEquals(480, ExportResolution.heightFor("480P"))
+        assertEquals(540, ExportResolution.heightFor("540P"))
+        assertEquals(720, ExportResolution.heightFor("720P"))
+        assertEquals(1080, ExportResolution.heightFor("1080P"))
+        assertEquals(1080, ExportResolution.heightFor("1080p"))
+        assertEquals(1080, ExportResolution.heightFor("1080"))
+        assertEquals(1440, ExportResolution.heightFor("2K"))
+        assertEquals(2160, ExportResolution.heightFor("2160P"))
+        assertEquals(2160, ExportResolution.heightFor("4K"))
+        assertEquals(1080, ExportResolution.heightFor("garbage"))
     }
 
     @Test
     fun `outputSize keeps every dimension even`() {
-        val (width, height) = ExportPresets.outputSize(AspectRatioType.RATIO_9_16, "1080P")
+        val (width, height) = ExportResolution.outputSize(AspectRatioType.RATIO_9_16, "1080P")
         assertEquals(0, width % 2)
         assertEquals(0, height % 2)
         assertEquals(1080, height)
@@ -42,17 +42,17 @@ class ExportMathTest {
 
     @Test
     fun `outputSize for 16x9 at 1080p is exactly 1920x1080`() {
-        assertEquals(1920 to 1080, ExportPresets.outputSize(AspectRatioType.RATIO_16_9, "1080P"))
+        assertEquals(1920 to 1080, ExportResolution.outputSize(AspectRatioType.RATIO_16_9, "1080P"))
     }
 
     @Test
     fun `outputSize for square 720p`() {
-        assertEquals(720 to 720, ExportPresets.outputSize(AspectRatioType.RATIO_1_1, "720P"))
+        assertEquals(720 to 720, ExportResolution.outputSize(AspectRatioType.RATIO_1_1, "720P"))
     }
 
     @Test
     fun `outputSize for 4x5 keeps the aspect`() {
-        val (width, height) = ExportPresets.outputSize(AspectRatioType.RATIO_4_5, "1080P")
+        val (width, height) = ExportResolution.outputSize(AspectRatioType.RATIO_4_5, "1080P")
         assertEquals(864, width)
         assertEquals(1080, height)
     }

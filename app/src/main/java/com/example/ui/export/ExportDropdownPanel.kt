@@ -1,4 +1,4 @@
-package com.example.ui.components
+package com.example.ui.export
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,23 +16,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import com.example.model.AspectRatioType
-import com.example.viewmodel.EditorViewModel
+import com.example.export.ExportSettings
 
 /**
  * The CapCut-style dropdown body that expands under the editor top bar when
  * the user taps "AI UHD": video / GIF export settings. Selections live in
- * [EditorViewModel.ExportSettings], so the Export button next to the chip
- * starts the render with exactly what was pre-selected. The caller animates
- * the panel in/out (expand + fade) around this content.
+ * [ExportSettings], so the Export button next to the chip starts the render
+ * with exactly what was pre-selected. The caller animates the panel in/out
+ * (expand + fade) around this content; the settings themselves live in
+ * [ExportSettingsContent] and its per-feature files.
  */
 @Composable
 internal fun ExportDropdownPanel(
-    settings: EditorViewModel.ExportSettings,
+    settings: ExportSettings,
     watermarkEnabled: Boolean,
-    currentAspectRatio: AspectRatioType,
+    currentAspectRatio: com.example.model.AspectRatioType,
     projectLengthMs: Long,
-    onUpdateSettings: (EditorViewModel.ExportSettings) -> Unit,
+    onUpdateSettings: (ExportSettings) -> Unit,
     onToggleWatermark: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
