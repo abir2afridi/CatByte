@@ -2,10 +2,12 @@ package com.example.data
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import androidx.annotation.WorkerThread
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -51,25 +53,35 @@ class ScrubFrameLoader(
     /**
      * Access-ordered cache: the retriever for the clip under the playhead is
      * reused across frames, which avoids re-opening the file for every seek.
+     * The source's rotation metadata is read once per file and cached with it.
      */
-    private val retrievers = object : LinkedHashMap<String, MediaMetadataRetriever>(
+    private val sources = object : LinkedHashMap<String, SourceHandle>(
         maxCachedRetrievers.coerceAtLeast(1),
         0.75f,
         true
     ) {
         override fun removeEldestEntry(
-            eldest: MutableMap.MutableEntry<String, MediaMetadataRetriever>
+            eldest: MutableMap.MutableEntry<String, SourceHandle>
         ): Boolean {
             if (size <= maxCachedRetrievers) return false
-            runCatching { eldest.value.release() }
+            runCatching { eldest.value.retriever.release() }
             return true
         }
     }
 
+    /** One open source file plus the orientation metadata read from it. */
+    private class SourceHandle(
+        val retriever: MediaMetadataRetriever,
+        val rotationDegrees: Int,
+        val rawWidth: Int,
+        val rawHeight: Int
+    )
+
     /**
      * Returns the source frame at [ScrubFrameResolver.FrameSource.sourceTimeMs],
      * or null when the file cannot be read. The bitmap is scaled so its longest
-     * edge is at most [maxDimensionPx] while keeping the source aspect ratio.
+     * edge is at most [maxDimensionPx] while keeping the source aspect ratio,
+     * and it is rotated the way the preview player rotates it.
      */
     @WorkerThread
     fun load(
@@ -77,28 +89,32 @@ class ScrubFrameLoader(
         source: ScrubFrameResolver.FrameSource,
         accuracy: ScrubFrameAccuracy = ScrubFrameAccuracy.EXACT
     ): Bitmap? {
-        val retriever = retrieverFor(context, source.uriString) ?: return null
+        val handle = sourceFor(context, source.uriString) ?: return null
         val durationUs = source.sourceDurationMs.coerceAtLeast(1L) * 1000L
         val timeUs = (source.sourceTimeMs.coerceAtLeast(0L) * 1000L)
             .coerceIn(0L, durationUs - 1L)
 
-        val frame = decodeFrame(retriever, timeUs, accuracy)
+        val frame = decodeFrame(handle.retriever, timeUs, accuracy)
         if (frame == null) {
             // A retriever that failed once may be wedged on a broken file; drop
             // it so the next request starts from a clean decoder.
-            retrievers.remove(source.uriString)?.let { runCatching { it.release() } }
+            sources.remove(source.uriString)?.let { runCatching { it.retriever.release() } }
+            return null
         }
-        return frame
+        // Orientation first (the source's rotation metadata), then the clip's
+        // own transform — the same order the composition player uses.
+        val oriented = orientFrame(frame, handle)
+        return applyClipTransform(oriented, source.transform)
     }
 
     /** Releases every cached decoder. Call when the editor is destroyed. */
     fun clear() {
-        retrievers.values.forEach { runCatching { it.release() } }
-        retrievers.clear()
+        sources.values.forEach { runCatching { it.retriever.release() } }
+        sources.clear()
     }
 
-    private fun retrieverFor(context: Context, uriString: String): MediaMetadataRetriever? {
-        retrievers[uriString]?.let { return it }
+    private fun sourceFor(context: Context, uriString: String): SourceHandle? {
+        sources[uriString]?.let { return it }
         val retriever = MediaMetadataRetriever()
         return try {
             val uri = Uri.parse(uriString)
@@ -111,12 +127,112 @@ class ScrubFrameLoader(
 
                 else -> retriever.setDataSource(context, uri)
             }
-            retrievers[uriString] = retriever
-            retriever
+            val handle = SourceHandle(
+                retriever = retriever,
+                rotationDegrees = retriever.rotationDegrees(),
+                rawWidth = retriever.metadataInt(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH),
+                rawHeight = retriever.metadataInt(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+            )
+            sources[uriString] = handle
+            handle
         } catch (e: Exception) {
             runCatching { retriever.release() }
             AppLog.warn(TAG, "Cannot open scrub frame source $uriString", e)
             null
+        }
+    }
+
+    private fun MediaMetadataRetriever.rotationDegrees(): Int =
+        metadataInt(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
+
+    private fun MediaMetadataRetriever.metadataInt(key: Int): Int =
+        runCatching { extractMetadata(key)?.trim()?.toIntOrNull() ?: 0 }.getOrDefault(0)
+
+    /**
+     * Rotates the decoded frame into the orientation the preview player shows.
+     *
+     * The composition player applies the source's rotation metadata; the
+     * retriever does not. Without this the preview would flip to the raw
+     * (usually landscape) orientation the moment the scrub overlay appears.
+     */
+    private fun orientFrame(frame: Bitmap, handle: SourceHandle): Bitmap {
+        val rotation = ScrubFrameOrientation.normalizedRotation(handle.rotationDegrees)
+        if (rotation == 0) return frame
+        if (!ScrubFrameOrientation.needsRotation(
+                rotationDegrees = rotation,
+                frameWidth = frame.width,
+                frameHeight = frame.height,
+                rawWidth = handle.rawWidth,
+                rawHeight = handle.rawHeight
+            )
+        ) {
+            return frame
+        }
+        val matrix = Matrix()
+        matrix.postRotate(rotation.toFloat())
+        return runCatching {
+            val rotated = Bitmap.createBitmap(
+                frame,
+                0,
+                0,
+                frame.width,
+                frame.height,
+                matrix,
+                true
+            )
+            if (rotated !== frame) frame.recycle()
+            rotated
+        }.getOrElse {
+            // A hardware bitmap cannot be transformed: keep the raw frame
+            // rather than losing the picture entirely.
+            frame
+        }
+    }
+
+    /**
+     * Applies the clip's own transform (scale, rotation, mirror, position) to
+     * the decoded frame.
+     *
+     * The composition player applies the same transform before it scales the
+     * video into the canvas, so drawing the transformed frame with
+     * `ContentScale.Fit` reproduces the preview exactly. The pivot is the frame
+     * centre and the position offset is relative to the frame size, mirroring
+     * `ClipTransformEffect`'s NDC maths.
+     */
+    private fun applyClipTransform(
+        frame: Bitmap,
+        transform: ScrubFrameResolver.ClipTransform
+    ): Bitmap {
+        if (transform.isIdentity) return frame
+        val centerX = frame.width / 2f
+        val centerY = frame.height / 2f
+        val scaleX = if (transform.mirrored) -transform.scale else transform.scale
+        val matrix = Matrix()
+        matrix.setScale(scaleX, transform.scale, centerX, centerY)
+        if (abs(transform.rotationDegrees) > 0.001f) {
+            matrix.postRotate(transform.rotationDegrees, centerX, centerY)
+        }
+        val translateX = (transform.posX - 0.5f) * frame.width
+        val translateY = (0.5f - transform.posY) * frame.height
+        if (abs(translateX) > 0.01f || abs(translateY) > 0.01f) {
+            matrix.postTranslate(translateX, translateY)
+        }
+        return runCatching {
+            val transformed = Bitmap.createBitmap(
+                frame,
+                0,
+                0,
+                frame.width,
+                frame.height,
+                matrix,
+                true
+            )
+            if (transformed !== frame) frame.recycle()
+            transformed
+        }.getOrElse {
+            // A hardware bitmap cannot be transformed: keep the raw frame
+            // rather than losing the picture entirely.
+            frame
         }
     }
 

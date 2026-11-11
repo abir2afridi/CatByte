@@ -14,6 +14,32 @@ import com.example.model.VideoProject
  */
 object ScrubFrameResolver {
 
+    /**
+     * The clip transform the preview player applies to the source video.
+     *
+     * Mirrored from `ProjectCompositionFactory.ClipTransformEffect` so the
+     * extracted scrub frame is drawn with the same geometry as the composed
+     * preview. Without it a rotated or scaled clip changed shape the moment
+     * the scrub overlay appeared.
+     */
+    data class ClipTransform(
+        val scale: Float = 1f,
+        val rotationDegrees: Float = 0f,
+        val mirrored: Boolean = false,
+        /** Horizontal position, 0 = left edge, 1 = right edge. */
+        val posX: Float = 0.5f,
+        /** Vertical position, 0 = top edge, 1 = bottom edge. */
+        val posY: Float = 0.5f
+    ) {
+        /** True when the frame can be drawn unchanged. */
+        val isIdentity: Boolean
+            get() = !mirrored &&
+                kotlin.math.abs(scale - 1f) < 0.001f &&
+                kotlin.math.abs(rotationDegrees) < 0.001f &&
+                kotlin.math.abs(posX - 0.5f) < 0.001f &&
+                kotlin.math.abs(posY - 0.5f) < 0.001f
+    }
+
     /** One source frame request: which file to read and where inside it. */
     data class FrameSource(
         val clipId: String,
@@ -21,7 +47,9 @@ object ScrubFrameResolver {
         /** Position inside the source media, already accounting for trim + speed. */
         val sourceTimeMs: Long,
         /** Full source length, used to clamp the request inside the file. */
-        val sourceDurationMs: Long
+        val sourceDurationMs: Long,
+        /** Transform the preview player applies to this clip. */
+        val transform: ClipTransform = ClipTransform()
     )
 
     /**
@@ -34,10 +62,10 @@ object ScrubFrameResolver {
         val positionMs = timelineMs.coerceAtLeast(0L)
 
         mainClipAt(project, positionMs)?.let { (clip, localMs) ->
-            frameSource(clip, localMs)?.let { return it }
+            frameSource(clip, localMs, isOverlay = false)?.let { return it }
         }
         overlayClipAt(project, positionMs)?.let { (clip, localMs) ->
-            frameSource(clip, localMs)?.let { return it }
+            frameSource(clip, localMs, isOverlay = true)?.let { return it }
         }
         return null
     }
@@ -73,7 +101,11 @@ object ScrubFrameResolver {
         return null
     }
 
-    private fun frameSource(clip: MediaClip, localMs: Long): FrameSource? {
+    private fun frameSource(
+        clip: MediaClip,
+        localMs: Long,
+        isOverlay: Boolean
+    ): FrameSource? {
         val uri = clip.uriString?.takeIf { it.isNotBlank() } ?: return null
         val sourceDurationMs = clip.originalDurationMs.coerceAtLeast(1L)
         val sourceOffsetMs = ClipTiming.sourceOffsetForOutputMs(clip, localMs)
@@ -83,7 +115,37 @@ object ScrubFrameResolver {
             clipId = clip.id,
             uriString = uri,
             sourceTimeMs = sourceTimeMs,
-            sourceDurationMs = sourceDurationMs
+            sourceDurationMs = sourceDurationMs,
+            transform = transformOf(clip, localMs, isOverlay)
+        )
+    }
+
+    /**
+     * The transform the preview player applies to this clip.
+     *
+     * Main track: the full keyframe-aware transform (scale, rotation, mirror,
+     * position) of `ProjectCompositionFactory.ClipTransformEffect`. Overlay
+     * (PIP) clips only get mirrored/rotated — their position is handled by the
+     * compositor, not by the clip effect.
+     */
+    private fun transformOf(
+        clip: MediaClip,
+        localMs: Long,
+        isOverlay: Boolean
+    ): ClipTransform {
+        if (isOverlay) {
+            return ClipTransform(
+                scale = 1f,
+                rotationDegrees = clip.rotation,
+                mirrored = clip.isMirrored
+            )
+        }
+        return ClipTransform(
+            scale = KeyframeInterpolator.getScale(clip, localMs).coerceAtLeast(0.01f),
+            rotationDegrees = KeyframeInterpolator.getRotation(clip, localMs),
+            mirrored = clip.isMirrored,
+            posX = KeyframeInterpolator.getPosX(clip, localMs).coerceIn(0f, 1f),
+            posY = KeyframeInterpolator.getPosY(clip, localMs).coerceIn(0f, 1f)
         )
     }
 }
