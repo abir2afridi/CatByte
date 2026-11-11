@@ -368,7 +368,7 @@ private fun HomeTopBar(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
                     .background(colors.surfaceElevated)
-                    .border(1.2.dp, colors.border, RoundedCornerShape(6.dp))
+                    .border(0.8.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
                     .padding(horizontal = 7.dp, vertical = 2.dp)
             ) {
                 Text(
@@ -392,7 +392,7 @@ private fun HomeTopBar(
                     .size(38.dp)
                     .clip(CircleShape)
                     .background(colors.surfaceElevated)
-                    .border(1.2.dp, colors.border, CircleShape)
+                    .border(0.8.dp, colors.borderSubtle, CircleShape)
                     .testTag("home_settings_button")
             ) {
                 Icon(
@@ -428,12 +428,12 @@ private fun HeroNewProjectSection(
         Box(
             modifier = Modifier
                 .weight(1.8f)
-                .height(135.dp)
+                .height(130.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(if (!colors.isPencilSketch) colors.surfaceVariant else colors.surface)
+                .background(colors.surface)
                 .border(
-                    width = 1.5.dp,
-                    color = if (!colors.isPencilSketch) colors.accentCyan.copy(alpha = 0.5f) else colors.border,
+                    width = 1.dp,
+                    color = colors.borderSubtle,
                     shape = RoundedCornerShape(16.dp)
                 )
                 .clickable { onNewProjectClick() }
@@ -451,17 +451,17 @@ private fun HeroNewProjectSection(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(46.dp)
+                            .size(44.dp)
                             .clip(CircleShape)
-                            .background(if (!colors.isPencilSketch) colors.accentCyan else colors.surfaceElevated)
-                            .border(1.6.dp, if (!colors.isPencilSketch) colors.accentCyan else colors.border, CircleShape),
+                            .background(colors.surfaceElevated)
+                            .border(1.dp, colors.borderSubtle, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "New Project",
-                            tint = if (!colors.isPencilSketch) Color.Black else colors.textPrimary,
-                            modifier = Modifier.size(28.dp)
+                            tint = colors.textPrimary,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
 
@@ -469,7 +469,7 @@ private fun HeroNewProjectSection(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(colors.surfaceElevated)
-                            .border(1.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
+                            .border(0.8.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
                             .padding(horizontal = 7.dp, vertical = 3.dp)
                     ) {
                         Text(
@@ -485,7 +485,7 @@ private fun HeroNewProjectSection(
                     Text(
                         text = "New Project",
                         color = colors.textPrimary,
-                        fontSize = 18.sp,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
@@ -501,10 +501,10 @@ private fun HeroNewProjectSection(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(135.dp)
+                .height(130.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(colors.surfaceVariant)
-                .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(16.dp))
+                .background(colors.surface)
+                .border(1.dp, colors.borderSubtle, RoundedCornerShape(16.dp))
                 .clickable { 
                     Toast.makeText(context, context.getString(R.string.camera_prompter_not_implemented), Toast.LENGTH_SHORT).show()
                 }
@@ -517,17 +517,17 @@ private fun HeroNewProjectSection(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(colors.surfaceElevated)
-                        .border(1.3.dp, colors.borderSubtle, CircleShape),
+                        .border(0.8.dp, colors.borderSubtle, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.CameraAlt,
                         contentDescription = "Camera",
                         tint = colors.textPrimary,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
                 Spacer(modifier = Modifier.height(10.dp))
@@ -554,7 +554,6 @@ private fun HeroNewProjectSection(
 private data class QuickToolItem(
     val icon: ImageVector,
     val label: String,
-    val tint: Color,
     val tool: QuickTool
 )
 
@@ -562,24 +561,24 @@ private data class QuickToolItem(
 private fun QuickToolsRow(onQuickTool: (QuickTool) -> Unit) {
     val colors = PencilTheme.colors
     val tools = listOf(
-        QuickToolItem(Icons.Default.Subtitles, "Captions", colors.accentYellow, QuickTool.CAPTIONS),
-        QuickToolItem(Icons.Default.AutoAwesome, "Canvas", colors.accentPink, QuickTool.CANVAS),
-        QuickToolItem(Icons.Default.Speed, "Velocity", colors.accentCyan, QuickTool.VELOCITY),
-        QuickToolItem(Icons.Default.GraphicEq, "Audio", colors.accentGreen, QuickTool.AUDIO),
-        QuickToolItem(Icons.Default.VolumeUp, "Extract", colors.accentPurple, QuickTool.EXTRACT_AUDIO),
-        QuickToolItem(Icons.Default.VideoLibrary, "Keyframes", colors.accentRed, QuickTool.KEYFRAMES)
+        QuickToolItem(Icons.Default.Subtitles, "Captions", QuickTool.CAPTIONS),
+        QuickToolItem(Icons.Default.AutoAwesome, "Canvas", QuickTool.CANVAS),
+        QuickToolItem(Icons.Default.Speed, "Velocity", QuickTool.VELOCITY),
+        QuickToolItem(Icons.Default.GraphicEq, "Audio", QuickTool.AUDIO),
+        QuickToolItem(Icons.Default.VolumeUp, "Extract", QuickTool.EXTRACT_AUDIO),
+        QuickToolItem(Icons.Default.VideoLibrary, "Keyframes", QuickTool.KEYFRAMES)
     )
 
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        items(tools) { (icon, name, tintColor, tool) ->
+        items(tools) { (icon, name, tool) ->
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .width(68.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .width(64.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .clickable { onQuickTool(tool) }
             ) {
                 Box(
@@ -587,21 +586,21 @@ private fun QuickToolsRow(onQuickTool: (QuickTool) -> Unit) {
                         .size(52.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(colors.surface)
-                        .border(1.3.dp, colors.border, RoundedCornerShape(14.dp)),
+                        .border(1.dp, colors.borderSubtle, RoundedCornerShape(14.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = name,
-                        tint = tintColor,
-                        modifier = Modifier.size(24.dp)
+                        tint = colors.textPrimary,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = name,
                     color = colors.textPrimary,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -631,22 +630,22 @@ private fun ProjectCardItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(colors.surface)
-                .border(1.6.dp, colors.border, RoundedCornerShape(14.dp))
+                .border(0.8.dp, colors.borderSubtle, RoundedCornerShape(12.dp))
                 .clickable { onSelect() }
                 .padding(10.dp)
                 .testTag("project_item_${project.id}"),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
-        // Thumbnail with border
+        // Thumbnail with subtle border
         Box(
             modifier = Modifier
                 .size(width = 84.dp, height = 76.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(colors.surfaceElevated)
-                .border(1.2.dp, colors.border, RoundedCornerShape(8.dp))
+                .border(0.8.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
         ) {
             if (project.thumbnailResId != null) {
                 Image(
@@ -666,7 +665,7 @@ private fun ProjectCardItem(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = "Project",
                         tint = colors.textPrimary,
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }
@@ -676,7 +675,7 @@ private fun ProjectCardItem(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .clip(RoundedCornerShape(topEnd = 6.dp))
-                    .background(colors.border.copy(alpha = 0.9f))
+                    .background(Color.Black.copy(alpha = 0.65f))
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
                 Text(
@@ -1162,10 +1161,10 @@ private fun ProjectSearchAndFilterBar(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(if (isSelected) colors.border else colors.surface)
+                        .background(if (isSelected) colors.surfaceElevated else colors.surface)
                         .border(
-                            width = 1.2.dp,
-                            color = if (isSelected) colors.border else colors.borderSubtle,
+                            width = 0.8.dp,
+                            color = if (isSelected) colors.accentCyan else colors.borderSubtle,
                             shape = RoundedCornerShape(20.dp)
                         )
                         .clickable { onSelectFilter(index) }
@@ -1173,7 +1172,7 @@ private fun ProjectSearchAndFilterBar(
                 ) {
                     Text(
                         text = label,
-                        color = if (isSelected) (if (colors.isLight) Color.White else Color.Black) else colors.textPrimary,
+                        color = if (isSelected) colors.accentCyan else colors.textPrimary,
                         fontSize = 11.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     )
