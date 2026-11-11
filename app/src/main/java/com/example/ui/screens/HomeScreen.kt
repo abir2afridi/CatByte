@@ -121,6 +121,7 @@ fun HomeScreen(
     onCreateCustomProject: (title: String, ratio: AspectRatioType, paperStyle: String) -> Unit = { _, _, _ -> },
     onToggleFavorite: (String) -> Unit = {},
     onAddMediaClips: (List<Uri>) -> Unit,
+    onOpenCamera: () -> Unit = {},
     onDuplicateProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
     onRestoreProject: (VideoProject) -> Unit = {}, // NEW: undo delete
@@ -212,7 +213,7 @@ fun HomeScreen(
                                 Box(modifier = Modifier.offset(y = (-20).dp)) {
                                     HeroNewProjectSection(
                                         onNewProjectClick = { showNewProjectDialog = true },
-                                        onQuickCamera = { showNewProjectDialog = true }
+                                        onQuickCamera = onOpenCamera
                                     )
                                 }
                             }
@@ -536,7 +537,6 @@ private fun HeroNewProjectSection(
     onQuickCamera: () -> Unit
 ) {
     val colors = PencilTheme.colors
-    val context = LocalContext.current
 
     Row(
         modifier = Modifier
@@ -625,9 +625,7 @@ private fun HeroNewProjectSection(
                 .clip(RoundedCornerShape(16.dp))
                 .background(colors.surface)
                 .border(1.dp, colors.borderSubtle, RoundedCornerShape(16.dp))
-                .clickable { 
-                    Toast.makeText(context, context.getString(R.string.camera_prompter_not_implemented), Toast.LENGTH_SHORT).show()
-                }
+                .clickable { onQuickCamera() }
                 .padding(14.dp),
             contentAlignment = Alignment.Center
         ) {

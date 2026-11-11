@@ -29,6 +29,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.LocaleUtils
 import com.example.model.AspectRatioType
+import com.example.ui.screens.CameraCaptureScreen
 import com.example.ui.screens.EditorScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.QuickTool
@@ -45,6 +46,7 @@ import com.example.viewmodel.EditorViewModelFactory
 enum class AppScreen {
     SPLASH,
     HOME,
+    CAMERA,
     EDITOR,
     SETTINGS,
     SETTINGS_LOGS
@@ -253,7 +255,28 @@ fun CapCutApp(
                         viewModel.restoreProject(project)
                     },
                     onQuickTool = handleQuickTool,
+                    onOpenCamera = {
+                        com.example.data.AppLog.info("Camera", "Home Camera tapped -> opening capture screen")
+                        currentScreen = AppScreen.CAMERA
+                    },
                     onOpenSettings = { navigateToSettings() }
+                )
+            }
+            AppScreen.CAMERA -> {
+                CameraCaptureScreen(
+                    onBack = { currentScreen = AppScreen.HOME },
+                    onMediaCaptured = { uri ->
+                        // Shoot & Edit: start a fresh project, import the real
+                        // photo/video and jump straight into the editor.
+                        com.example.data.AppLog.info("Camera", "Importing captured media: $uri")
+                        viewModel.createNewProject()
+                        viewModel.importMultipleUris(
+                            listOf(uri.toString()),
+                            listOf("Camera clip")
+                        ) {
+                            currentScreen = AppScreen.EDITOR
+                        }
+                    }
                 )
             }
             AppScreen.EDITOR -> {
