@@ -14,6 +14,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -169,15 +171,19 @@ fun HomeScreen(
         }
     }
 
+    val lazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val scrollOffsetProvider = remember(lazyListState) {
+        {
+            if (lazyListState.firstVisibleItemIndex > 0) 1000f
+            else lazyListState.firstVisibleItemScrollOffset.toFloat()
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
-            .statusBarsPadding()
     ) {
-        // 1. Top Bar
-        HomeTopBar(onOpenSettings = onOpenSettings)
-
         // Content Area
         Column(
             modifier = Modifier
@@ -186,23 +192,36 @@ fun HomeScreen(
         ) {
             when (selectedBottomNav) {
                 0 -> {
-                    // "Edit" Tab: Hero New Project + Quick Tools + Projects
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 16.dp)
-                    ) {
-                        // Hero "New Project" Card
-                        item {
-                            HeroNewProjectSection(
-                                onNewProjectClick = { showNewProjectDialog = true },
-                                onQuickCamera = { showNewProjectDialog = true }
-                            )
-                        }
+                    // "Edit" Tab: Parallax Cover Video Header + Hero New Project + Quick Tools + Projects
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        LazyColumn(
+                            state = lazyListState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(bottom = 16.dp)
+                        ) {
+                            // Top Cover Video Banner (catbyte.mp4 at y = 0)
+                            item {
+                                CoverVideoHeaderSection(
+                                    scrollOffsetProvider = scrollOffsetProvider,
+                                    onOpenSettings = onOpenSettings
+                                )
+                            }
+
+                            // Hero "New Project" Card overlapping cover video bottom edge
+                            item {
+                                Box(modifier = Modifier.offset(y = (-20).dp)) {
+                                    HeroNewProjectSection(
+                                        onNewProjectClick = { showNewProjectDialog = true },
+                                        onQuickCamera = { showNewProjectDialog = true }
+                                    )
+                                }
+                            }
 
                         // Quick Tools Tiles
                         item {
-                            Spacer(modifier = Modifier.height(18.dp))
-                            QuickToolsRow(onQuickTool = onQuickTool)
+                            Box(modifier = Modifier.offset(y = (-10).dp)) {
+                                QuickToolsRow(onQuickTool = onQuickTool)
+                            }
                         }
 
                         // Search & Filter Bar
@@ -258,11 +277,18 @@ fun HomeScreen(
                         }
                     }
                 }
+            }
                 1 -> {
-                    InboxTabContent(projects)
+                    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                        HomeTopBar(onOpenSettings = onOpenSettings)
+                        InboxTabContent(projects)
+                    }
                 }
                 2 -> {
-                    ProfileTabContent(projects, onOpenSettings = onOpenSettings)
+                    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                        HomeTopBar(onOpenSettings = onOpenSettings)
+                        ProfileTabContent(projects, onOpenSettings = onOpenSettings)
+                    }
                 }
             }
         }
@@ -339,9 +365,11 @@ fun HomeScreen(
 
 @Composable
 private fun HomeTopBar(
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    isOverlay: Boolean = false
 ) {
     val colors = PencilTheme.colors
+    val textColor = if (isOverlay) Color.White else colors.textPrimary
 
     Row(
         modifier = Modifier
@@ -358,7 +386,7 @@ private fun HomeTopBar(
         ) {
             Text(
                 text = "CatByte",
-                color = colors.textPrimary,
+                color = textColor,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Black,
                 letterSpacing = (-0.5).sp
@@ -367,13 +395,13 @@ private fun HomeTopBar(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
-                    .background(colors.surfaceElevated)
-                    .border(0.8.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
+                    .background(if (isOverlay) Color.Black.copy(alpha = 0.4f) else colors.surfaceElevated)
+                    .border(0.8.dp, if (isOverlay) Color.White.copy(alpha = 0.3f) else colors.borderSubtle, RoundedCornerShape(6.dp))
                     .padding(horizontal = 7.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = if (colors.isLight) "LIGHT" else "DARK",
-                    color = colors.textPrimary,
+                    color = textColor,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -391,17 +419,109 @@ private fun HomeTopBar(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(CircleShape)
-                    .background(colors.surfaceElevated)
-                    .border(0.8.dp, colors.borderSubtle, CircleShape)
+                    .background(if (isOverlay) Color.Black.copy(alpha = 0.4f) else colors.surfaceElevated)
+                    .border(0.8.dp, if (isOverlay) Color.White.copy(alpha = 0.3f) else colors.borderSubtle, CircleShape)
                     .testTag("home_settings_button")
             ) {
                 Icon(
                     imageVector = Icons.Default.Settings,
                     contentDescription = "Settings",
-                    tint = colors.textPrimary,
+                    tint = textColor,
                     modifier = Modifier.size(19.dp)
                 )
             }
+        }
+    }
+}
+
+// ==========================================
+// Cover Video Header Section (catbyte.mp4)
+// ==========================================
+
+@OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
+private fun CoverVideoHeaderSection(
+    scrollOffsetProvider: () -> Float = { 0f },
+    onOpenSettings: () -> Unit
+) {
+    val colors = PencilTheme.colors
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val maxScrollPx = with(density) { 180.dp.toPx() }
+
+    val coverPlayer = remember(context) {
+        androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+            repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+            volume = 0f
+            val assetUri = Uri.parse("asset:///cover/catbyte.mp4")
+            val localFile = java.io.File("D:/GitHub Project/CatByte/asset/cover/catbyte.mp4")
+            val targetUri = if (localFile.exists()) {
+                Uri.fromFile(localFile)
+            } else {
+                assetUri
+            }
+            setMediaItem(androidx.media3.common.MediaItem.fromUri(targetUri))
+            prepare()
+            playWhenReady = true
+        }
+    }
+
+    androidx.compose.runtime.DisposableEffect(coverPlayer) {
+        onDispose {
+            coverPlayer.release()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .graphicsLayer {
+                val offset = scrollOffsetProvider()
+                val fraction = (offset / maxScrollPx).coerceIn(0f, 1f)
+                translationY = -offset * 0.40f
+                alpha = (1f - fraction * 1.1f).coerceIn(0f, 1f)
+            }
+            .background(Color.Black)
+            .testTag("edit_page_cover_video")
+    ) {
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { ctx ->
+                androidx.media3.ui.PlayerView(ctx).apply {
+                    player = coverPlayer
+                    useController = false
+                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Subtle top gradient shadow for top bar readability
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.45f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
+        // Transparent Top Header Overlay (behind status bar)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+        ) {
+            HomeTopBar(
+                onOpenSettings = onOpenSettings,
+                isOverlay = true
+            )
         }
     }
 }

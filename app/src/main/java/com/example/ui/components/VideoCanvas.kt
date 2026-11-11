@@ -372,14 +372,19 @@ fun VideoCanvas(
             // the frame comes straight from the source file, so it must still
             // appear when the preview player itself has failed (which is exactly
             // when the error pill used to cover the screen).
+            //
+            // CROP, not Fit: the extracted bitmap is the RAW source frame and
+            // can have a different aspect ratio than the project canvas. Fit
+            // letterboxed it with black bars, which made the preview look
+            // zoomed out / aspect-changed while the timeline was scrolling.
+            // Cropping fills the exact-ratio canvas frame just like the normal
+            // video surface (RenderClipVisual also uses ContentScale.Crop).
             if (scrubImage != null) {
                 Image(
                     bitmap = scrubImage,
                     contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black)
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
 

@@ -67,6 +67,8 @@ object SampleDataProvider {
         "🎬", "🎨", "👀", "💯", "🎈", "🕶️"
     )
 
+    const val COVER_VIDEO_PATH = "D:/GitHub Project/CatByte/asset/cover/catbyte.mp4"
+
     fun getInitialProjects(): List<VideoProject> {
         return emptyList()
     }

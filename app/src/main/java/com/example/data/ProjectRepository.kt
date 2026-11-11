@@ -87,12 +87,29 @@ class ProjectRepository(context: Context? = null) {
         resolution: String = "1080P",
         fps: Int = 30
     ): VideoProject {
+        val coverPath = SampleDataProvider.COVER_VIDEO_PATH
+        val clipsToUse = if (initialClips.isEmpty()) {
+            listOf(
+                MediaClip(
+                    id = "clip_${UUID.randomUUID().toString().take(8)}",
+                    title = "CatByte Cover Video",
+                    uriString = coverPath,
+                    startTimelineMs = 0L,
+                    durationMs = 16000L,
+                    originalDurationMs = 16000L,
+                    filter = com.example.model.VideoFilter.NONE
+                )
+            )
+        } else {
+            initialClips
+        }
+
         val project = VideoProject(
             id = "proj_${UUID.randomUUID().toString().take(8)}",
             title = title,
             aspectRatio = aspectRatio,
             paperStyle = paperStyle,
-            clips = initialClips,
+            clips = clipsToUse,
             resolution = resolution,
             fps = fps,
             lastModified = System.currentTimeMillis()
