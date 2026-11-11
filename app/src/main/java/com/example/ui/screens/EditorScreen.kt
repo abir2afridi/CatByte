@@ -195,11 +195,18 @@ fun EditorScreen(
     var showFeatureSearch by remember { mutableStateOf(false) }
     var isPreviewFullscreen by remember { mutableStateOf(false) }
     var showExportDropdown by remember { mutableStateOf(false) }
+    var showExportOptionsBottomSheet by remember { mutableStateOf(false) }
 
     // Intercept back button if any sheet is open
     BackHandler {
         if (isPreviewFullscreen) {
             isPreviewFullscreen = false
+        } else if (showExportOptionsBottomSheet) {
+            showExportOptionsBottomSheet = false
+        } else if (showExportDropdown) {
+            // The AI UHD dropdown is the top-most overlay: Back closes it
+            // before anything else.
+            showExportDropdown = false
         } else if (activeSheet != ActiveToolSheet.NONE) {
             viewModel.setActiveSheet(ActiveToolSheet.NONE)
         } else if (showTtsDialog) {
@@ -381,16 +388,27 @@ fun EditorScreen(
                 onBack = onBackToHome,
                 onUndo = { viewModel.undo() },
                 onRedo = { viewModel.redo() },
-                onToggleExportDropdown = { showExportDropdown = !showExportDropdown },
+                onToggleExportDropdown = {
+                    val opening = !showExportDropdown
+                    showExportDropdown = opening
+                    if (opening && activeSheet != ActiveToolSheet.NONE) {
+                        // The export dropdown is a top overlay; close any open
+                        // bottom tool sheet so the two never overlap.
+                        viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                    }
+                },
                 onExportTabSelected = { tab ->
                     viewModel.updateExportSettings(exportSettings.copy(tab = tab))
                     showExportDropdown = true
+                    if (activeSheet != ActiveToolSheet.NONE) {
+                        viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                    }
                 },
                 // ONE click: export with the settings pre-selected in the
                 // AI UHD dropdown - no extra dialog.
                 onStartExport = {
                     showExportDropdown = false
-                    viewModel.startSelectedExport()
+                    showExportOptionsBottomSheet = true
                 },
                 onOpenSettings = onOpenSettings,
                 onSearch = { showFeatureSearch = true },
@@ -1039,12 +1057,13 @@ fun EditorScreen(
                 ActiveToolSheet.NONE -> {}
             }
         }
+        }
 
-        // Export dialog: shows render progress / completion automatically once
-        // an export starts (one-click from the top bar), or the full settings
-
-
-        // Floating AI UHD Animated Dropdown Panel Overlay (slides down directly below EditorTopBar over VideoCanvas)
+        // Floating AI UHD Animated Dropdown Panel Overlay (slides down directly below EditorTopBar over VideoCanvas).
+        // It MUST live directly under the root Box: nesting it inside the
+        // "a bottom tool sheet is open" branch made it invisible in the normal
+        // editor, so tapping "AI UHD" only flipped the chip without ever
+        // showing the export settings.
         if (!isPreviewFullscreen) {
             AnimatedVisibility(
                 visible = showExportDropdown,
@@ -1084,7 +1103,8 @@ fun EditorScreen(
 
         if (activeSheet == ActiveToolSheet.EXPORT_MODAL ||
             exportState.isExporting ||
-            exportState.isCompleted
+            exportState.isCompleted ||
+            exportState.error != null
         ) {
             ExportDialog(
                 exportState = exportState,
@@ -1107,7 +1127,6 @@ fun EditorScreen(
                 onShareExport = { platform -> viewModel.shareExportMessage(platform) }
             )
         }
-    }
 
     if (showFeatureSearch) {
         val searchEntries = listOf(

@@ -119,6 +119,8 @@ data class ExportUiState(
     val fps: Int = 30,
     val videoPath: String = "",
     val galleryUri: String = "",
+    /** Set when the render failed; the export sheet shows the reason. */
+    val error: String? = null,
     /** Features that were approximated or skipped by the renderer. */
     val warnings: List<String> = emptyList()
 )
@@ -3312,9 +3314,13 @@ class EditorViewModel(
                         warnings = renderWarnings
                     )
                 } else {
+                    // Keep the failure on screen: without an error flag the
+                    // export sheet closed silently and the user never learned
+                    // that the render had failed.
                     _exportState.value = _exportState.value.copy(
                         isExporting = false,
                         stage = exportManager.progress.value.error ?: "Export failed",
+                        error = exportManager.progress.value.error ?: "Export failed",
                         warnings = renderWarnings
                     )
                 }

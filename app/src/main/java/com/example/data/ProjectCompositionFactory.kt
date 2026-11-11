@@ -241,10 +241,18 @@ object ProjectCompositionFactory {
         compositionEffects += OverlayEffect(listOf(TimelineCanvasOverlay(project, watermarkEnabled)))
 
         val compositorSettings = ProjectCompositorSettings(width, height, overlayInputs)
-        val composition = Composition.Builder(sequences)
+        val compositionBuilder = Composition.Builder(sequences)
             .setEffects(Effects(emptyList(), compositionEffects))
-            .setVideoCompositorSettings(compositorSettings)
-            .build()
+        // Media3 only builds a VideoCompositor when MORE THAN ONE sequence
+        // carries a video track. With a single video track it uses
+        // SingleInputVideoGraph, which rejects any custom VideoCompositorSettings
+        // ("SingleInputVideoGraph does not use VideoCompositor...") and the
+        // export dies before it starts. The custom settings only describe the
+        // overlay (PIP) inputs, so they are only needed when overlays exist.
+        if (overlayInputs.isNotEmpty()) {
+            compositionBuilder.setVideoCompositorSettings(compositorSettings)
+        }
+        val composition = compositionBuilder.build()
 
         return Result(
             composition = composition,
