@@ -102,8 +102,8 @@ fun CapCutTimelineLeftGutter(
                 .fillMaxWidth(),
             contentAlignment = Alignment.CenterStart
         ) {
-            EditorTimecodeText(
-                currentPositionMs = currentPositionMs.value,
+            GutterTimecode(
+                currentPositionMs = currentPositionMs,
                 totalDurationMs = totalDurationMs
             )
         }
@@ -266,6 +266,22 @@ fun CapCutTimelineLeftGutter(
             }
         }
     }
+}
+
+/**
+ * Reads the playhead State inside its own scope, so a scrub tick recomposes
+ * only the timecode text instead of the whole gutter (buttons and cover card
+ * included). During a drag this runs dozens of times per second.
+ */
+@Composable
+private fun GutterTimecode(
+    currentPositionMs: State<Long>,
+    totalDurationMs: Long
+) {
+    EditorTimecodeText(
+        currentPositionMs = currentPositionMs.value,
+        totalDurationMs = totalDurationMs
+    )
 }
 
 /** Legacy support for unit tests and multi-track toggle bars */

@@ -1,6 +1,7 @@
 package com.example.viewmodel
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -17,6 +18,10 @@ import com.example.data.MediaMetadata
 import com.example.data.MediaVideoInfo
 import com.example.data.ProjectRepository
 import com.example.data.PlayerRecoveryPolicy
+import com.example.data.ScrubFrameAccuracy
+import com.example.data.ScrubFrameLoader
+import com.example.data.ScrubFrameResolver
+import com.example.data.ScrubPreviewFrame
 import com.example.data.SettingsRepository
 import com.example.data.SpeechSynthesizer
 import com.example.data.VoiceRecorder
@@ -59,6 +64,8 @@ import com.example.engine.TimelineEdits
 import com.example.engine.UndoJournal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -71,6 +78,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.Executors
 
 enum class ActiveToolSheet {
     NONE,
@@ -151,6 +159,19 @@ class EditorViewModel(
 
     private val _currentProject = MutableStateFlow<VideoProject?>(null)
     val currentProject: StateFlow<VideoProject?> = _currentProject.asStateFlow()
+
+    // `totalDurationMs` walks every track and allocates lists. seekTo() runs on
+    // every scroll event, so cache the value for the current immutable project.
+    private var durationCacheProject: VideoProject? = null
+    private var durationCacheMs = 0L
+
+    private fun totalDurationMsOf(project: VideoProject): Long {
+        if (durationCacheProject === project) return durationCacheMs
+        val total = project.totalDurationMs
+        durationCacheProject = project
+        durationCacheMs = total
+        return total
+    }
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -319,13 +340,70 @@ class EditorViewModel(
     }
 
     private var playbackJob: Job? = null
-    /** The single live scrub-preview loop (see [scrubLoop]). */
-    private var scrubLoopActive = false
-    /** Latest playhead the scrub loop should land the preview on. */
+
+    // ------------------------------------------------------------------
+    // Live scrub preview (source-frame extraction)
+    // ------------------------------------------------------------------
+    // CompositionPlayer 1.11.1 stops its render loop for the whole duration of
+    // every seek, so seeking with the timeline kept the preview black until the
+    // drag stopped. The scrub preview therefore does NOT touch the player at
+    // all: frames are decoded straight from the source media and drawn over the
+    // preview. The player is only rebuilt/seeked when the user presses Play,
+    // where a short prepare is hidden behind the still frame.
+    /**
+     * Two independent decoder lanes. Drag frames are keyframes and must never
+     * wait behind a slow exact decode: if the user resumes dragging while the
+     * settle still is being decoded, the drag lane keeps the preview moving and
+     * the exact result is simply dropped.
+     */
+    private val scrubFrameExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "catbyte-scrub-frame").apply { isDaemon = true }
+    }
+    private val scrubFrameDispatcher = scrubFrameExecutor.asCoroutineDispatcher()
+    private val scrubFrameLoader = ScrubFrameLoader()
+
+    private val scrubExactExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "catbyte-scrub-exact").apply { isDaemon = true }
+    }
+    private val scrubExactDispatcher = scrubExactExecutor.asCoroutineDispatcher()
+    /** Only ever touches the clip under the final playhead. */
+    private val scrubExactLoader = ScrubFrameLoader(maxCachedRetrievers = 1)
+
+    /**
+     * One conflated slot per lane: while the finger moves only the newest
+     * playhead is worth decoding. A fling overwrites the pending request instead
+     * of allocating a coroutine per scroll event, which is what made the
+     * timeline itself stutter.
+     */
+    private val scrubFrameRequests = Channel<ScrubFrameRequest>(Channel.CONFLATED)
+    private val scrubExactRequests = Channel<ScrubFrameRequest>(Channel.CONFLATED)
+    private var scrubFrameWorker: Job? = null
+    private var scrubExactWorker: Job? = null
+    /** Incremented when the overlay is cleared so stale decodes are dropped. */
+    private var scrubFrameGeneration = 0
+    private var scrubFrameHandoffJob: Job? = null
+    /** Watches a preview reloaded by an edit made while a scrub still is up. */
+    private var scrubEditHandoffJob: Job? = null
+    private var lastScrubRequestedMs = Long.MIN_VALUE
+    private val _scrubPreviewFrame = MutableStateFlow<ScrubPreviewFrame?>(null)
+    /** Source frame drawn over the preview while the timeline is scrubbed. */
+    val scrubPreviewFrame: StateFlow<ScrubPreviewFrame?> = _scrubPreviewFrame.asStateFlow()
+
+    /** One frame decode request. [exact] is used when the gesture settles. */
+    private data class ScrubFrameRequest(
+        val project: VideoProject,
+        val positionMs: Long,
+        val exact: Boolean,
+        val generation: Int
+    )
+
+    /** Debounced "gesture over" job that decodes the frame-exact still. */
+    private var scrubSettleJob: Job? = null
+    /** Latest playhead the scrub preview should show. */
     private var scrubTargetMs = 0L
     /**
-     * True while the scrub gesture is live (the timeline moved recently and the
-     * preview has not landed on the playhead yet).
+     * True while the player has not landed on the scrub playhead yet. Playback
+     * must seek the player to the UI playhead instead of trusting its position.
      */
     private var scrubSettlePending = false
     /** Bounded self-healing attempts for a frozen preview. */
@@ -334,17 +412,38 @@ class EditorViewModel(
         const val RECOVERY_RESET_MS = 1_000L
 
         /**
-         * How long the timeline stays quiet before the scrub gesture is over.
-         * The preview then stops rendering on the frame the user dragged to.
+         * How long the timeline must stay quiet before the final, frame-exact
+         * still is decoded. The player is not touched at all: the decoded frame
+         * simply replaces the last keyframe in the overlay.
          */
-        const val SCRUB_SETTLE_MS = 250L
+        const val SCRUB_SETTLE_MS = 180L
 
         /**
-         * Scrub-preview poll interval. The loop never fires a seek faster than
-         * the player can settle one (CompositionPlayer renders nothing while a
-         * seek is in flight), so this only bounds the loop's reaction time.
+         * Small playhead moves reuse the frame already on screen. Without this,
+         * a slow drag decoded a new frame every few milliseconds of movement,
+         * which wasted the decoder and competed with the UI thread.
          */
+        const val SCRUB_FRAME_MIN_DELTA_MS = 32L
+
+        /** Poll interval for the playback hand-over watcher. */
         const val SCRUB_POLL_MS = 24L
+
+        /**
+         * The extracted frame stays up briefly after the player reports READY so
+         * the surface has time to draw the first playback frame before the
+         * hand-over.
+         */
+        const val SCRUB_FRAME_HANDOFF_MS = 120L
+
+        /**
+         * The hand-over waits until playback has actually advanced by this much,
+         * i.e. frames are really being rendered. A READY state alone can still
+         * belong to the old position while a seek is in flight.
+         */
+        const val SCRUB_HANDOFF_MIN_ADVANCE_MS = 32L
+
+        /** Never leave the extracted frame covering the preview forever. */
+        const val SCRUB_FRAME_HANDOFF_TIMEOUT_MS = 1_500L
 
         /**
          * Playback only re-syncs the player to the UI playhead when the two
@@ -362,7 +461,7 @@ class EditorViewModel(
     private val previewScheduler = PreviewRefreshScheduler(
         scope = viewModelScope,
         projectProvider = { _currentProject.value },
-        refresh = { project -> playerManager?.loadProject(project) }
+        refresh = { project -> refreshPreviewComposition(project) }
     )
 
     /**
@@ -372,6 +471,79 @@ class EditorViewModel(
      */
     private fun schedulePreviewRefresh() {
         previewScheduler.schedule()
+    }
+
+    /**
+     * Applies an edit to the preview.
+     *
+     * Normally the player already sits on the playhead, so loading the project
+     * is enough. After a scrub it does NOT: the player was deliberately never
+     * seeked (every seek blacks the surface out), and the still on screen is
+     * the visible playhead. Preparing the refreshed composition at the stale
+     * player position would hide the edit behind the still; instead load it at
+     * the visible playhead and hand the still over once the new player is
+     * really ready. If it never becomes ready the still stays up — the preview
+     * must never fall back to black or an error pill.
+     */
+    private fun refreshPreviewComposition(project: VideoProject) {
+        val manager = playerManager ?: return
+        val scrubVisible = _scrubPreviewFrame.value != null || scrubSettlePending
+        if (!scrubVisible) {
+            manager.loadProject(project)
+            return
+        }
+        val at = _currentPositionMs.value
+        // A fresh player at the visible playhead is the proven path: seeking or
+        // re-preparing the paused CompositionPlayer is exactly what wedged it
+        // during the scrub. The still hides the rebuild, so nothing flashes.
+        manager.loadProject(project, startPositionMs = at, forceRebuild = true)
+        awaitScrubEditHandoff(manager, at)
+    }
+
+    /**
+     * Waits for the composition reloaded by an edit to reach READY at the
+     * visible playhead, then removes the scrub still.
+     *
+     * Deliberately conservative: it never pulls the still out from under a
+     * live drag, and on timeout it keeps the still (a correct picture) rather
+     * than exposing a player that may still be buffering. Pressing Play then
+     * takes the proven rebuild path.
+     */
+    private fun awaitScrubEditHandoff(
+        manager: com.example.data.PlayerManager,
+        positionMs: Long
+    ) {
+        scrubEditHandoffJob?.cancel()
+        val reloadedPlayer = manager.activePlayer.value ?: return
+        scrubEditHandoffJob = viewModelScope.launch {
+            var waited = 0L
+            while (waited < SCRUB_FRAME_HANDOFF_TIMEOUT_MS) {
+                if (_isPlaying.value) return@launch
+                val ready = manager.activePlayer.value === reloadedPlayer &&
+                    reloadedPlayer.playbackState == androidx.media3.common.Player.STATE_READY
+                val quiet = scrubSettleJob?.isActive != true &&
+                    _currentPositionMs.value == positionMs
+                if (ready && quiet) {
+                    // Give the surface time to draw the refreshed composition
+                    // before the still disappears.
+                    delay(SCRUB_FRAME_HANDOFF_MS)
+                    if (!_isPlaying.value &&
+                        scrubSettleJob?.isActive != true &&
+                        _currentPositionMs.value == positionMs
+                    ) {
+                        scrubSettlePending = false
+                        clearScrubFrame()
+                    }
+                    return@launch
+                }
+                delay(SCRUB_POLL_MS)
+                waited += SCRUB_POLL_MS
+            }
+            AppLog.warn(
+                "EditorViewModel",
+                "Refreshed preview not ready at ${positionMs}ms; keeping the scrub still"
+            )
+        }
     }
 
     private fun refreshPreviewNow() {
@@ -448,6 +620,7 @@ class EditorViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        cancelScrubPreview()
         playbackJob?.cancel()
         voiceRecordJob?.cancel()
         exportJob?.cancel()
@@ -455,6 +628,18 @@ class EditorViewModel(
         previewScheduler.cancel()
         voiceRecorder?.cancel()
         speechSynthesizer?.release()
+        scrubFrameWorker?.cancel()
+        scrubFrameWorker = null
+        scrubExactWorker?.cancel()
+        scrubExactWorker = null
+        scrubFrameRequests.close()
+        scrubExactRequests.close()
+        // Release the decoders on their own threads AFTER any in-flight decode;
+        // shutdown() drains the queue and then stops the thread.
+        scrubFrameExecutor.execute { scrubFrameLoader.clear() }
+        scrubFrameExecutor.shutdown()
+        scrubExactExecutor.execute { scrubExactLoader.clear() }
+        scrubExactExecutor.shutdown()
         // PlayerManager is application-scoped (the editor UI reads it directly).
         // Releasing it here would leave a dead player when the activity is
         // recreated after finishing; just stop playback instead.
@@ -463,6 +648,9 @@ class EditorViewModel(
 
     fun openProject(project: VideoProject) {
         AppLog.info("EditorViewModel", "openProject() called: projectId=${project.id}, title=${project.title}, clips=${project.clips.size}, totalDuration=${project.totalDurationMs}ms")
+        // The previous project's scrub overlay and settle loop must not leak into
+        // the new project's preview.
+        cancelScrubPreview()
         pausePlayback()
         val normalized = project.withMagneticMainTrack()
         // Start the preview at 0 explicitly: leaving the default would keep the
@@ -725,50 +913,73 @@ class EditorViewModel(
 
     fun startPlayback() {
         val project = _currentProject.value ?: return
-        val totalMs = project.totalDurationMs
+        val totalMs = totalDurationMsOf(project)
+        var restartFromEnd = false
         if (_currentPositionMs.value >= totalMs) {
-            // Restarting from the end is a position jump. Land it with a live
-            // seek (a plain seek on a paused player parks the preview).
             _currentPositionMs.value = 0L
-            val restartManager = playerManager
-            if (restartManager != null) {
-                restartManager.beginScrub()
-                restartManager.seekTo(0L)
-            }
+            restartFromEnd = true
         }
         _isPlaying.value = true
         AppLog.info("EditorViewModel", "startPlayback() at ${_currentPositionMs.value}ms")
 
-        if (playerManager != null) {
-            // Stop the scrub loop: the play button owns the play state now, and
-            // a late settle would pause the fresh playback. The loop's tail sees
-            // _isPlaying == true and leaves the player rendering.
+        val manager = playerManager
+        if (manager != null) {
+            // The timeline may have been scrubbed without the player following
+            // it: that is the whole point of the extracted-frame overlay, the
+            // player is left alone until the gesture ends. Seek it to the
+            // VISIBLE playhead before playing. syncPosition() must not run here
+            // in that case — it would overwrite the playhead with the player's
+            // stale position.
+            val pendingScrub = scrubSettlePending ||
+                scrubSettleJob?.isActive == true ||
+                restartFromEnd
             scrubSettlePending = false
-            // A scrub keeps the player rendering (muted): keep playing from where
-            // the video actually is instead of seeking, which is what used to
-            // wedge the preview in BUFFERING.
-            playerManager.endScrubKeepPlaying()
+            scrubSettleJob?.cancel()
+            scrubSettleJob = null
+
             // loadProject() is a no-op when the same project is already prepared.
-            // Only re-sync for a REAL divergence (e.g. a project switch reset
-            // the UI playhead): a seek to the SAME position while paused flushes
-            // CompositionPlayer's audio graph and the following play() starts
-            // silent (androidx/media#3482).
-            playerManager.loadProject(project)
-            playerManager.syncPosition()
-            val drift = kotlin.math.abs(
-                playerManager.currentPositionMs.value - _currentPositionMs.value
-            )
-            if (drift > PLAYHEAD_RESYNC_TOLERANCE_MS) {
-                // A real divergence (project switch): seek while the render loop
-                // is alive, or the composition player parks in BUFFERING.
-                playerManager.beginScrub()
-                playerManager.seekTo(_currentPositionMs.value)
-                playerManager.endScrubKeepPlaying()
+            manager.loadProject(project)
+
+            if (pendingScrub) {
+                // CompositionPlayer 1.11.1 wedges on a paused seek of more than
+                // ~100 ms (every larger scrub seek stayed BUFFERING forever).
+                // The proven path is a FRESH player prepared at the visible
+                // playhead. The extracted frame covers the preview while it
+                // prepares, so there is no black flash — and, unlike the old
+                // beginScrub()+seek path, no failed seek to raise a preview
+                // error. The playhead follows the safe-start snap.
+                if (manager.usesCompositionPreview.value) {
+                    manager.rebuildPreviewAt(_currentPositionMs.value)
+                    _currentPositionMs.value = manager.currentPositionMs.value
+                } else {
+                    // The ExoPlayer fallback seeks cheaply and never blacks out.
+                    manager.beginScrub()
+                    manager.seekTo(_currentPositionMs.value)
+                    manager.endScrubKeepPlaying()
+                }
+            } else {
+                manager.endScrubKeepPlaying()
+                // Only re-sync for a REAL divergence (e.g. a project switch reset
+                // the UI playhead): a seek to the SAME position while paused
+                // flushes CompositionPlayer's audio graph and the following
+                // play() starts silent (androidx/media#3482).
+                manager.syncPosition()
+                val drift = kotlin.math.abs(
+                    manager.currentPositionMs.value - _currentPositionMs.value
+                )
+                if (drift > PLAYHEAD_RESYNC_TOLERANCE_MS) {
+                    manager.beginScrub()
+                    manager.seekTo(_currentPositionMs.value)
+                    manager.endScrubKeepPlaying()
+                }
             }
+            // Keep the extracted frame up until the real surface shows the frame
+            // playback starts from; otherwise the hand-over flashes black.
+            scheduleScrubFrameHandoff(manager)
             // play() itself defers while the player is BUFFERING; the polling
             // loop below issues it as soon as the player reports READY.
-            playerManager.play()
-            startPlaybackPolling(totalMs, playerManager)
+            manager.play()
+            startPlaybackPolling(totalMs, manager)
         } else {
             playbackJob?.cancel()
             playbackJob = viewModelScope.launch {
@@ -785,6 +996,38 @@ class EditorViewModel(
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Hands the preview from the extracted scrub frame back to the real player
+     * surface.
+     *
+     * The player can report READY a frame or two before the surface has drawn
+     * the new frame, so the overlay is held for [SCRUB_FRAME_HANDOFF_MS]. The
+     * timeout guarantees a failed player can never leave a still frame covering
+     * a live preview forever.
+     */
+    private fun scheduleScrubFrameHandoff(
+        manager: com.example.data.PlayerManager
+    ) {
+        if (_scrubPreviewFrame.value == null) return
+        scrubFrameHandoffJob?.cancel()
+        scrubFrameHandoffJob = viewModelScope.launch {
+            val startPositionMs = manager.activePlayer.value?.currentPosition ?: 0L
+            var waited = 0L
+            while (waited < SCRUB_FRAME_HANDOFF_TIMEOUT_MS && _isPlaying.value) {
+                val player = manager.activePlayer.value
+                val ready = player?.playbackState == androidx.media3.common.Player.STATE_READY
+                val advanced = player != null &&
+                    kotlin.math.abs(player.currentPosition - startPositionMs) >=
+                    SCRUB_HANDOFF_MIN_ADVANCE_MS
+                if (ready && advanced) break
+                delay(SCRUB_POLL_MS)
+                waited += SCRUB_POLL_MS
+            }
+            delay(SCRUB_FRAME_HANDOFF_MS)
+            if (_isPlaying.value) clearScrubFrame()
         }
     }
 
@@ -833,6 +1076,7 @@ class EditorViewModel(
 
                 if (PlayerRecoveryPolicy.hasReachedEnd(position, totalMs, state)) {
                     _isPlaying.value = false
+                    clearScrubFrame()
                     break
                 }
 
@@ -883,6 +1127,7 @@ class EditorViewModel(
                                     "Preview player never became READY; stopping playback"
                                 )
                                 _isPlaying.value = false
+                                clearScrubFrame()
                                 break
                             }
                         }
@@ -907,6 +1152,7 @@ class EditorViewModel(
                     error != null
                 ) {
                     _isPlaying.value = false
+                    clearScrubFrame()
                     break
                 }
 
@@ -979,6 +1225,7 @@ class EditorViewModel(
                                 "Preview keeps freezing at ${position}ms; stopping playback"
                             )
                             _isPlaying.value = false
+                            clearScrubFrame()
                             break
                         }
                     }
@@ -997,93 +1244,221 @@ class EditorViewModel(
     }
 
     fun pausePlayback() {
-        if (_isPlaying.value) {
+        val wasPlaying = _isPlaying.value
+        if (wasPlaying) {
             AppLog.info("EditorViewModel", "pausePlayback() at ${_currentPositionMs.value}ms")
         }
         _isPlaying.value = false
         playbackJob?.cancel()
         playbackJob = null
-        val manager = playerManager
-        if (manager != null) {
-            if (scrubLoopActive) {
-                // The scrub loop is landing the preview on the playhead and then
-                // pauses the player itself. Pausing HERE would stop the render
-                // loop and wedge its final seek (seeks only settle while frames
-                // are rendering).
-                scrubSettlePending = false
-                return
-            }
-            scrubSettlePending = false
-            manager.pause()
-            manager.syncPosition()
-            _currentPositionMs.value = manager.currentPositionMs.value
+        scrubFrameHandoffJob?.cancel()
+        scrubFrameHandoffJob = null
+        val manager = playerManager ?: return
+        manager.pause()
+        // Only adopt the player's position when it was actually the source of
+        // truth (the user paused playback). Pressing the timeline while already
+        // paused must NOT snap the playhead back to the player's pre-scrub
+        // position: the extracted frame on screen is the visible playhead.
+        if (!wasPlaying) {
+            beginScrubFrameGesture()
+            return
         }
+        manager.syncPosition()
+        _currentPositionMs.value = manager.currentPositionMs.value
+        clearScrubFrame()
+    }
+
+    /**
+     * Starts a new scrub gesture without removing the frame already on screen.
+     * Decodes queued for the previous playhead are dropped so they cannot flash
+     * back while the finger is already somewhere else.
+     */
+    private fun beginScrubFrameGesture() {
+        scrubFrameGeneration++
+        while (scrubFrameRequests.tryReceive().isSuccess) {
+            // Drain the conflated slot.
+        }
+        while (scrubExactRequests.tryReceive().isSuccess) {
+            // A pending exact still belongs to the previous gesture.
+        }
+        lastScrubRequestedMs = Long.MIN_VALUE
+        // The preview is about to be driven by decoded source frames; a stale
+        // player error from an earlier recovery must not sit over the scrub.
+        playerManager?.clearPreviewError()
     }
 
     fun seekTo(positionMs: Long) {
         val project = _currentProject.value ?: return
-        val clamped = positionMs.coerceIn(0L, project.totalDurationMs)
+        // Cached: this runs on every scroll event.
+        val clamped = positionMs.coerceIn(0L, totalDurationMsOf(project))
         _currentPositionMs.value = clamped
         scrubTargetMs = clamped
+
+        val manager = playerManager
+        if (_isPlaying.value) {
+            // Playback already keeps the render loop alive, so the composition
+            // can follow the seek directly. The extracted-frame overlay exists
+            // only for a PAUSED player, whose seek blacks the surface out.
+            manager?.seekTo(clamped)
+            return
+        }
+
         scrubSettlePending = true
-        val manager = playerManager ?: return
-        if (manager.activePlayer.value == null) return
-        if (!scrubLoopActive) {
-            scrubLoopActive = true
-            viewModelScope.launch {
-                try {
-                    scrubLoop()
-                } finally {
-                    scrubLoopActive = false
+        requestScrubFrame(project, clamped)
+        scheduleScrubSettle()
+    }
+
+    /**
+     * Decodes the source frame under [positionMs] and draws it over the preview.
+     *
+     * This is what makes the timeline scroll show real frames in realtime: the
+     * player is not seeked at all during the drag (every CompositionPlayer seek
+     * stops rendering until it settles, which is the reported black screen).
+     */
+    private fun requestScrubFrame(
+        project: VideoProject,
+        positionMs: Long,
+        exact: Boolean = false
+    ) {
+        val appContext = context?.applicationContext ?: return
+        // Small moves reuse the frame already on screen. The settle request
+        // bypasses this so the final playhead is always decoded exactly.
+        if (!exact &&
+            lastScrubRequestedMs != Long.MIN_VALUE &&
+            kotlin.math.abs(positionMs - lastScrubRequestedMs) < SCRUB_FRAME_MIN_DELTA_MS
+        ) {
+            return
+        }
+        lastScrubRequestedMs = positionMs
+        ensureScrubWorkers(appContext)
+        val request = ScrubFrameRequest(
+            project = project,
+            positionMs = positionMs,
+            exact = exact,
+            generation = scrubFrameGeneration
+        )
+        if (exact) {
+            scrubExactRequests.trySend(request)
+        } else {
+            scrubFrameRequests.trySend(request)
+        }
+    }
+
+    /**
+     * One worker per lane decodes whatever the newest request is; the conflated
+     * channels drop intermediate playheads instead of queueing a decode per
+     * scroll event. That is what keeps both the preview and the timeline smooth.
+     */
+    private fun ensureScrubWorkers(appContext: Context) {
+        if (scrubFrameWorker?.isActive != true) {
+            scrubFrameWorker = viewModelScope.launch {
+                for (request in scrubFrameRequests) {
+                    // Drag frames are keyframes: an order of magnitude cheaper
+                    // than an exact decode and accurate enough while the finger
+                    // moves. The settle lane decodes the frame-exact still.
+                    val bitmap = withContext(scrubFrameDispatcher) {
+                        decodeScrubFrame(appContext, request, scrubFrameLoader)
+                    }
+                    publishScrubFrame(request, bitmap, requireCurrentTarget = false)
+                }
+            }
+        }
+        if (scrubExactWorker?.isActive != true) {
+            scrubExactWorker = viewModelScope.launch {
+                for (request in scrubExactRequests) {
+                    val bitmap = withContext(scrubExactDispatcher) {
+                        decodeScrubFrame(appContext, request, scrubExactLoader)
+                    }
+                    // The exact still is only useful if the playhead is still
+                    // there; a resumed drag already has its own lane.
+                    publishScrubFrame(request, bitmap, requireCurrentTarget = true)
                 }
             }
         }
     }
 
-    private suspend fun scrubLoop() {
-        val manager = playerManager ?: return
-        var lastSeekedMs = Long.MIN_VALUE
-        var lastSeenTarget = Long.MIN_VALUE
-        var idleTicks = 0
-        manager.beginScrub()
-        try {
-            while (scrubSettlePending && !_isPlaying.value &&
-                idleTicks * SCRUB_POLL_MS < SCRUB_SETTLE_MS
-            ) {
-                val target = scrubTargetMs
-                if (target != lastSeenTarget) {
-                    lastSeenTarget = target
-                    idleTicks = 0
-                }
-                if (target != lastSeekedMs && manager.previewIsReady()) {
-                    manager.seekTo(target)
-                    lastSeekedMs = target
-                }
-                idleTicks++
-                delay(SCRUB_POLL_MS)
-            }
-            if (_isPlaying.value) {
-                manager.endScrubKeepPlaying()
-                return
-            }
-            manager.seekTo(scrubTargetMs)
-            var waited = 0L
-            while (!manager.previewIsReady() && waited < SCRUB_SETTLE_MS) {
-                delay(SCRUB_POLL_MS)
-                waited += SCRUB_POLL_MS
-            }
-            if (!manager.previewIsReady()) {
-                AppLog.warn("EditorViewModel", "Scrub seek did not settle at ${scrubTargetMs}ms; rebuilding")
-                manager.rebuildPreviewAt(scrubTargetMs)
-            }
-            manager.endScrub()
-            if (!_isPlaying.value) {
-                manager.syncPosition()
-                _currentPositionMs.value = manager.currentPositionMs.value
-            }
-        } finally {
-            scrubSettlePending = false
+    private fun decodeScrubFrame(
+        appContext: Context,
+        request: ScrubFrameRequest,
+        loader: ScrubFrameLoader
+    ): Bitmap? {
+        val accuracy = if (request.exact) {
+            ScrubFrameAccuracy.EXACT
+        } else {
+            ScrubFrameAccuracy.KEYFRAME
         }
+        val source = ScrubFrameResolver.resolve(request.project, request.positionMs)
+            ?: return null
+        return loader.load(appContext, source, accuracy)
+    }
+
+    private fun publishScrubFrame(
+        request: ScrubFrameRequest,
+        bitmap: Bitmap?,
+        requireCurrentTarget: Boolean
+    ) {
+        if (bitmap == null) return
+        if (_isPlaying.value) return
+        if (request.generation != scrubFrameGeneration) return
+        if (requireCurrentTarget && request.positionMs != scrubTargetMs) return
+        // Show even a slightly stale frame: it is much closer to the finger than
+        // the frame from before the drag. A failed decode keeps the previous
+        // frame instead of flashing black.
+        _scrubPreviewFrame.value = ScrubPreviewFrame(
+            bitmap = bitmap,
+            positionMs = request.positionMs
+        )
+    }
+
+    /**
+     * Waits for the timeline to go quiet, then decodes the frame-exact still.
+     *
+     * One watcher per gesture: it re-arms itself when the user moves while the
+     * decode is pending. The player is deliberately NOT seeked here — a seek on
+     * the paused CompositionPlayer is what blacked the preview out and, when it
+     * never settled, produced the preview error pill. The player is rebuilt at
+     * the visible playhead only when the user presses Play.
+     */
+    private fun scheduleScrubSettle() {
+        if (scrubSettleJob?.isActive == true) return
+        if (_isPlaying.value) return
+        scrubSettleJob = viewModelScope.launch {
+            while (true) {
+                val target = scrubTargetMs
+                delay(SCRUB_SETTLE_MS)
+                if (_isPlaying.value) return@launch
+                if (scrubTargetMs != target) continue
+                _currentProject.value?.let { requestScrubFrame(it, target, exact = true) }
+                return@launch
+            }
+        }
+    }
+
+    private fun clearScrubFrame() {
+        // Drop queued decodes: their frames belong to the gesture that just
+        // ended and must not flash back over the live player.
+        scrubFrameGeneration++
+        while (scrubFrameRequests.tryReceive().isSuccess) {
+            // Drain the conflated slot.
+        }
+        while (scrubExactRequests.tryReceive().isSuccess) {
+            // Drain the conflated slot.
+        }
+        _scrubPreviewFrame.value = null
+        lastScrubRequestedMs = Long.MIN_VALUE
+    }
+
+    /** Cancels every scrub job and removes the overlay (project switch, destroy). */
+    private fun cancelScrubPreview() {
+        scrubSettlePending = false
+        scrubSettleJob?.cancel()
+        scrubSettleJob = null
+        scrubFrameHandoffJob?.cancel()
+        scrubFrameHandoffJob = null
+        scrubEditHandoffJob?.cancel()
+        scrubEditHandoffJob = null
+        playerManager?.cancelScrub()
+        clearScrubFrame()
     }
 
     fun stepForward() {

@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -79,6 +80,7 @@ import coil.request.ImageRequest
 import coil.transform.CircleCropTransformation
 import com.example.R
 import com.example.data.KeyframeInterpolator
+import com.example.data.ScrubPreviewFrame
 import com.example.engine.backgroundArgbFor
 import com.example.model.AspectRatioType
 import com.example.model.BlendMode
@@ -108,6 +110,13 @@ fun VideoCanvas(
     onTogglePlay: () -> Unit,
     watermarkEnabled: Boolean = false,
     /**
+     * Frame decoded straight from the source media while the timeline is being
+     * scrubbed, together with the position it belongs to. Drawn over the player
+     * surface, whose seeks would otherwise black the preview out for the whole
+     * drag.
+     */
+    scrubFrame: State<ScrubPreviewFrame?>? = null,
+    /**
      * Composition preview player. When [compositionPreview] is true this single
      * surface already contains the composited video, PIP layers, text, stickers,
      * effects and watermark, so the Compose fallback layers are skipped.
@@ -126,11 +135,19 @@ fun VideoCanvas(
     val colors = PencilTheme.colors
     val ratio = project.aspectRatio
     val targetAspect = ratio.ratioWidth / ratio.ratioHeight
+    // Source frame extracted while the timeline is scrubbed (null otherwise).
+    val scrub = scrubFrame?.value
+    val scrubBitmap = scrub?.bitmap
     // The playhead changes ~60x/s while playing; this composable is the only
     // one that genuinely needs it (active clip, overlay animations, fallback
-    // canvas). It therefore recomposes per tick, but the editor screen and the
-    // timeline around it stay untouched.
-    val positionMs = currentPositionMs.value
+    // canvas). While a scrub frame is up, the frame's own position is the
+    // source of truth: the `?:` short-circuits the playhead read, so a fling
+    // only recomposes the canvas when a new bitmap actually arrives instead of
+    // on every scroll tick.
+    val positionMs = scrub?.positionMs ?: currentPositionMs.value
+    // Wrapping the bitmap is cheap but not free; keep it stable across the
+    // frequent playhead recompositions during a drag.
+    val scrubImage = remember(scrubBitmap) { scrubBitmap?.asImageBitmap() }
 
     // Active clip resolution
     var accumulatedMs = 0L
@@ -311,12 +328,6 @@ fun VideoCanvas(
                         modifier = Modifier.fillMaxSize()
                     )
                 }
-
-                // The fallback player renders plain video, so draw title/text
-                // overlays ourselves (composition burns them in).
-                if (!compositionPreview) {
-                    // Drafting overlay for transform handles (existing code below)
-                }
             } else if (activeClip != null) {
                 // No player at all: show the generated preview frame only.
                 RenderClipVisual(
@@ -356,8 +367,25 @@ fun VideoCanvas(
                 }
             }
 
-            // Text Overlays (fallback renderer only - composition burns them in)
-            if (!compositionPreview) {
+            // Timeline scrub: draw the source frame extracted for the playhead
+            // over whatever is behind it. Independent of the player on purpose:
+            // the frame comes straight from the source file, so it must still
+            // appear when the preview player itself has failed (which is exactly
+            // when the error pill used to cover the screen).
+            if (scrubImage != null) {
+                Image(
+                    bitmap = scrubImage,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black)
+                )
+            }
+
+            // Text Overlays (fallback renderer only - composition burns them in;
+            // during a scrub the extracted frame is raw, so draw them on top).
+            if (!compositionPreview || scrubBitmap != null) {
             activeTexts.forEach { textOverlay ->
                 val displayText = if (textOverlay.animation == TextAnimationType.TYPEWRITER) {
                     val progress = ((positionMs - textOverlay.startTimelineMs).toFloat() / textOverlay.durationMs).coerceIn(0f, 1f)
@@ -660,7 +688,11 @@ fun VideoCanvas(
 
             // Render-fidelity notice. Warnings are never hidden: if a mask or
             // blend mode is approximated, the user sees it before exporting.
-            val previewNotice = previewError?.let { "Preview error: $it" }
+            // A stored player error is hidden while the extracted scrub frame is
+            // on screen: that frame is decoded from the source and proves the
+            // preview is working, so the pill would be stale noise.
+            val shownError = previewError.takeIf { scrubBitmap == null }
+            val previewNotice = shownError?.let { "Preview error: $it" }
                 ?: previewWarnings.firstOrNull()
             if (previewNotice != null) {
                 Box(
@@ -669,7 +701,7 @@ fun VideoCanvas(
                         .padding(top = 36.dp, start = 16.dp, end = 16.dp)
                         .clip(RoundedCornerShape(5.dp))
                         .background(
-                            if (previewError != null) {
+                            if (shownError != null) {
                                 colors.accentRed.copy(alpha = 0.92f)
                             } else {
                                 colors.accentYellow.copy(alpha = 0.92f)

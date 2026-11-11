@@ -108,6 +108,13 @@ class PlayerManager(context: Context) {
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
             _playbackState.value = state
+            if (state == Player.STATE_READY && _lastError.value != null) {
+                // A player that reached READY is proof the preview works again.
+                // Keeping the old string is what left the red "Preview error"
+                // pill on screen long after a successful recovery (the fallback
+                // path never cleared it).
+                _lastError.value = null
+            }
             if (state == Player.STATE_ENDED) {
                 _currentPositionMs.value = totalDurationMs
                 _isPlayingInternal.value = false
@@ -337,6 +344,13 @@ class PlayerManager(context: Context) {
         _activePlayer.value = player
         _usesCompositionPreview.value = false
         _previewWarnings.value = emptyList()
+        if (mediaItems.isNotEmpty()) {
+            // The composition path failed, but the fallback preview is a
+            // working substitute: a red "Preview error" pill over it would be
+            // stale noise. If the fallback itself fails, onPlayerError sets the
+            // error again.
+            _lastError.value = null
+        }
 
         if (mediaItems.isEmpty()) {
             player.clearMediaItems()
@@ -537,6 +551,9 @@ class PlayerManager(context: Context) {
         val player = _activePlayer.value ?: return
         player.playWhenReady = false
         player.volume = scrubRestoreVolume
+        // The user was scrubbing, not playing: drop any stale play intent so an
+        // async isPlaying callback cannot resurrect playback after the freeze.
+        playRequested = false
         _isPlayingInternal.value = false
         AppLog.info(TAG, "Scrub preview ended at ${_currentPositionMs.value}ms")
     }
@@ -548,6 +565,30 @@ class PlayerManager(context: Context) {
         val player = _activePlayer.value ?: return
         player.volume = scrubRestoreVolume
         _isPlayingInternal.value = player.isPlaying
+    }
+
+    /**
+     * Abandons a scrub without landing a frame (project switch, editor destroy).
+     * Restores the volume and drops the render-only play intent so a muted
+     * player cannot leak into the next session.
+     */
+    fun cancelScrub() {
+        if (!scrubbing) return
+        scrubbing = false
+        val player = _activePlayer.value ?: return
+        player.volume = scrubRestoreVolume
+        player.playWhenReady = false
+        playRequested = false
+        _isPlayingInternal.value = false
+    }
+
+    /**
+     * Drops a stale error once the preview is demonstrably working again.
+     * Kept separate from [loadProject] so the scrub gesture can clear a pill
+     * left over from an earlier recovery without rebuilding the player.
+     */
+    fun clearPreviewError() {
+        _lastError.value = null
     }
 
     /**

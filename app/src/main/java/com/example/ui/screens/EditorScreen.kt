@@ -143,6 +143,7 @@ import com.example.ui.theme.PencilTheme
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
 import com.example.data.MediaDurationFallback
+import com.example.data.ScrubPreviewFrame
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
@@ -163,6 +164,13 @@ fun EditorScreen(
     val positionState = remember(viewModel) { mutableStateOf(viewModel.currentPositionMs.value) }
     LaunchedEffect(viewModel) {
         viewModel.currentPositionMs.collect { positionState.value = it }
+    }
+    // Live scrub frames arrive a few times per second while the timeline moves.
+    // Handing them down as a State (like the playhead) keeps the recomposition
+    // inside VideoCanvas instead of re-running the whole editor screen.
+    val scrubFrameState = remember(viewModel) { mutableStateOf<ScrubPreviewFrame?>(null) }
+    LaunchedEffect(viewModel) {
+        viewModel.scrubPreviewFrame.collect { scrubFrameState.value = it }
     }
     val selectedClipId by viewModel.selectedClipId.collectAsState()
     val selectedClipIds by viewModel.selectedClipIds.collectAsState()
@@ -450,6 +458,7 @@ fun EditorScreen(
                     isPlaying = isPlaying,
                     onTogglePlay = { viewModel.togglePlayback() },
                     watermarkEnabled = watermarkEnabled,
+                    scrubFrame = scrubFrameState,
                     player = previewPlayer,
                     compositionPreview = compositionPreview,
                     previewError = previewError,
