@@ -20,6 +20,7 @@ import com.example.data.ProjectRepository
 import com.example.data.PlayerRecoveryPolicy
 import com.example.data.ScrubFrameAccuracy
 import com.example.data.ScrubFrameLoader
+import com.example.data.ScrubFramePolicy
 import com.example.data.ScrubFrameResolver
 import com.example.data.ScrubPreviewFrame
 import com.example.data.SettingsRepository
@@ -351,10 +352,14 @@ class EditorViewModel(
     // preview. The player is only rebuilt/seeked when the user presses Play,
     // where a short prepare is hidden behind the still frame.
     /**
-     * Two independent decoder lanes. Drag frames are keyframes and must never
-     * wait behind a slow exact decode: if the user resumes dragging while the
-     * settle still is being decoded, the drag lane keeps the preview moving and
-     * the exact result is simply dropped.
+     * Two independent decoder lanes, both decoding frame-exact pictures.
+     * Per-frame precision was explicitly requested for the split workflow: a
+     * keyframe preview freezes inside a GOP and only jumps at GOP boundaries,
+     * so the user cannot tell which frame a split will land on. The lanes
+     * differ in purpose, not accuracy:
+     *  - the drag lane follows the moving playhead;
+     *  - the settle lane decodes the frame the gesture stopped on with its own
+     *    decoder, so a long in-flight drag decode can never delay it.
      */
     private val scrubFrameExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "catbyte-scrub-frame").apply { isDaemon = true }
@@ -385,15 +390,24 @@ class EditorViewModel(
     /** Watches a preview reloaded by an edit made while a scrub still is up. */
     private var scrubEditHandoffJob: Job? = null
     private var lastScrubRequestedMs = Long.MIN_VALUE
+    /**
+     * Position of the frame currently on screen ([ScrubFramePolicy.NOTHING_PUBLISHED]
+     * until the first publish of a gesture). Feeds the staleness rule that
+     * keeps late decode results from dragging the picture backwards.
+     */
+    private var lastPublishedScrubMs = ScrubFramePolicy.NOTHING_PUBLISHED
     private val _scrubPreviewFrame = MutableStateFlow<ScrubPreviewFrame?>(null)
     /** Source frame drawn over the preview while the timeline is scrubbed. */
     val scrubPreviewFrame: StateFlow<ScrubPreviewFrame?> = _scrubPreviewFrame.asStateFlow()
 
-    /** One frame decode request. [exact] is used when the gesture settles. */
+    /**
+     * One frame decode request. [final] selects the settle lane (the frame the
+     * gesture stopped on); both lanes decode frame-exact pictures.
+     */
     private data class ScrubFrameRequest(
         val project: VideoProject,
         val positionMs: Long,
-        val exact: Boolean,
+        val final: Boolean,
         val generation: Int
     )
 
@@ -412,9 +426,9 @@ class EditorViewModel(
         const val RECOVERY_RESET_MS = 1_000L
 
         /**
-         * How long the timeline must stay quiet before the final, frame-exact
-         * still is decoded. The player is not touched at all: the decoded frame
-         * simply replaces the last keyframe in the overlay.
+         * How long the timeline must stay quiet before the settle lane decodes
+         * the stopped-at frame with its dedicated decoder. The player is not
+         * touched at all: the decoded frame simply sharpens the overlay.
          */
         const val SCRUB_SETTLE_MS = 180L
 
@@ -1279,9 +1293,10 @@ class EditorViewModel(
             // Drain the conflated slot.
         }
         while (scrubExactRequests.tryReceive().isSuccess) {
-            // A pending exact still belongs to the previous gesture.
+            // A pending settle still belongs to the previous gesture.
         }
         lastScrubRequestedMs = Long.MIN_VALUE
+        lastPublishedScrubMs = ScrubFramePolicy.NOTHING_PUBLISHED
         // The preview is about to be driven by decoded source frames; a stale
         // player error from an earlier recovery must not sit over the scrub.
         playerManager?.clearPreviewError()
@@ -1314,16 +1329,20 @@ class EditorViewModel(
      * This is what makes the timeline scroll show real frames in realtime: the
      * player is not seeked at all during the drag (every CompositionPlayer seek
      * stops rendering until it settles, which is the reported black screen).
+     * Every frame is decoded frame-exact so the user can read WHICH frame a
+     * split will land on while scrolling.
      */
     private fun requestScrubFrame(
         project: VideoProject,
         positionMs: Long,
-        exact: Boolean = false
+        final: Boolean = false
     ) {
         val appContext = context?.applicationContext ?: return
-        // Small moves reuse the frame already on screen. The settle request
-        // bypasses this so the final playhead is always decoded exactly.
-        if (!exact &&
+        // Small moves reuse the frame already on screen: at 30 fps one source
+        // frame is ~33 ms, so anything closer than that is the same picture.
+        // The settle request bypasses this so the final playhead is always
+        // decoded.
+        if (!final &&
             lastScrubRequestedMs != Long.MIN_VALUE &&
             kotlin.math.abs(positionMs - lastScrubRequestedMs) < SCRUB_FRAME_MIN_DELTA_MS
         ) {
@@ -1334,10 +1353,10 @@ class EditorViewModel(
         val request = ScrubFrameRequest(
             project = project,
             positionMs = positionMs,
-            exact = exact,
+            final = final,
             generation = scrubFrameGeneration
         )
-        if (exact) {
+        if (final) {
             scrubExactRequests.trySend(request)
         } else {
             scrubFrameRequests.trySend(request)
@@ -1353,9 +1372,6 @@ class EditorViewModel(
         if (scrubFrameWorker?.isActive != true) {
             scrubFrameWorker = viewModelScope.launch {
                 for (request in scrubFrameRequests) {
-                    // Drag frames are keyframes: an order of magnitude cheaper
-                    // than an exact decode and accurate enough while the finger
-                    // moves. The settle lane decodes the frame-exact still.
                     val bitmap = withContext(scrubFrameDispatcher) {
                         decodeScrubFrame(appContext, request, scrubFrameLoader)
                     }
@@ -1369,7 +1385,7 @@ class EditorViewModel(
                     val bitmap = withContext(scrubExactDispatcher) {
                         decodeScrubFrame(appContext, request, scrubExactLoader)
                     }
-                    // The exact still is only useful if the playhead is still
+                    // The settle frame is only useful if the playhead is still
                     // there; a resumed drag already has its own lane.
                     publishScrubFrame(request, bitmap, requireCurrentTarget = true)
                 }
@@ -1382,14 +1398,13 @@ class EditorViewModel(
         request: ScrubFrameRequest,
         loader: ScrubFrameLoader
     ): Bitmap? {
-        val accuracy = if (request.exact) {
-            ScrubFrameAccuracy.EXACT
-        } else {
-            ScrubFrameAccuracy.KEYFRAME
-        }
         val source = ScrubFrameResolver.resolve(request.project, request.positionMs)
             ?: return null
-        return loader.load(appContext, source, accuracy)
+        // Both lanes decode frame-exact: a keyframe preview freezes inside a
+        // GOP, which is exactly what made "which frame do I split at" unreadable.
+        // [ScrubFrameAccuracy.KEYFRAME] stays available in the loader for a
+        // future adaptive mode on sources exact decoding cannot keep up with.
+        return loader.load(appContext, source, ScrubFrameAccuracy.EXACT)
     }
 
     private fun publishScrubFrame(
@@ -1401,9 +1416,18 @@ class EditorViewModel(
         if (_isPlaying.value) return
         if (request.generation != scrubFrameGeneration) return
         if (requireCurrentTarget && request.positionMs != scrubTargetMs) return
-        // Show even a slightly stale frame: it is much closer to the finger than
-        // the frame from before the drag. A failed decode keeps the previous
-        // frame instead of flashing black.
+        // A late decode result must not drag the picture backwards past the
+        // frame already on screen (ScrubFramePolicy). A failed decode keeps the
+        // previous frame instead of flashing black.
+        if (!ScrubFramePolicy.shouldPublish(
+                requestedMs = request.positionMs,
+                targetMs = scrubTargetMs,
+                lastPublishedMs = lastPublishedScrubMs
+            )
+        ) {
+            return
+        }
+        lastPublishedScrubMs = request.positionMs
         _scrubPreviewFrame.value = ScrubPreviewFrame(
             bitmap = bitmap,
             positionMs = request.positionMs
@@ -1428,7 +1452,7 @@ class EditorViewModel(
                 delay(SCRUB_SETTLE_MS)
                 if (_isPlaying.value) return@launch
                 if (scrubTargetMs != target) continue
-                _currentProject.value?.let { requestScrubFrame(it, target, exact = true) }
+                _currentProject.value?.let { requestScrubFrame(it, target, final = true) }
                 return@launch
             }
         }
@@ -1446,6 +1470,7 @@ class EditorViewModel(
         }
         _scrubPreviewFrame.value = null
         lastScrubRequestedMs = Long.MIN_VALUE
+        lastPublishedScrubMs = ScrubFramePolicy.NOTHING_PUBLISHED
     }
 
     /** Cancels every scrub job and removes the overlay (project switch, destroy). */

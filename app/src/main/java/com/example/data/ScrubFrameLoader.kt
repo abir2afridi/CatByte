@@ -12,12 +12,12 @@ import kotlin.math.roundToInt
 /**
  * How accurately a scrub frame is decoded.
  *
- * [EXACT] decodes forward from the previous keyframe to the requested frame: the
- * picture is frame-accurate but a long GOP or a 4K source can take hundreds of
- * milliseconds. [KEYFRAME] returns the nearest previous sync frame instead,
- * which is roughly an order of magnitude cheaper — used for every frame while
- * the finger moves, so the preview keeps following the timeline. The frame
- * decoded after the gesture settles is always [EXACT].
+ * [EXACT] decodes to the requested frame: the picture is frame-accurate, which
+ * is what the split workflow needs ("which frame will this split land on?").
+ * It is the accuracy used for every scrub frame today. [KEYFRAME] returns the
+ * nearest previous sync frame instead — roughly an order of magnitude cheaper,
+ * but frozen inside a GOP, so it is kept only as an escape hatch for sources
+ * whose exact decoding cannot keep up at all.
  */
 enum class ScrubFrameAccuracy { EXACT, KEYFRAME }
 
@@ -126,10 +126,10 @@ class ScrubFrameLoader(
         accuracy: ScrubFrameAccuracy
     ): Bitmap? {
         // PREVIOUS_SYNC never shows content from beyond the playhead, which is
-        // what an editor's scrub preview should do. It is also an order of
-        // magnitude cheaper than CLOSEST: no forward decode from the previous
-        // keyframe. Drag frames therefore use keyframes; the exact frame is
-        // decoded once the gesture settles.
+        // what an editor's scrub preview should do. It is also much cheaper
+        // than CLOSEST (no forward decode from the previous keyframe), but it
+        // freezes inside a GOP — so it is only for sources where EXACT cannot
+        // keep up at all.
         val option = when (accuracy) {
             ScrubFrameAccuracy.EXACT -> MediaMetadataRetriever.OPTION_CLOSEST
             ScrubFrameAccuracy.KEYFRAME -> MediaMetadataRetriever.OPTION_PREVIOUS_SYNC

@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -53,14 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * Context action bar shown while a clip is selected, matching the CapCut
- * reference: back chevron, then Split, Volume, Animations, Effects, Delete,
- * Speed, Beats, Crop, Duplicate, Replace, Overlay, Adjust, Stickers, Generate
- * media, AI avatar, Aspect ratio and Background.
- *
- * Every entry is a real callback. Cloud-only AI features live behind the
- * "AI Tools" entry so they can explain why they need an online model instead of
- * pretending to work offline.
+ * Minimalist context action bar shown while a clip is selected:
+ * Compact height (56.dp), sleek minimalist icon size (20.dp white), 10.sp typography.
  */
 @Composable
 internal fun ClipActionBar(
@@ -87,33 +80,28 @@ internal fun ClipActionBar(
     onMore: () -> Unit,
     onAiTools: () -> Unit
 ) {
-    // The editor shell is intentionally dark regardless of the app theme, so
-    // this bar uses the same studio palette as CapCutBottomActionBar instead of
-    // PencilTheme (which is white in light mode).
     val barBackground = Color(0xFF121215)
-    val barBorder = Color(0xFF262830)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .height(56.dp)
             .background(barBackground)
-            .border(width = 0.8.dp, color = barBorder)
+            .padding(vertical = 2.dp)
             .testTag("clip_action_bar"),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(
             onClick = onBack,
             modifier = Modifier
-                .width(38.dp)
-                .height(44.dp)
+                .size(36.dp)
                 .testTag("clip_action_back")
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back to tools",
                 tint = Color.White,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(18.dp)
             )
         }
 
@@ -122,7 +110,7 @@ internal fun ClipActionBar(
                 .weight(1f)
                 .horizontalScroll(rememberScrollState())
                 .padding(end = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             ClipActionItem(Icons.Default.ContentCut, "Split", "split", onSplit)
@@ -161,22 +149,27 @@ private fun ClipActionItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(6.dp))
             .clickable { onClick() }
-            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
             .testTag("clip_action_$tag")
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = Color.White,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.height(3.dp))
+        Box(
+            modifier = Modifier.size(22.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
-            color = Color(0xFFA1A5B0),
-            fontSize = 9.sp,
+            color = Color.White.copy(alpha = 0.90f),
+            fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1
         )

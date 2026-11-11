@@ -38,14 +38,10 @@ import com.example.ui.components.CapCutIconCaptions
 import com.example.ui.components.CapCutIconEffectsStar
 import com.example.ui.components.CapCutIconFilters
 import com.example.ui.components.CapCutIconOverlay
-import com.example.ui.theme.PencilTheme
 
 /**
- * CapCut workspace bottom navigation bar matching the reference image:
- * Edit (Scissors), Audio (Music Note), Text (T), Effects (Star outline),
- * Overlay (Overlapping frames), Captions (Subtitle card), Filters (Venn diagram circles).
- *
- * Clean, borderless icon design on sleek dark studio background.
+ * Minimalist CapCut workspace bottom navigation bar:
+ * Compact height (56.dp), sleek minimalist icon size (20.dp white), 10.sp typography.
  */
 @Composable
 internal fun CapCutBottomActionBar(
@@ -67,10 +63,10 @@ internal fun CapCutBottomActionBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(68.dp)
+            .height(56.dp)
             .background(barBackground)
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -104,7 +100,7 @@ internal fun CapCutBottomActionBar(
             tag = "effects",
             onClick = onEffects
         ) {
-            CapCutIconEffectsStar(tint = Color.White, size = 25.dp)
+            CapCutIconEffectsStar(tint = Color.White, size = 20.dp)
         }
 
         // 5. Overlay (Overlapping frames)
@@ -113,7 +109,7 @@ internal fun CapCutBottomActionBar(
             tag = "overlay",
             onClick = onOverlay
         ) {
-            CapCutIconOverlay(tint = Color.White, size = 25.dp)
+            CapCutIconOverlay(tint = Color.White, size = 20.dp)
         }
 
         // 6. Captions (Subtitle box)
@@ -122,7 +118,7 @@ internal fun CapCutBottomActionBar(
             tag = "captions",
             onClick = onCaptions
         ) {
-            CapCutIconCaptions(tint = Color.White, size = 25.dp)
+            CapCutIconCaptions(tint = Color.White, size = 20.dp)
         }
 
         // 7. Filters (Venn diagram 3 circles)
@@ -131,7 +127,7 @@ internal fun CapCutBottomActionBar(
             tag = "filters",
             onClick = onFilters
         ) {
-            CapCutIconFilters(tint = Color.White, size = 25.dp)
+            CapCutIconFilters(tint = Color.White, size = 20.dp)
         }
 
         // Additional tools when scrolled
@@ -181,7 +177,7 @@ internal fun BottomActionItemVector(
             imageVector = icon,
             contentDescription = label,
             tint = Color.White,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(20.dp)
         )
     }
 }
@@ -197,22 +193,22 @@ internal fun BottomActionItemCustom(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(6.dp))
             .clickable { onClick() }
-            .padding(horizontal = 6.dp, vertical = 4.dp)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
             .testTag("bottom_action_$tag")
     ) {
         Box(
-            modifier = Modifier.size(26.dp),
+            modifier = Modifier.size(22.dp),
             contentAlignment = Alignment.Center
         ) {
             iconContent()
         }
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
-            color = Color.White.copy(alpha = 0.92f),
-            fontSize = 11.sp,
+            color = Color.White.copy(alpha = 0.90f),
+            fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1
         )
