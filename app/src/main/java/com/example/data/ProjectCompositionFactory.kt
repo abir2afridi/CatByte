@@ -21,6 +21,9 @@ import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
+import com.example.data.composition.ClipTransformEffect
+import com.example.data.composition.MirrorAndRotationEffect
+import com.example.data.composition.ProjectCompositorSettings
 import com.example.data.export.ColorGradeEffect
 import com.example.data.export.ExportResolution
 import com.example.data.export.FilterMapper
@@ -428,105 +431,4 @@ object ProjectCompositionFactory {
             blueGain = grade.blueGain * hsl.blueMultiplier()
         )
     }
-}
-
-/**
- * Dynamic compositor settings: input 0 is the main video, inputs 1..N are PIP
- * clips. The overlay position, scale, rotation and alpha are evaluated for every
- * frame, so keyframed PIP motion is rendered identically in preview and export.
- */
-@UnstableApi
-private class ProjectCompositorSettings(
-    private val width: Int,
-    private val height: Int,
-    private val overlayInputs: Map<Int, MediaClip>
-) : VideoCompositorSettings {
-
-    private val defaultSettings: OverlaySettings = StaticOverlaySettings.Builder()
-        .setAlphaScale(1f)
-        .build()
-
-    override fun getOutputSize(inputSizes: List<Size>): Size = Size(width, height)
-
-    override fun getOverlaySettings(inputId: Int, presentationTimeUs: Long): OverlaySettings {
-        val clip = overlayInputs[inputId] ?: return defaultSettings
-        val timeMs = presentationTimeUs / 1000L
-        val localMs = timeMs - clip.startTimelineMs
-        if (localMs < 0L || localMs > clip.durationMs) {
-            return StaticOverlaySettings.Builder().setAlphaScale(0f).build()
-        }
-
-        val posX = KeyframeInterpolator.getPosX(clip, localMs).coerceIn(0f, 1f)
-        val posY = KeyframeInterpolator.getPosY(clip, localMs).coerceIn(0f, 1f)
-        val scale = KeyframeInterpolator.getScale(clip, localMs).coerceAtLeast(0.02f)
-        val rotation = KeyframeInterpolator.getRotation(clip, localMs)
-        val opacity = KeyframeInterpolator.getOpacity(clip, localMs).coerceIn(0f, 1f)
-
-        return StaticOverlaySettings.Builder()
-            .setBackgroundFrameAnchor(
-                (posX * 2f - 1f).coerceIn(-1f, 1f),
-                (1f - posY * 2f).coerceIn(-1f, 1f)
-            )
-            .setOverlayFrameAnchor(0f, 0f)
-            .setScale(scale, scale)
-            // Android/Compose rotation is clockwise; OverlaySettings is CCW.
-            .setRotationDegrees(-rotation)
-            .setAlphaScale(opacity)
-            .build()
-    }
-}
-
-/** Main-track transform with per-frame keyframe support. */
-@UnstableApi
-private class ClipTransformEffect(private val clip: MediaClip) : MatrixTransformation {
-
-    override fun getMatrix(presentationTimeUs: Long): Matrix {
-        val timeMs = presentationTimeUs / 1000L
-        val animation = ClipAnimationMath.transformAt(clip.animationIn, timeMs)
-        val scale = KeyframeInterpolator.getScale(clip, timeMs).coerceAtLeast(0.01f) * animation.scale
-        val rotation = KeyframeInterpolator.getRotation(clip, timeMs) + animation.rotationDeg
-        val posX = KeyframeInterpolator.getPosX(clip, timeMs).coerceIn(0f, 1f)
-        val posY = KeyframeInterpolator.getPosY(clip, timeMs).coerceIn(0f, 1f)
-
-        val matrix = Matrix()
-        val scaleX = if (clip.isMirrored) -scale else scale
-        // MatrixTransformation operates in NDC; the origin is the frame centre.
-        matrix.setScale(scaleX, scale, 0f, 0f)
-        if (abs(rotation) > 0.001f) {
-            matrix.postRotate(rotation, 0f, 0f)
-        }
-        val translateX = (posX - 0.5f) * 2f + animation.translateX
-        val translateY = (0.5f - posY) * 2f + animation.translateY
-        if (abs(translateX) > 0.0001f || abs(translateY) > 0.0001f) {
-            matrix.postTranslate(translateX, translateY)
-        }
-        return matrix
-    }
-
-    override fun isNoOp(inputWidth: Int, inputHeight: Int): Boolean =
-        clip.keyframes.isEmpty() &&
-            clip.animationIn == com.example.model.ClipAnimation.NONE &&
-            abs(clip.scale - 1f) < 0.0001f &&
-            abs(clip.rotation) < 0.0001f &&
-            !clip.isMirrored &&
-            abs(clip.posX - 0.5f) < 0.0001f &&
-            abs(clip.posY - 0.5f) < 0.0001f
-}
-
-/** Mirror/rotation for PIP textures; positioning is handled by the compositor. */
-@UnstableApi
-private class MirrorAndRotationEffect(private val clip: MediaClip) : MatrixTransformation {
-
-    override fun getMatrix(presentationTimeUs: Long): Matrix {
-        val matrix = Matrix()
-        val scaleX = if (clip.isMirrored) -1f else 1f
-        matrix.setScale(scaleX, 1f, 0f, 0f)
-        if (abs(clip.rotation) > 0.001f) {
-            matrix.postRotate(clip.rotation, 0f, 0f)
-        }
-        return matrix
-    }
-
-    override fun isNoOp(inputWidth: Int, inputHeight: Int): Boolean =
-        !clip.isMirrored && abs(clip.rotation) < 0.001f
 }
