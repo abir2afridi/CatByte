@@ -74,6 +74,16 @@ import com.example.viewmodel.features.MarkerFeature
 import com.example.viewmodel.features.TrackControlFeature
 import com.example.viewmodel.features.ClipAttributeClipboard
 import com.example.viewmodel.features.ClipAttributeFeature
+import com.example.viewmodel.features.ExportFeature
+import com.example.viewmodel.features.KeyframeFeature
+import com.example.viewmodel.features.OverlayClipFeature
+import com.example.viewmodel.features.ClipEffectFeature
+import com.example.viewmodel.features.BeatSyncFeature
+import com.example.viewmodel.features.ClipPropertyFeature
+import com.example.viewmodel.features.ClipTransformFeature
+import com.example.viewmodel.features.SettingsFeature
+import com.example.viewmodel.features.ProjectLifecycleFeature
+import com.example.viewmodel.features.SelectionFeature
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -146,11 +156,11 @@ private data class BeatSource(
 
 @androidx.media3.common.util.UnstableApi
 class EditorViewModel(
-    private val repository: ProjectRepository = ProjectRepository(),
-    private val settingsRepository: SettingsRepository? = null,
-    private val cacheManager: CacheManager? = null,
-    private val playerManager: com.example.data.PlayerManager? = null,
-    private val exportManager: com.example.data.ExportManager? = null,
+    internal val repository: ProjectRepository = ProjectRepository(),
+    internal val settingsRepository: SettingsRepository? = null,
+    internal val cacheManager: CacheManager? = null,
+    internal val playerManager: com.example.data.PlayerManager? = null,
+    internal val exportManager: com.example.data.ExportManager? = null,
     internal val context: Context? = null
 ) : ViewModel() {
 
@@ -173,7 +183,7 @@ class EditorViewModel(
         return total
     }
 
-    private val _isPlaying = MutableStateFlow(false)
+    internal val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
     internal val _currentPositionMs = MutableStateFlow(0L)
@@ -192,45 +202,43 @@ class EditorViewModel(
     internal val _activeSheet = MutableStateFlow(ActiveToolSheet.NONE)
     val activeSheet: StateFlow<ActiveToolSheet> = _activeSheet.asStateFlow()
 
-    private val _isEyedropperActive = MutableStateFlow(false)
+    internal val _isEyedropperActive = MutableStateFlow(false)
     val isEyedropperActive: StateFlow<Boolean> = _isEyedropperActive.asStateFlow()
 
     /** Detected beat positions (ms) used as magnetic snap targets on the timeline. */
-    private val _snapBeats = MutableStateFlow<List<Long>>(emptyList())
+    internal val _snapBeats = MutableStateFlow<List<Long>>(emptyList())
     val snapBeats: StateFlow<List<Long>> = _snapBeats.asStateFlow()
 
-    fun setEyedropperActive(active: Boolean) {
-        _isEyedropperActive.value = active
-    }
+    fun setEyedropperActive(active: Boolean) = SettingsFeature.setEyedropperActive(this, active)
 
-    private val _timelineZoom = MutableStateFlow(1.0f)
+    internal val _timelineZoom = MutableStateFlow(1.0f)
     val timelineZoom: StateFlow<Float> = _timelineZoom.asStateFlow()
 
-    private val _exportState = MutableStateFlow(ExportUiState())
+    internal val _exportState = MutableStateFlow(ExportUiState())
     val exportState: StateFlow<ExportUiState> = _exportState.asStateFlow()
 
-    private val _appThemeMode = MutableStateFlow(com.example.ui.theme.AppThemeMode.LIGHT)
+    internal val _appThemeMode = MutableStateFlow(com.example.ui.theme.AppThemeMode.LIGHT)
     val appThemeMode: StateFlow<com.example.ui.theme.AppThemeMode> = _appThemeMode.asStateFlow()
 
-    private val _isSettingsOpen = MutableStateFlow(false)
+    internal val _isSettingsOpen = MutableStateFlow(false)
     val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
 
-    private val _defaultResolution = MutableStateFlow("1080P")
+    internal val _defaultResolution = MutableStateFlow("1080P")
     val defaultResolution: StateFlow<String> = _defaultResolution.asStateFlow()
 
-    private val _defaultFps = MutableStateFlow(30)
+    internal val _defaultFps = MutableStateFlow(30)
     val defaultFps: StateFlow<Int> = _defaultFps.asStateFlow()
 
-    private val _showPaperGrid = MutableStateFlow(true)
+    internal val _showPaperGrid = MutableStateFlow(true)
     val showPaperGrid: StateFlow<Boolean> = _showPaperGrid.asStateFlow()
 
-    private val _watermarkEnabled = MutableStateFlow(false)
+    internal val _watermarkEnabled = MutableStateFlow(false)
     val watermarkEnabled: StateFlow<Boolean> = _watermarkEnabled.asStateFlow()
 
     internal val _appLanguage = MutableStateFlow(AppLanguage.SYSTEM)
     val appLanguage: StateFlow<AppLanguage> = _appLanguage.asStateFlow()
 
-    private val _cacheSizeMb = MutableStateFlow(0)
+    internal val _cacheSizeMb = MutableStateFlow(0)
     val cacheSizeMb: StateFlow<Int> = _cacheSizeMb.asStateFlow()
 
     private val _isImporting = MutableStateFlow(false)
@@ -239,64 +247,27 @@ class EditorViewModel(
     internal val voiceRecorder = context?.let { VoiceRecorder(it) }
     internal val speechSynthesizer = context?.let { SpeechSynthesizer(it) }
 
-    fun setAppThemeMode(mode: com.example.ui.theme.AppThemeMode) {
-        _appThemeMode.value = mode
-        viewModelScope.launch { settingsRepository?.setThemeMode(mode) }
-    }
+    fun setAppThemeMode(mode: com.example.ui.theme.AppThemeMode) =
+        SettingsFeature.setAppThemeMode(this, mode)
 
-    fun setAppLanguage(language: AppLanguage) {
-        _appLanguage.value = language
-        viewModelScope.launch { settingsRepository?.setLanguage(language) }
-    }
+    fun setAppLanguage(language: AppLanguage) =
+        SettingsFeature.setAppLanguage(this, language)
 
-    fun openSettings() {
-        _isSettingsOpen.value = true
-        refreshCacheSize()
-    }
+    fun openSettings() = SettingsFeature.openSettings(this)
 
-    fun closeSettings() {
-        _isSettingsOpen.value = false
-    }
+    fun closeSettings() = SettingsFeature.closeSettings(this)
 
-    fun setDefaultResolution(res: String) {
-        _defaultResolution.value = res
-        viewModelScope.launch { settingsRepository?.setDefaultResolution(res) }
-    }
+    fun setDefaultResolution(res: String) = SettingsFeature.setDefaultResolution(this, res)
 
-    fun setDefaultFps(fps: Int) {
-        _defaultFps.value = fps
-        viewModelScope.launch { settingsRepository?.setDefaultFps(fps) }
-    }
+    fun setDefaultFps(fps: Int) = SettingsFeature.setDefaultFps(this, fps)
 
-    fun togglePaperGrid(enabled: Boolean) {
-        _showPaperGrid.value = enabled
-        viewModelScope.launch { settingsRepository?.setShowPaperGrid(enabled) }
-    }
+    fun togglePaperGrid(enabled: Boolean) = SettingsFeature.togglePaperGrid(this, enabled)
 
-    fun toggleWatermark(enabled: Boolean) {
-        _watermarkEnabled.value = enabled
-        viewModelScope.launch { settingsRepository?.setWatermarkEnabled(enabled) }
-        // The watermark is burned into the same preview composition as export.
-        playerManager?.setWatermarkEnabled(enabled)
-    }
+    fun toggleWatermark(enabled: Boolean) = SettingsFeature.toggleWatermark(this, enabled)
 
-    fun refreshCacheSize() {
-        val manager = cacheManager ?: return
-        viewModelScope.launch {
-            _cacheSizeMb.value = manager.cacheSizeMb()
-        }
-    }
+    fun refreshCacheSize() = SettingsFeature.refreshCacheSize(this)
 
-    fun clearCache() {
-        val manager = cacheManager
-        if (manager == null) {
-            _cacheSizeMb.value = 0
-            return
-        }
-        viewModelScope.launch {
-            _cacheSizeMb.value = manager.clearCache()
-        }
-    }
+    fun clearCache() = SettingsFeature.clearCache(this)
 
     // Voice recording with real MediaRecorder
     internal val _isRecordingVoice = MutableStateFlow(false)
@@ -305,8 +276,8 @@ class EditorViewModel(
     val voiceRecordingDurationMs: StateFlow<Long> = _voiceRecordingDurationMs.asStateFlow()
 
     // Undo / Redo history stacks
-    private val undoStack = mutableListOf<EditorHistoryEntry>()
-    private val redoStack = mutableListOf<VideoProject>()
+    internal val undoStack = mutableListOf<EditorHistoryEntry>()
+    internal val redoStack = mutableListOf<VideoProject>()
 
     /**
      * Durable copy of the undo history. The in-memory stacks die with the
@@ -319,25 +290,23 @@ class EditorViewModel(
     }
 
     /** One undoable state: the project to revert to, plus gesture metadata. */
-    private data class EditorHistoryEntry(
+    internal data class EditorHistoryEntry(
         val project: VideoProject,
         /** Non-null while a drag/slider gesture streams; equal keys collapse. */
         val key: String? = null,
         val atMs: Long = System.currentTimeMillis()
     )
 
-    private val _canUndo = MutableStateFlow(false)
+    internal val _canUndo = MutableStateFlow(false)
     val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
 
-    private val _canRedo = MutableStateFlow(false)
+    internal val _canRedo = MutableStateFlow(false)
     val canRedo: StateFlow<Boolean> = _canRedo.asStateFlow()
 
-    private val _magneticSnap = MutableStateFlow(true)
+    internal val _magneticSnap = MutableStateFlow(true)
     val magneticSnap: StateFlow<Boolean> = _magneticSnap.asStateFlow()
 
-    fun toggleMagneticSnap() {
-        _magneticSnap.value = !_magneticSnap.value
-    }
+    fun toggleMagneticSnap() = SettingsFeature.toggleMagneticSnap(this)
 
     private var playbackJob: Job? = null
 
@@ -467,7 +436,7 @@ class EditorViewModel(
         const val PLAYHEAD_RESYNC_TOLERANCE_MS = 750L
     }
     internal var voiceRecordJob: Job? = null
-    private var exportJob: Job? = null
+    internal var exportJob: Job? = null
     private var importJob: Job? = null
 
     /** Preview rebuild policy lives in its own file (PreviewRefreshScheduler). */
@@ -559,7 +528,7 @@ class EditorViewModel(
         }
     }
 
-    private fun refreshPreviewNow() {
+    internal fun refreshPreviewNow() {
         previewScheduler.refreshNow()
     }
 
@@ -659,258 +628,67 @@ class EditorViewModel(
         playerManager?.pause()
     }
 
-    fun openProject(project: VideoProject) {
-        AppLog.info("EditorViewModel", "openProject() called: projectId=${project.id}, title=${project.title}, clips=${project.clips.size}, totalDuration=${project.totalDurationMs}ms")
-        // The previous project's scrub overlay and settle loop must not leak into
-        // the new project's preview.
-        cancelScrubPreview()
-        pausePlayback()
-        val normalized = project.withMagneticMainTrack()
-        // Start the preview at 0 explicitly: leaving the default would keep the
-        // previous project's playhead inside PlayerManager, and the UI would
-        // show 0 while playback resumed somewhere else.
-        playerManager?.loadProject(normalized, startPositionMs = 0L)
-        _currentProject.value = normalized
-        _currentPositionMs.value = 0L
-        // Opening a project never pre-selects a clip (CapCut behaviour).
-        clearSelection()
-        _activeSheet.value = ActiveToolSheet.NONE
-        undoStack.clear()
-        redoStack.clear()
-        _canUndo.value = false
-        _canRedo.value = false
-        AppLog.debug("EditorViewModel", "openProject() completed, currentProject set")
-    }
+    fun openProject(project: VideoProject) = ProjectLifecycleFeature.openProject(this, project)
 
-    fun toggleProjectFavorite(id: String) {
-        repository.toggleFavorite(id)
-        if (_currentProject.value?.id == id) {
-            _currentProject.value = _currentProject.value?.copy(
-                isFavorite = !(_currentProject.value?.isFavorite ?: false)
-            )
-        }
-    }
+    fun toggleProjectFavorite(id: String) = ProjectLifecycleFeature.toggleProjectFavorite(this, id)
 
     fun createNewProjectWithParams(
         title: String,
         ratio: AspectRatioType = AspectRatioType.RATIO_9_16,
         paperStyle: String = "Standard"
-    ) {
-        pausePlayback()
-        val proj = repository.createNewProject(
-            title = title.ifBlank { "New Project #${System.currentTimeMillis() % 1000}" },
-            aspectRatio = ratio,
-            paperStyle = paperStyle,
-            initialClips = emptyList(),
-            resolution = _defaultResolution.value,
-            fps = _defaultFps.value
-        )
-        openProject(proj)
-    }
+    ) = ProjectLifecycleFeature.createNewProjectWithParams(this, title, ratio, paperStyle)
 
-    fun createNewProject() {
-        createNewProjectWithParams("New Project #${System.currentTimeMillis() % 1000}")
-    }
+    fun createNewProject() = ProjectLifecycleFeature.createNewProject(this)
 
-    fun duplicateProject(id: String) {
-        repository.duplicateProject(id)
-        _currentProject.value?.let { playerManager?.loadProject(it) }
-    }
+    fun duplicateProject(id: String) = ProjectLifecycleFeature.duplicateProject(this, id)
 
-    fun deleteProject(id: String) {
-        if (_currentProject.value?.id == id) {
-            _currentProject.value = null
-        }
-        repository.deleteProject(id)
-        _currentProject.value?.let { playerManager?.loadProject(it) } ?: playerManager?.pause()
-    }
+    fun deleteProject(id: String) = ProjectLifecycleFeature.deleteProject(this, id)
 
     /** Restores a draft removed from the home screen (undo delete). */
-    fun restoreProject(project: VideoProject) {
-        repository.saveProject(project)
-        _currentProject.value = project
-        playerManager?.loadProject(project)
-    }
+    fun restoreProject(project: VideoProject) = ProjectLifecycleFeature.restoreProject(this, project)
 
     /** Clears ALL projects from the repository (database + memory). */
-    fun clearAllProjects() {
-        _currentProject.value = null
-        repository.deleteAllProjects()
-        playerManager?.pause()
-    }
+    fun clearAllProjects() = ProjectLifecycleFeature.clearAllProjects(this)
 
-    fun setActiveSheet(sheet: ActiveToolSheet) {
-        _activeSheet.value = sheet
-    }
+    fun setActiveSheet(sheet: ActiveToolSheet) = ProjectLifecycleFeature.setActiveSheet(this, sheet)
 
-    fun selectClip(clipId: String?) {
-        _selectedClipId.value = clipId
-        _selectedClipIds.value = if (clipId == null) emptySet() else setOf(clipId)
-        if (clipId != null) {
-            _selectedTextId.value = null
-        }
-    }
+    fun selectClip(clipId: String?) = SelectionFeature.selectClip(this, clipId)
 
     /** Toggles a clip in the multi-selection. */
-    fun toggleClipSelection(clipId: String) {
-        val next = _selectedClipIds.value.toMutableSet()
-        if (!next.add(clipId)) next.remove(clipId)
-        _selectedClipIds.value = next
-        _selectedClipId.value = next.firstOrNull()
-        if (next.isNotEmpty()) _selectedTextId.value = null
-    }
+    fun toggleClipSelection(clipId: String) = SelectionFeature.toggleClipSelection(this, clipId)
 
-    fun clearSelection() {
-        // Deselect EVERYTHING: single clip, multi-select set and text overlay.
-        // Clearing only the multi-select set used to leave the white selection
-        // border on the timeline forever.
-        _selectedClipId.value = null
-        _selectedClipIds.value = emptySet()
-        _selectedTextId.value = null
-    }
+    fun clearSelection() = SelectionFeature.clearSelection(this)
 
-    fun selectAllClips() {
-        val project = _currentProject.value ?: return
-        _selectedClipIds.value = project.allVideoClips.map { it.id }.toSet()
-        _selectedClipId.value = _selectedClipIds.value.firstOrNull()
-    }
+    fun selectAllClips() = SelectionFeature.selectAllClips(this)
 
     /** True when a group operation should apply instead of the single-clip one. */
-    fun hasMultiSelection(): Boolean = _selectedClipIds.value.size > 1
+    fun hasMultiSelection(): Boolean = SelectionFeature.hasMultiSelection(this)
 
     /**
      * Deletes every selected clip. Main-track members ripple (the gap closes,
      * list order defines time) while overlay members lift (the remaining
      * overlays keep their absolute positions).
      */
-    fun deleteSelectedClips() {
-        val ids = _selectedClipIds.value
-        if (ids.isEmpty()) {
-            deleteSelectedClip()
-            return
-        }
-        updateProject { proj ->
-            val mainSpans = proj.clips.map {
-                TimelineEdits.ClipSpan(it.id, it.startTimelineMs, it.durationMs)
-            }
-            val byId = proj.clips.associateBy { it.id }
-            val newMain = TimelineEdits.deleteAll(mainSpans, ids, ripple = true)
-                .mapNotNull { span -> byId[span.id] }
-            val newOverlays = proj.overlayTracks.map { track ->
-                if (track.clips.none { it.id in ids }) {
-                    track
-                } else {
-                    val spans = track.clips.map {
-                        TimelineEdits.ClipSpan(it.id, it.startTimelineMs, it.durationMs)
-                    }
-                    val lookup = track.clips.associateBy { it.id }
-                    track.copy(
-                        clips = TimelineEdits.deleteAll(spans, ids, ripple = false)
-                            .mapNotNull { span -> lookup[span.id] }
-                    )
-                }
-            }
-            proj.copy(clips = newMain, overlayTracks = newOverlays)
-        }
-        val updated = _currentProject.value
-        val remaining = _selectedClipIds.value.intersect(
-            (updated?.clips?.map { it.id } ?: emptyList()) +
-                (updated?.overlayTracks?.flatMap { it.clips }?.map { it.id } ?: emptyList())
-        ).toSet()
-        _selectedClipIds.value = remaining
-        _selectedClipId.value = remaining.firstOrNull()
-            ?: updated?.clips?.firstOrNull()?.id
-    }
+    fun deleteSelectedClips() = SelectionFeature.deleteSelectedClips(this)
 
     /**
      * Moves the selected overlay clips by [deltaMs] as one group, keeping their
      * relative offsets and clamping inside the project.
      */
-    fun moveSelectedOverlays(deltaMs: Long) {
-        if (deltaMs == 0L) return
-        updateProject { proj ->
-            val ids = _selectedClipIds.value
-            val newOverlays = proj.overlayTracks.map { track ->
-                if (track.clips.none { it.id in ids }) {
-                    track
-                } else {
-                    val spans = track.clips.map {
-                        TimelineEdits.ClipSpan(it.id, it.startTimelineMs, it.durationMs)
-                    }
-                    val shifted = TimelineEdits.shiftGroup(spans, ids, deltaMs)
-                        .map { it.id to it.startMs }
-                        .toMap()
-                    val lookup = track.clips.associateBy { it.id }
-                    track.copy(
-                        clips = track.clips.map { clip ->
-                            val shiftedStart = shifted[clip.id]
-                            if (shiftedStart != null) {
-                                clip.copy(startTimelineMs = shiftedStart)
-                            } else {
-                                clip
-                            }
-                        }
-                    )
-                }
-            }
-            proj.copy(overlayTracks = newOverlays)
-        }
-    }
+    fun moveSelectedOverlays(deltaMs: Long) = SelectionFeature.moveSelectedOverlays(this, deltaMs)
 
     /** Copies selected overlay clips so they can be pasted at the playhead. */
-    private val _overlayClipboard = MutableStateFlow<List<MediaClip>>(emptyList())
+    internal val _overlayClipboard = MutableStateFlow<List<MediaClip>>(emptyList())
     val overlayClipboard: StateFlow<List<MediaClip>> = _overlayClipboard.asStateFlow()
 
-    fun copySelectedOverlays() {
-        val ids = _selectedClipIds.value
-        val project = _currentProject.value ?: return
-        val clips = project.overlayTracks.flatMap { it.clips }.filter { it.id in ids }
-        _overlayClipboard.value = clips.map { it.copy(id = "copy_${it.id}") }
-    }
+    fun copySelectedOverlays() = SelectionFeature.copySelectedOverlays(this)
 
     /** Pastes the clipboard at the playhead, keeping the copied relative offsets. */
-    fun pasteOverlays() {
-        val clipboard = _overlayClipboard.value
-        if (clipboard.isEmpty()) return
-        val baseStart = clipboard.minOf { it.startTimelineMs }
-        val pasteStart = _currentPositionMs.value.coerceAtLeast(0L)
-        updateProject { proj ->
-            val tracks = proj.overlayTracks.toMutableList()
-            val pasted = clipboard.map { clip ->
-                clip.copy(
-                    id = "paste_${clip.id}",
-                    startTimelineMs = (pasteStart + (clip.startTimelineMs - baseStart))
-                        .coerceAtLeast(0L)
-                )
-            }
-            if (tracks.isEmpty()) {
-                tracks.add(
-                    VideoTrack(
-                        name = "Pasted Track",
-                        isMainTrack = false,
-                        clips = pasted
-                    )
-                )
-            } else {
-                tracks[0] = tracks[0].copy(clips = tracks[0].clips + pasted)
-            }
-            proj.copy(overlayTracks = tracks)
-        }
-        val newIds = _overlayClipboard.value.map { "paste_${it.id}" }
-        _selectedClipIds.value = newIds.toSet()
-        _selectedClipId.value = newIds.firstOrNull()
-    }
+    fun pasteOverlays() = SelectionFeature.pasteOverlays(this)
 
-    fun selectText(textId: String?) {
-        _selectedTextId.value = textId
-        if (textId != null) {
-            _selectedClipId.value = null
-        }
-    }
+    fun selectText(textId: String?) = SelectionFeature.selectText(this, textId)
 
-    fun setTimelineZoom(zoom: Float) {
-        _timelineZoom.value = zoom.coerceIn(0.5f, 3.0f)
-    }
+    fun setTimelineZoom(zoom: Float) = SelectionFeature.setTimelineZoom(this, zoom)
 
     // ==========================================
     // Playback Engine
@@ -1473,7 +1251,7 @@ class EditorViewModel(
     }
 
     /** Cancels every scrub job and removes the overlay (project switch, destroy). */
-    private fun cancelScrubPreview() {
+    internal fun cancelScrubPreview() {
         scrubSettlePending = false
         scrubSettleJob?.cancel()
         scrubSettleJob = null
@@ -1588,51 +1366,6 @@ class EditorViewModel(
     // ==========================================
     // Clip operations
     // ==========================================
-
-    /** Applies [transform] to a clip on the main track or any overlay track. */
-    private fun VideoProject.withUpdatedClip(
-        clipId: String,
-        transform: (MediaClip) -> MediaClip
-    ): VideoProject {
-        var changed = false
-        val updatedMain = clips.map { clip ->
-            if (clip.id == clipId) {
-                changed = true
-                transform(clip)
-            } else clip
-        }
-        val updatedOverlays = overlayTracks.map { track ->
-            val updatedClips = track.clips.map { clip ->
-                if (clip.id == clipId) {
-                    changed = true
-                    transform(clip)
-                } else clip
-            }
-            if (updatedClips == track.clips) track else track.copy(clips = updatedClips)
-        }
-        return if (changed) copy(clips = updatedMain, overlayTracks = updatedOverlays) else this
-    }
-
-    /**
-     * Clip-local time. Main-track clips are laid out cumulatively (their stored
-     * startTimelineMs is not authoritative), overlay clips use their explicit
-     * startTimelineMs. Keyframes are always stored in clip-local time.
-     */
-    private fun VideoProject.localTimeForClip(clipId: String, timelineMs: Long): Long? {
-        var cursor = 0L
-        for (clip in clips) {
-            if (clip.id == clipId) {
-                return (timelineMs - cursor).coerceIn(0L, clip.durationMs)
-            }
-            cursor += clip.durationMs
-        }
-        overlayTracks.forEach { track ->
-            track.clips.firstOrNull { it.id == clipId }?.let { clip ->
-                return (timelineMs - clip.startTimelineMs).coerceIn(0L, clip.durationMs)
-            }
-        }
-        return null
-    }
 
     /**
      * Splits the clip under the playhead and keeps the playhead exactly on the
@@ -1876,16 +1609,8 @@ class EditorViewModel(
     }
 
     /** Updates chroma key (green/blue screen removal) for a clip. */
-    fun setClipChromaKey(clipId: String, chromaData: com.example.model.ChromaKeyData) {
-        updateProject { proj ->
-            proj.copy(
-                clips = proj.clips.map { if (it.id == clipId) it.copy(chromaKey = chromaData) else it },
-                overlayTracks = proj.overlayTracks.map { track ->
-                    track.copy(clips = track.clips.map { if (it.id == clipId) it.copy(chromaKey = chromaData) else it })
-                }
-            )
-        }
-    }
+    fun setClipChromaKey(clipId: String, chromaData: com.example.model.ChromaKeyData) =
+        ClipTransformFeature.setClipChromaKey(this, clipId, chromaData)
 
     /** Updates the selected clip's transform directly from canvas gestures. */
     fun updateSelectedClipTransform(
@@ -1893,72 +1618,16 @@ class EditorViewModel(
         rotationDelta: Float,
         panDeltaX: Float,
         panDeltaY: Float
-    ) {
-        val clipId = _selectedClipId.value ?: return
-        updateProject(coalesceKey = "clipTransform:$clipId") { proj ->
-            proj.withUpdatedClip(clipId) { clip ->
-                val newScale = (clip.scale * scaleMultiplier).coerceIn(0.1f, 5.0f)
-                val newRotation = (clip.rotation + rotationDelta) % 360f
-                val newPosX = (clip.posX + panDeltaX).coerceIn(-0.5f, 1.5f)
-                val newPosY = (clip.posY + panDeltaY).coerceIn(-0.5f, 1.5f)
-                clip.copy(
-                    scale = newScale,
-                    rotation = if (newRotation < 0f) newRotation + 360f else newRotation,
-                    posX = newPosX,
-                    posY = newPosY
-                )
-            }
-        }
-    }
+    ) = ClipTransformFeature.updateSelectedClipTransform(
+        this, scaleMultiplier, rotationDelta, panDeltaX, panDeltaY
+    )
 
     /** Resets the selected clip's scale, position, and rotation to default. */
-    fun resetSelectedClipTransform() {
-        val clipId = _selectedClipId.value ?: return
-        updateProject { proj ->
-            proj.withUpdatedClip(clipId) { clip ->
-                clip.copy(
-                    scale = 1.0f,
-                    rotation = 0f,
-                    posX = 0.5f,
-                    posY = 0.5f
-                )
-            }
-        }
-    }
+    fun resetSelectedClipTransform() = ClipTransformFeature.resetSelectedClipTransform(this)
 
     /** Samples video frame pixel color at normalized coordinates for Chroma Key. */
-    fun sampleChromaColorAt(context: Context, normX: Float, normY: Float) {
-        val clipId = _selectedClipId.value ?: return
-        val clip = _currentProject.value?.allVideoClips?.find { it.id == clipId } ?: return
-        val uriStr = clip.uriString
-        if (uriStr != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                try {
-                    val retriever = android.media.MediaMetadataRetriever()
-                    retriever.setDataSource(context, Uri.parse(uriStr))
-                    val timeUs = (_currentPositionMs.value * 1000L).coerceAtLeast(0L)
-                    val frameBitmap = retriever.getFrameAtTime(timeUs, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                        ?: retriever.frameAtTime
-                    if (frameBitmap != null) {
-                        val px = (normX.coerceIn(0f, 1f) * (frameBitmap.width - 1)).toInt()
-                        val py = (normY.coerceIn(0f, 1f) * (frameBitmap.height - 1)).toInt()
-                        val pixel = frameBitmap.getPixel(px, py)
-                        val colorHex = (pixel.toLong() and 0xFFFFFFFFL) or 0xFF000000L
-                        frameBitmap.recycle()
-                        retriever.release()
-                        withContext(Dispatchers.Main) {
-                            val curr = clip.chromaKey
-                            setClipChromaKey(clipId, curr.copy(isEnabled = true, keyColorHex = colorHex))
-                        }
-                    } else {
-                        retriever.release()
-                    }
-                } catch (e: Exception) {
-                    AppLog.error("EditorViewModel", "Failed to sample chroma color at $normX, $normY", e)
-                }
-            }
-        }
-    }
+    fun sampleChromaColorAt(context: Context, normX: Float, normY: Float) =
+        ClipTransformFeature.sampleChromaColorAt(this, context, normX, normY)
 
     /** Moves a clip to a new position in the timeline (drag-reorder). */
     fun moveClip(fromIndex: Int, toIndex: Int) {
@@ -2354,265 +2023,86 @@ class EditorViewModel(
     }
 
     /** Updates the trim of the selected clip. Streams collapse into one undo. */
-    fun updateClipTrim(trimStartMs: Long, trimEndMs: Long) {
-        val clipId = _selectedClipId.value ?: return
-        if (_currentProject.value?.isTrackLockedForClip(clipId) == true) return
-        updateProject(coalesceKey = "trim:$clipId") { proj ->
-            proj.withUpdatedClip(clipId) { clip ->
-                val newTrimStart = trimStartMs.coerceIn(
-                    0L,
-                    clip.originalDurationMs.coerceAtLeast(300L)
-                )
-                val newTrimEnd = trimEndMs.coerceIn(
-                    newTrimStart + 300L,
-                    clip.originalDurationMs.coerceAtLeast(newTrimStart + 300L)
-                )
-                val trimmed = clip.copy(
-                    trimStartMs = newTrimStart,
-                    trimEndMs = newTrimEnd
-                )
-                trimmed.copy(durationMs = ClipTiming.presentationDurationMs(trimmed))
-            }
-        }
-    }
+    fun updateClipTrim(trimStartMs: Long, trimEndMs: Long) =
+        ClipPropertyFeature.updateClipTrim(this, trimStartMs, trimEndMs)
 
     /**
      * Sets a constant speed. Picking a constant speed clears the velocity curve
      * (the two modes are mutually exclusive, like CapCut), and the timeline
-     * duration is recomputed through the shared [ClipTiming] implementation.
+     * duration is recomputed through the shared ClipTiming implementation.
      */
-    fun setClipSpeed(speed: Float) {
-        val clipId = _selectedClipId.value ?: return
-        updateProject(coalesceKey = "speed:$clipId") { proj ->
-            proj.withUpdatedClip(clipId) { clip ->
-                val updatedClip = clip.copy(
-                    speed = speed.coerceIn(0.1f, 100f),
-                    speedCurve = SpeedCurve()
-                )
-                updatedClip.copy(durationMs = ClipTiming.presentationDurationMs(updatedClip))
-            }
-        }
-    }
+    fun setClipSpeed(speed: Float) = ClipPropertyFeature.setClipSpeed(this, speed)
 
     /** Applies a velocity curve to the selected clip and retimes the timeline. */
-    fun setClipSpeedCurve(curve: SpeedCurve) {
-        val clipId = _selectedClipId.value ?: return
-        updateProject(coalesceKey = "speedCurve:$clipId") { proj ->
-            proj.withUpdatedClip(clipId) { clip ->
-                val updatedClip = clip.copy(speedCurve = curve)
-                updatedClip.copy(durationMs = ClipTiming.presentationDurationMs(updatedClip))
-            }
-        }
-    }
+    fun setClipSpeedCurve(curve: SpeedCurve) = ClipPropertyFeature.setClipSpeedCurve(this, curve)
 
-    fun setClipFilter(filter: VideoFilter) {
-        val clipId = _selectedClipId.value ?: return
-        updateProject { proj ->
-            proj.withUpdatedClip(clipId) { clip -> clip.copy(filter = filter) }
-        }
-    }
+    fun setClipFilter(filter: VideoFilter) = ClipPropertyFeature.setClipFilter(this, filter)
 
-    fun setClipTransition(transition: TransitionType) {
-        val clipId = _selectedClipId.value ?: return
-        updateProject { proj ->
-            proj.withUpdatedClip(clipId) { clip -> clip.copy(transition = transition) }
-        }
-    }
+    fun setClipTransition(transition: TransitionType) =
+        ClipPropertyFeature.setClipTransition(this, transition)
 
-    fun setClipAnimation(animation: ClipAnimation) {
-        val clipId = _selectedClipId.value ?: return
-        updateProject { proj ->
-            proj.withUpdatedClip(clipId) { clip -> clip.copy(animationIn = animation) }
-        }
-    }
+    fun setClipAnimation(animation: ClipAnimation) =
+        ClipPropertyFeature.setClipAnimation(this, animation)
 
     /** Keeps (default) or drops the source pitch when the clip is retimed. */
-    fun setClipMaintainPitch(maintain: Boolean) {
-        val clipId = _selectedClipId.value ?: return
-        updateProject { proj ->
-            proj.withUpdatedClip(clipId) { clip -> clip.copy(maintainPitch = maintain) }
-        }
-    }
+    fun setClipMaintainPitch(maintain: Boolean) =
+        ClipPropertyFeature.setClipMaintainPitch(this, maintain)
 
-    fun rotateSelectedClip() {
-        val clipId = _selectedClipId.value ?: return
-        updateProject { proj ->
-            proj.withUpdatedClip(clipId) { clip ->
-                clip.copy(rotation = (clip.rotation + 90f) % 360f)
-            }
-        }
-    }
+    fun rotateSelectedClip() = ClipPropertyFeature.rotateSelectedClip(this)
 
-    fun mirrorSelectedClip() {
-        val clipId = _selectedClipId.value ?: return
-        updateProject { proj ->
-            proj.withUpdatedClip(clipId) { clip -> clip.copy(isMirrored = !clip.isMirrored) }
-        }
-    }
+    fun mirrorSelectedClip() = ClipPropertyFeature.mirrorSelectedClip(this)
 
     fun updateClipAdjustments(
         brightness: Float,
         contrast: Float,
         saturation: Float,
         vignette: Float
-    ) {
-        val clipId = _selectedClipId.value ?: return
-        updateProject(coalesceKey = "adjust:$clipId") { proj ->
-            proj.withUpdatedClip(clipId) { clip ->
-                clip.copy(
-                    brightness = brightness.coerceIn(-1f, 1f),
-                    contrast = contrast.coerceIn(0.1f, 2f),
-                    saturation = saturation.coerceIn(0f, 2f),
-                    vignette = vignette.coerceIn(0f, 1f)
-                )
-            }
-        }
-    }
+    ) = ClipPropertyFeature.updateClipAdjustments(this, brightness, contrast, saturation, vignette)
 
     /** Volume slider streams collapse into one undo step. */
-    fun setClipVolume(volume: Float) {
-        val clipId = _selectedClipId.value ?: return
-        updateProject(coalesceKey = "volume:$clipId") { proj ->
-            proj.withUpdatedClip(clipId) { clip -> clip.copy(volume = volume.coerceIn(0f, 10f)) }
-        }
-    }
+    fun setClipVolume(volume: Float) = ClipPropertyFeature.setClipVolume(this, volume)
 
     /** Absolute opacity for the selected clip; keyframes still override it. */
-    fun setClipOpacity(opacity: Float) {
-        val clipId = _selectedClipId.value ?: return
-        updateProject(coalesceKey = "opacity:$clipId") { proj ->
-            proj.withUpdatedClip(clipId) { clip ->
-                clip.copy(opacity = opacity.coerceIn(0f, 1f))
-            }
-        }
-    }
+    fun setClipOpacity(opacity: Float) = ClipPropertyFeature.setClipOpacity(this, opacity)
 
     /**
      * Absolute crop/zoom transform. Crop presets compute these values with
-     * [com.example.engine.CropMath]; storing the absolute scale (rather than a
-     * multiplier) keeps repeated preset taps idempotent.
+     * CropMath; storing the absolute scale (rather than a multiplier) keeps
+     * repeated preset taps idempotent.
      */
-    fun setSelectedClipCrop(scale: Float, posX: Float, posY: Float) {
-        val clipId = _selectedClipId.value ?: return
-        updateProject(coalesceKey = "crop:$clipId") { proj ->
-            proj.withUpdatedClip(clipId) { clip ->
-                clip.copy(
-                    scale = scale.coerceIn(1f, 5f),
-                    posX = posX.coerceIn(0f, 1f),
-                    posY = posY.coerceIn(0f, 1f)
-                )
-            }
-        }
-    }
+    fun setSelectedClipCrop(scale: Float, posX: Float, posY: Float) =
+        ClipPropertyFeature.setSelectedClipCrop(this, scale, posX, posY)
 
     fun resetSelectedClipCrop() = setSelectedClipCrop(1f, 0.5f, 0.5f)
 
     /**
      * Real loudness normalisation driven by the clip's decoded waveform. The
-     * resulting gain is written to [MediaClip.volume], which preview playback
+     * resulting gain is written to MediaClip.volume, which preview playback
      * and the export GainProcessor both read, so the switch is not cosmetic.
      */
-    fun setClipLoudnessAdjustment(enabled: Boolean) {
-        val clipId = _selectedClipId.value ?: return
-        updateProject(coalesceKey = "loudness:$clipId") { proj ->
-            proj.withUpdatedClip(clipId) { clip ->
-                val canNormalise = AudioLoudness.canNormalise(clip.waveform)
-                val gain = if (enabled && canNormalise) {
-                    AudioLoudness.gainFor(clip.waveform)
-                } else {
-                    1f
-                }
-                clip.copy(
-                    volume = gain.coerceIn(0f, 10f),
-                    isLoudnessAdjusted = enabled && canNormalise
-                )
-            }
-        }
-    }
+    fun setClipLoudnessAdjustment(enabled: Boolean) =
+        ClipPropertyFeature.setClipLoudnessAdjustment(this, enabled)
 
     /**
      * Probes media dimensions for projects imported before source-size
      * persistence existed, so Crop's aspect presets use the real frame.
      */
-    fun ensureSelectedClipSourceSize() {
-        val clipId = _selectedClipId.value ?: return
-        val clip = _currentProject.value?.allVideoClips?.find { it.id == clipId } ?: return
-        if (clip.sourceWidth > 0 && clip.sourceHeight > 0) return
-        val uriString = clip.uriString ?: return
-        val ctx = context ?: return
-        viewModelScope.launch {
-            val info = withContext(Dispatchers.IO) {
-                runCatching { MediaMetadata.videoInfo(ctx, Uri.parse(uriString)) }.getOrNull()
-            } ?: return@launch
-            if (info.width <= 0 || info.height <= 0) return@launch
-            updateProject { proj ->
-                proj.withUpdatedClip(clipId) {
-                    it.copy(sourceWidth = info.width, sourceHeight = info.height)
-                }
-            }
-        }
-    }
+    fun ensureSelectedClipSourceSize() = ClipPropertyFeature.ensureSelectedClipSourceSize(this)
 
     /**
      * Lazily decodes the selected clip's waveform. Imported video clips start
      * with an empty envelope for speed, so the Volume panel calls this before
      * offering loudness normalisation.
      */
-    fun ensureSelectedClipWaveform() {
-        val clipId = _selectedClipId.value ?: return
-        val clip = _currentProject.value?.allVideoClips?.find { it.id == clipId } ?: return
-        if (clip.waveform.isNotEmpty()) return
-        val uriString = clip.uriString ?: return
-        val ctx = context ?: return
-        viewModelScope.launch {
-            val waveform = withContext(Dispatchers.IO) {
-                runCatching { MediaMetadata.waveform(ctx, Uri.parse(uriString), 48) }.getOrNull()
-            } ?: return@launch
-            if (waveform.isEmpty()) return@launch
-            updateProject { proj ->
-                proj.withUpdatedClip(clipId) { it.copy(waveform = waveform) }
-            }
-        }
-    }
+    fun ensureSelectedClipWaveform() = ClipPropertyFeature.ensureSelectedClipWaveform(this)
 
     /**
      * Replaces the selected clip's source file while keeping its position on
      * the timeline. Duration, dimensions and the waveform are re-probed so the
      * new media lines up in preview and export instead of keeping stale values.
      */
-    fun replaceSelectedClipUri(uriString: String, title: String) {
-        val clipId = _selectedClipId.value ?: return
-        val ctx = context
-        viewModelScope.launch {
-            val info = if (ctx != null) {
-                runCatching { MediaMetadata.videoInfo(ctx, Uri.parse(uriString)) }.getOrNull()
-            } else {
-                null
-            }
-            val sourceMs = info?.durationMs?.takeIf { it > 0L } ?: 4_000L
-            val realTitle = title.takeIf { it.isNotBlank() }
-                ?: info?.displayName?.substringBeforeLast('.')?.takeIf { it.isNotBlank() }
-                ?: "Replaced clip"
-            updateProject { proj ->
-                proj.withUpdatedClip(clipId) { clip ->
-                    clip.copy(
-                        title = realTitle,
-                        uriString = uriString,
-                        originalDurationMs = sourceMs,
-                        durationMs = sourceMs,
-                        trimStartMs = 0L,
-                        trimEndMs = 0L,
-                        speed = 1f,
-                        speedCurve = SpeedCurve(),
-                        sourceWidth = info?.width ?: 0,
-                        sourceHeight = info?.height ?: 0,
-                        waveform = emptyList(),
-                        isLoudnessAdjusted = false
-                    )
-                }
-            }
-        }
-    }
+    fun replaceSelectedClipUri(uriString: String, title: String) =
+        ClipPropertyFeature.replaceSelectedClipUri(this, uriString, title)
 
     // ==========================================
     // Audio Tracks
@@ -2698,138 +2188,26 @@ class EditorViewModel(
     // ==========================================
     // The settings model lives in com.example.export.ExportSettings.
 
-    private val _exportSettings = MutableStateFlow(ExportSettings())
+    internal val _exportSettings = MutableStateFlow(ExportSettings())
     val exportSettings: StateFlow<ExportSettings> = _exportSettings.asStateFlow()
 
-    fun updateExportSettings(settings: ExportSettings) {
-        _exportSettings.value = settings
-    }
+    fun updateExportSettings(settings: ExportSettings) =
+        ExportFeature.updateExportSettings(this, settings)
 
     /**
      * One-click export with the pre-selected settings. The GIF tab renders
      * through the video pipeline at the matching resolution until a dedicated
-     * GIF encoder lands in [ExportManager].
+     * GIF encoder lands in ExportManager.
      */
-    fun startSelectedExport() {
-        val settings = _exportSettings.value
-        if (settings.tab == "gif") {
-            val resolution = when (settings.gifQuality) {
-                "320P" -> "720P"
-                "640P" -> "1080P"
-                else -> "480P"
-            }
-            startExport(resolution = resolution, fps = 30, bitrateMbps = 8)
-        } else {
-            startExport(
-                resolution = settings.resolution,
-                fps = settings.fps,
-                bitrateMbps = settings.bitrateMbps
-            )
-        }
-    }
+    fun startSelectedExport() = ExportFeature.startSelectedExport(this)
 
     fun startExport(
         resolution: String = _defaultResolution.value,
         fps: Int = _defaultFps.value,
         bitrateMbps: Int = 10
-    ) {
-        val project = _currentProject.value ?: return
-        pausePlayback()
-        exportJob?.cancel()
-        _exportState.value = ExportUiState(
-            isExporting = true,
-            progress = 0f,
-            stage = "Preparing timeline...",
-            resolution = resolution,
-            fps = fps
-        )
+    ) = ExportFeature.startExport(this, resolution, fps, bitrateMbps)
 
-        exportJob = viewModelScope.launch {
-            if (exportManager != null) {
-                // Mirror the renderer's live progress (including compatibility
-                // warnings) into the export sheet instead of showing a frozen
-                // 0% until the MP4 is finished.
-                val progressJob = launch {
-                    exportManager.progress.collect { renderProgress ->
-                        if (_exportState.value.isExporting) {
-                            _exportState.value = _exportState.value.copy(
-                                progress = renderProgress.progress.coerceIn(0f, 1f),
-                                stage = renderProgress.stage.ifBlank { _exportState.value.stage },
-                                warnings = renderProgress.warnings
-                            )
-                        }
-                    }
-                }
-                val result = exportManager.export(
-                    project,
-                    resolution,
-                    fps,
-                    _watermarkEnabled.value,
-                    (bitrateMbps.coerceIn(1, 100) * 1_000_000)
-                )
-                progressJob.cancel()
-                val renderWarnings = exportManager.progress.value.warnings
-                if (result != null) {
-                    _exportState.value = _exportState.value.copy(
-                        isExporting = false,
-                        isCompleted = true,
-                        progress = 1.0f,
-                        stage = "Export complete!",
-                        videoPath = result.file.absolutePath,
-                        galleryUri = result.galleryUri?.toString() ?: "",
-                        warnings = renderWarnings
-                    )
-                } else {
-                    // Keep the failure on screen: without an error flag the
-                    // export sheet closed silently and the user never learned
-                    // that the render had failed.
-                    _exportState.value = _exportState.value.copy(
-                        isExporting = false,
-                        stage = exportManager.progress.value.error ?: "Export failed",
-                        error = exportManager.progress.value.error ?: "Export failed",
-                        warnings = renderWarnings
-                    )
-                }
-            } else {
-                // Fallback simulated export (kept for compatibility)
-                val stages = listOf(
-                    "Analyzing clips & keyframes..." to 0.20f,
-                    "Rendering transitions & color grading..." to 0.50f,
-                    "Synthesizing audio tracks & voiceover..." to 0.75f,
-                    "Encoding MP4 (${resolution} ${fps}fps)..." to 0.95f,
-                    "Finalizing video file..." to 1.0f
-                )
-
-                for ((stageText, targetProgress) in stages) {
-                    val startProgress = _exportState.value.progress
-                    val steps = 8
-                    for (s in 1..steps) {
-                        delay(80L)
-                        val p = startProgress + (targetProgress - startProgress) * (s.toFloat() / steps)
-                        _exportState.value = _exportState.value.copy(
-                            progress = p,
-                            stage = stageText
-                        )
-                    }
-                }
-
-                _exportState.value = _exportState.value.copy(
-                    isExporting = false,
-                    isCompleted = true,
-                    progress = 1.0f,
-                    stage = "Export complete!",
-                    videoPath = "/storage/emulated/0/Movies/CatByte/Export_${System.currentTimeMillis()}.mp4"
-                )
-            }
-        }
-    }
-
-    fun dismissExport() {
-        exportJob?.cancel()
-        exportJob = null
-        _exportState.value = ExportUiState()
-        _activeSheet.value = ActiveToolSheet.NONE
-    }
+    fun dismissExport() = ExportFeature.dismissExport(this)
 
     /** Starts a background export with explicit context (called from UI). */
     fun startBackgroundExportWithContext(
@@ -2837,33 +2215,12 @@ class EditorViewModel(
         resolution: String = _defaultResolution.value,
         fps: Int = _defaultFps.value,
         bitrateMbps: Int = 10
-    ) {
-        val project = _currentProject.value ?: return
-        pausePlayback()
-
-        _exportState.value = ExportUiState(
-            isExporting = true,
-            progress = 0f,
-            stage = "Queued for background export...",
-            resolution = resolution,
-            fps = fps
-        )
-
-        ExportServiceScheduler.startExport(
-            context,
-            project,
-            resolution,
-            fps,
-            _watermarkEnabled.value,
-            bitrateMbps.coerceIn(1, 100)
-        )
-    }
+    ) = ExportFeature.startBackgroundExportWithContext(
+        this, context, resolution, fps, bitrateMbps
+    )
 
     /** Stops an in-flight render and closes the export sheet. */
-    fun cancelExport() {
-        exportManager?.cancel()
-        dismissExport()
-    }
+    fun cancelExport() = ExportFeature.cancelExport(this)
 
     // ==========================================
     // Phase 1 Actions: Keyframes, PIP, Blend & Mask
@@ -2874,113 +2231,21 @@ class EditorViewModel(
         property: KeyframeProperty,
         value: Float,
         easing: EasingCurve = EasingCurve.EASE_IN_OUT
-    ) {
-        val currentPos = _currentPositionMs.value
-        updateProject(coalesceKey = "keyframe:$clipId:$property") { proj ->
-            val clipLocalMs = proj.localTimeForClip(clipId, currentPos) ?: return@updateProject proj
-            proj.withUpdatedClip(clipId) { clip ->
-                val existing = clip.keyframes.filterNot {
-                    it.property == property &&
-                        kotlin.math.abs(it.timestampMs - clipLocalMs) < 100L
-                }
-                val newKf = Keyframe(
-                    timestampMs = clipLocalMs,
-                    property = property,
-                    value = value,
-                    easing = easing
-                )
-                clip.copy(keyframes = (existing + newKf).sortedBy { it.timestampMs })
-            }
-        }
-    }
+    ) = KeyframeFeature.addKeyframe(this, clipId, property, value, easing)
 
-    fun removeKeyframe(clipId: String, keyframeId: String) {
-        updateProject { proj ->
-            proj.withUpdatedClip(clipId) { clip ->
-                clip.copy(keyframes = clip.keyframes.filterNot { it.id == keyframeId })
-            }
-        }
-    }
+    fun removeKeyframe(clipId: String, keyframeId: String) =
+        KeyframeFeature.removeKeyframe(this, clipId, keyframeId)
 
     /** Toggles a keyframe at the current playhead position on the selected clip. */
-    fun toggleKeyframeAtPlayhead() {
-        val clipId = _selectedClipId.value ?: return
-        val currentPos = _currentPositionMs.value
-        val project = _currentProject.value ?: return
-        val clipLocalMs = project.localTimeForClip(clipId, currentPos) ?: return
-
-        var existingKfId: String? = null
-        project.clips.find { it.id == clipId }?.let { clip ->
-            existingKfId = clip.keyframes.firstOrNull { kotlin.math.abs(it.timestampMs - clipLocalMs) < 150L }?.id
-        }
-        if (existingKfId == null) {
-            project.overlayTracks.flatMap { it.clips }.find { it.id == clipId }?.let { clip ->
-                existingKfId = clip.keyframes.firstOrNull { kotlin.math.abs(it.timestampMs - clipLocalMs) < 150L }?.id
-            }
-        }
-
-        if (existingKfId != null) {
-            removeKeyframe(clipId, existingKfId!!)
-        } else {
-            addKeyframe(clipId, KeyframeProperty.SCALE, 1.0f)
-        }
-    }
+    fun toggleKeyframeAtPlayhead() = KeyframeFeature.toggleKeyframeAtPlayhead(this)
 
     /**
      * Adds a PIP/overlay clip. The source duration is probed from the real
      * media file instead of assuming four seconds, otherwise the overlay would
      * be cut short (or stretched into black) in both preview and export.
      */
-    fun addOverlayClipFromUri(uriString: String, title: String) {
-        val currentPos = _currentPositionMs.value
-        viewModelScope.launch {
-            val ctx = context
-            val probedMs = if (ctx != null) {
-                withContext(Dispatchers.IO) {
-                    MediaMetadata.durationMs(ctx, Uri.parse(uriString))
-                }
-            } else {
-                0L
-            }
-            val info = if (ctx != null) {
-                runCatching { MediaMetadata.videoInfo(ctx, Uri.parse(uriString)) }.getOrNull()
-            } else {
-                null
-            }
-            val durationMs = if (probedMs > 0L) probedMs else 4000L
-            val newClip = MediaClip(
-                id = "pip_${UUID.randomUUID().toString().take(8)}",
-                title = title,
-                uriString = uriString,
-                startTimelineMs = currentPos,
-                durationMs = durationMs,
-                originalDurationMs = durationMs,
-                sourceWidth = info?.width ?: 0,
-                sourceHeight = info?.height ?: 0,
-                scale = 0.5f,
-                posX = 0.5f,
-                posY = 0.5f
-            )
-            updateProject { proj ->
-                val currentTracks = proj.overlayTracks.toMutableList()
-                if (currentTracks.isEmpty()) {
-                    currentTracks.add(
-                        VideoTrack(
-                            name = "PIP Track 1",
-                            isMainTrack = false,
-                            clips = listOf(newClip)
-                        )
-                    )
-                } else {
-                    val track = currentTracks.first()
-                    currentTracks[0] = track.copy(clips = track.clips + newClip)
-                }
-                proj.copy(overlayTracks = currentTracks)
-            }
-            _selectedClipId.value = newClip.id
-            refreshPreviewNow()
-        }
-    }
+    fun addOverlayClipFromUri(uriString: String, title: String) =
+        OverlayClipFeature.addOverlayClipFromUri(this, uriString, title)
 
     /** Updates the PIP transform used by the compositor and keyframe sheet. */
     fun updateOverlayTransform(
@@ -2989,119 +2254,25 @@ class EditorViewModel(
         posX: Float? = null,
         posY: Float? = null,
         opacity: Float? = null
-    ) {
-        updateProject(coalesceKey = "pipTransform:$clipId") { proj ->
-            proj.withUpdatedClip(clipId) { clip ->
-                clip.copy(
-                    scale = scale?.coerceIn(0.05f, 4f) ?: clip.scale,
-                    posX = posX?.coerceIn(0f, 1f) ?: clip.posX,
-                    posY = posY?.coerceIn(0f, 1f) ?: clip.posY,
-                    opacity = opacity?.coerceIn(0f, 1f) ?: clip.opacity
-                )
-            }
-        }
-    }
+    ) = OverlayClipFeature.updateOverlayTransform(this, clipId, scale, posX, posY, opacity)
 
-    fun setClipBlendMode(clipId: String, mode: BlendMode) {
-        updateProject { proj ->
-            val updatedClips = proj.clips.map { if (it.id == clipId) it.copy(blendMode = mode) else it }
-            val updatedOverlayTracks = proj.overlayTracks.map { track ->
-                track.copy(clips = track.clips.map { if (it.id == clipId) it.copy(blendMode = mode) else it })
-            }
-            proj.copy(clips = updatedClips, overlayTracks = updatedOverlayTracks)
-        }
-    }
+    fun setClipBlendMode(clipId: String, mode: BlendMode) =
+        ClipEffectFeature.setClipBlendMode(this, clipId, mode)
 
-    fun setClipMask(clipId: String, maskData: MaskData) {
-        updateProject { proj ->
-            val updatedClips = proj.clips.map { if (it.id == clipId) it.copy(mask = maskData) else it }
-            val updatedOverlayTracks = proj.overlayTracks.map { track ->
-                track.copy(clips = track.clips.map { if (it.id == clipId) it.copy(mask = maskData) else it })
-            }
-            proj.copy(clips = updatedClips, overlayTracks = updatedOverlayTracks)
-        }
-    }
+    fun setClipMask(clipId: String, maskData: MaskData) =
+        ClipEffectFeature.setClipMask(this, clipId, maskData)
 
-    fun setClipHslAdjustments(clipId: String, adjustments: List<HslAdjustment>) {
-        updateProject { proj ->
-            val updatedClips = proj.clips.map { if (it.id == clipId) it.copy(hslAdjustments = adjustments) else it }
-            val updatedOverlayTracks = proj.overlayTracks.map { track ->
-                track.copy(clips = track.clips.map { if (it.id == clipId) it.copy(hslAdjustments = adjustments) else it })
-            }
-            proj.copy(clips = updatedClips, overlayTracks = updatedOverlayTracks)
-        }
-    }
+    fun setClipHslAdjustments(clipId: String, adjustments: List<HslAdjustment>) =
+        ClipEffectFeature.setClipHslAdjustments(this, clipId, adjustments)
 
     /**
      * Beat-sync: splits clips at detected musical beats (energy onset detection
      * with a BPM-based synthetic fallback).
      */
-    /**
-     * Cuts every main-track clip at the musical beats of the audio bed.
-     *
-     * Beats come from the same detection path the timeline magnets use; the
-     * split itself goes through [ClipSplit] so trims, speed, keyframes and
-     * transition ownership survive the cut.
-     */
-    fun autoCutToBeat(beatsPerMinute: Int = 120) {
-        val proj = _currentProject.value ?: return
-        val ctx = context ?: return
-        if (proj.isMainTrackLocked) return
-        viewModelScope.launch {
-            val beats = if (_snapBeats.value.isNotEmpty()) {
-                _snapBeats.value
-            } else {
-                val firstUri = proj.audioTracks.firstOrNull { !it.uriString.isNullOrBlank() }?.uriString
-                    ?: proj.clips.firstOrNull { !it.uriString.isNullOrBlank() }?.uriString
-                com.example.data.BeatDetector.detectBeats(
-                    ctx, firstUri, proj.totalDurationMs, beatsPerMinute
-                )
-            }
-            if (beats.isEmpty()) return@launch
+    fun autoCutToBeat(beatsPerMinute: Int = 120) =
+        BeatSyncFeature.autoCutToBeat(this, beatsPerMinute)
 
-            updateProject { current ->
-                val newClips = mutableListOf<MediaClip>()
-                var acc = 0L
-                for (clip in current.clips) {
-                    val clipEnd = acc + clip.durationMs
-                    val localBeats = BeatGrid.cutOffsets(
-                        durationMs = clip.durationMs,
-                        beatOffsetsMs = beats
-                            .filter { it in acc until clipEnd }
-                            .map { it - acc }
-                    )
-                    if (localBeats.isEmpty()) {
-                        newClips.add(clip.copy(startTimelineMs = acc))
-                    } else {
-                        var remaining = clip
-                        var consumed = 0L
-                        for (beat in localBeats) {
-                            val offset = beat - consumed
-                            val split = ClipSplit.split(remaining, offset) {
-                                "beat_${UUID.randomUUID().toString().take(8)}"
-                            } ?: continue
-                            newClips.add(split.first.copy(startTimelineMs = acc + consumed))
-                            remaining = split.second
-                            consumed = beat
-                        }
-                        newClips.add(remaining.copy(startTimelineMs = acc + consumed))
-                    }
-                    acc = clipEnd
-                }
-                current.copy(clips = newClips)
-            }
-        }
-    }
-
-    /**
-     * Exports a real MP4 and reports where it can be shared.
-     */
-    fun shareExportMessage(platform: String): String {
-        val path = _exportState.value.videoPath
-        return when {
-            path.isBlank() -> "Export the project first."
-            !File(path).exists() -> "Export failed — no MP4 was produced."
-            else -> "Video ready at $path — shared to $platform."
-        }
-    }
+    /** Exports a real MP4 and reports where it can be shared. */
+    fun shareExportMessage(platform: String): String =
+        ExportFeature.shareExportMessage(this, platform)
 }
