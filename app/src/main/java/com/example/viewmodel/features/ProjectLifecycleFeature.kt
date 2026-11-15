@@ -14,7 +14,7 @@ internal object ProjectLifecycleFeature {
         AppLog.info("EditorViewModel", "openProject() called: projectId=${project.id}, title=${project.title}, clips=${project.clips.size}, totalDuration=${project.totalDurationMs}ms")
         // The previous project's scrub overlay and settle loop must not leak into
         // the new project's preview.
-        vm.cancelScrubPreview()
+        vm.scrubPreview.cancel()
         vm.pausePlayback()
         val normalized = project.withMagneticMainTrack()
         // Start the preview at 0 explicitly: leaving the default would keep the
