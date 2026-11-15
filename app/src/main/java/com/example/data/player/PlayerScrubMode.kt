@@ -19,6 +19,14 @@ import com.example.data.PlaybackStartPolicy
 /**
  * Enters scrub mode: the player keeps rendering (muted) while the user drags
  * the timeline.
+ *
+ * CompositionPlayer only settles a seek while its frame processor is
+ * processing frames — `waitingForFrameAfterSeek` is cleared from
+ * `onFrameProcessed()`. With rendering stopped, every seek parks the player
+ * in STATE_BUFFERING and the preview stays black until a full player
+ * rebuild; that is the "1-2 s black screen while scrolling" report. Keeping
+ * the render loop alive during the gesture is also what makes the preview
+ * follow the playhead in real time instead of jumping once at the end.
  */
 internal fun PlayerManager.beginScrubMode() {
     if (scrubbing) return
