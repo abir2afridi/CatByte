@@ -113,7 +113,7 @@ import com.example.model.VideoProject
 import com.example.ui.components.AdjustmentsSheet
 import com.example.ui.components.AiToolsSheet
 import com.example.ui.components.AnimationSheet
-import com.example.ui.components.AudioSheet
+import com.example.ui.audio.AudioSheet
 import com.example.ui.components.BackgroundSheet
 import com.example.ui.components.BlendModeSheet
 import com.example.ui.components.CanvasRatioSheet
@@ -141,7 +141,7 @@ import com.example.ui.components.VolumeSheet
 import com.example.ui.components.MultiTrackTimeline
 import com.example.ui.components.SpeedSheet
 import com.example.ui.components.StickersSheet
-import com.example.ui.components.TextEditorSheet
+import com.example.ui.text.TextEditorSheet
 import com.example.ui.components.TransitionsPickerSheet
 import com.example.ui.canvas.VideoCanvas
 import com.example.ui.theme.PencilTheme
