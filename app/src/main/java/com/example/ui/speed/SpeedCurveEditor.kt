@@ -1,4 +1,4 @@
-package com.example.ui.components
+package com.example.ui.speed
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -57,87 +57,6 @@ import com.example.ui.theme.PencilTheme
 
 private const val CURVE_GRID_ROWS = 8
 private const val CURVE_GRID_COLS = 10
-
-// Top-level helper functions
-fun buildCurvePath(points: List<BezierPoint>, width: Float, height: Float): Path {
-    if (points.size < 2) return Path()
-
-    val sortedPoints = points.sortedBy { it.x }
-    val path = Path()
-
-    val screenPoints = sortedPoints.map { p ->
-        Offset(
-            p.x * width,
-            (1f - ((p.speedMultiplier.coerceIn(0.1f, 3f) - 0.1f) / 2.9f)) * height
-        )
-    }
-
-    path.moveTo(screenPoints[0].x, screenPoints[0].y)
-
-    if (sortedPoints.size == 2) {
-        path.lineTo(screenPoints[1].x, screenPoints[1].y)
-    } else {
-        for (i in 0 until screenPoints.size - 1) {
-            val p0 = if (i > 0) screenPoints[i - 1] else screenPoints[0]
-            val p1 = screenPoints[i]
-            val p2 = screenPoints[i + 1]
-            val p3 = if (i + 2 < screenPoints.size) screenPoints[i + 2] else screenPoints.last()
-
-            val cp1x = p1.x + (p2.x - p0.x) / 6f
-            val cp1y = p1.y + (p2.y - p0.y) / 6f
-            val cp2x = p2.x - (p3.x - p1.x) / 6f
-            val cp2y = p2.y - (p3.y - p1.y) / 6f
-
-            path.cubicTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y)
-        }
-    }
-
-    return path
-}
-
-fun generatePresetPoints(preset: SpeedCurvePreset): List<BezierPoint> = when (preset) {
-    SpeedCurvePreset.STANDARD -> listOf(
-        BezierPoint(0.0f, 1.0f),
-        BezierPoint(1.0f, 1.0f)
-    )
-    SpeedCurvePreset.MONTAGE -> listOf(
-        BezierPoint(0.0f, 1.0f),
-        BezierPoint(0.2f, 2.5f),
-        BezierPoint(0.4f, 0.5f),
-        BezierPoint(0.6f, 2.0f),
-        BezierPoint(0.8f, 0.7f),
-        BezierPoint(1.0f, 1.0f)
-    )
-    SpeedCurvePreset.HERO_MOMENT -> listOf(
-        BezierPoint(0.0f, 1.0f),
-        BezierPoint(0.3f, 1.0f),
-        BezierPoint(0.4f, 0.2f),
-        BezierPoint(0.5f, 3.0f),
-        BezierPoint(0.6f, 0.3f),
-        BezierPoint(0.7f, 1.0f),
-        BezierPoint(1.0f, 1.0f)
-    )
-    SpeedCurvePreset.BULLET_TIME -> listOf(
-        BezierPoint(0.0f, 1.0f),
-        BezierPoint(0.25f, 1.0f),
-        BezierPoint(0.35f, 0.15f),
-        BezierPoint(0.65f, 0.15f),
-        BezierPoint(0.75f, 1.0f),
-        BezierPoint(1.0f, 1.0f)
-    )
-    SpeedCurvePreset.JUMP_CUT -> listOf(
-        BezierPoint(0.0f, 2.0f),
-        BezierPoint(0.2f, 0.5f),
-        BezierPoint(0.4f, 2.5f),
-        BezierPoint(0.6f, 0.4f),
-        BezierPoint(0.8f, 2.0f),
-        BezierPoint(1.0f, 1.0f)
-    )
-    SpeedCurvePreset.CUSTOM -> listOf(
-        BezierPoint(0.0f, 1.0f),
-        BezierPoint(1.0f, 1.0f)
-    )
-}
 
 @Composable
 fun SpeedCurveEditor(
@@ -500,59 +419,6 @@ fun SpeedCurveEditor(
                         Icon(Icons.Default.AutoFixHigh, contentDescription = "Reset", tint = Color.White, modifier = Modifier.size(18.dp))
                         androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(4.dp))
                         Text("Reset", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun PresetSelector(
-    currentPreset: SpeedCurvePreset,
-    onPresetSelected: (SpeedCurvePreset) -> Unit,
-    onCustom: () -> Unit
-) {
-    val colors = PencilTheme.colors
-
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = colors.surfaceElevated),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("Speed Presets", color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                androidx.compose.material3.TextButton(onClick = onCustom) {
-                    Text("Custom", color = colors.accentCyan, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SpeedCurvePreset.entries.forEach { preset ->
-                    val isSelected = currentPreset == preset
-                    OutlinedButton(
-                        onClick = { onPresetSelected(preset) },
-                        modifier = Modifier.weight(1f).height(32.dp),
-                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (isSelected) colors.accentCyan.copy(alpha = 0.15f) else colors.surface,
-                            contentColor = if (isSelected) colors.accentCyan else colors.textPrimary,
-                            disabledContainerColor = colors.surface,
-                            disabledContentColor = colors.textTertiary
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text(preset.displayName, fontSize = 10.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                     }
                 }
             }

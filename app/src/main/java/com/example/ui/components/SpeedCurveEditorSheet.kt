@@ -114,6 +114,7 @@ import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
 import com.example.model.TransitionType
 import com.example.model.VideoFilter
+import com.example.ui.speed.SpeedCurveEditor
 import com.example.ui.theme.CapCutBorder
 import com.example.ui.theme.CapCutBorderSubtle
 import com.example.ui.theme.CapCutCyan

@@ -116,7 +116,7 @@ import com.example.ui.components.SpeedSheet
 import com.example.ui.components.StickersSheet
 import com.example.ui.components.TextEditorSheet
 import com.example.ui.components.TransitionsPickerSheet
-import com.example.ui.components.VideoCanvas
+import com.example.ui.canvas.VideoCanvas
 import com.example.ui.theme.PencilTheme
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel

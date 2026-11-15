@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.example.ui.camera
 
 import android.Manifest
 import android.content.Context
@@ -548,35 +548,3 @@ fun CameraCaptureScreen(
         }
     }
 }
-
-@Composable
-private fun CameraModeChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (selected) Color(0xFF3A3C46) else Color.Transparent)
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            color = if (selected) Color.White else Color(0xFFA5A8B2),
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-        )
-    }
-}
-
-/** Private app file shared with the rest of the app through the FileProvider. */
-private fun newCaptureFile(context: Context, extension: String): File {
-    val dir = File(context.filesDir, "camera").apply { mkdirs() }
-    return File(dir, "capture_${System.currentTimeMillis()}.$extension")
-}
-
-private fun uriForFile(context: Context, file: File): Uri =
-    FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
