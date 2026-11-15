@@ -65,6 +65,15 @@ import com.example.engine.SnapEngine
 import com.example.engine.SubtitleIO
 import com.example.engine.TimelineEdits
 import com.example.engine.UndoJournal
+import com.example.viewmodel.features.AudioFeature
+import com.example.viewmodel.features.TextFeature
+import com.example.viewmodel.features.StickerFeature
+import com.example.viewmodel.features.TimelineEffectFeature
+import com.example.viewmodel.features.CanvasFeature
+import com.example.viewmodel.features.MarkerFeature
+import com.example.viewmodel.features.TrackControlFeature
+import com.example.viewmodel.features.ClipAttributeClipboard
+import com.example.viewmodel.features.ClipAttributeFeature
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -142,13 +151,13 @@ class EditorViewModel(
     private val cacheManager: CacheManager? = null,
     private val playerManager: com.example.data.PlayerManager? = null,
     private val exportManager: com.example.data.ExportManager? = null,
-    private val context: Context? = null
+    internal val context: Context? = null
 ) : ViewModel() {
 
     private val _projects = repository.projects
     val projects: StateFlow<List<VideoProject>> = _projects
 
-    private val _currentProject = MutableStateFlow<VideoProject?>(null)
+    internal val _currentProject = MutableStateFlow<VideoProject?>(null)
     val currentProject: StateFlow<VideoProject?> = _currentProject.asStateFlow()
 
     // `totalDurationMs` walks every track and allocates lists. seekTo() runs on
@@ -167,20 +176,20 @@ class EditorViewModel(
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
-    private val _currentPositionMs = MutableStateFlow(0L)
+    internal val _currentPositionMs = MutableStateFlow(0L)
     val currentPositionMs: StateFlow<Long> = _currentPositionMs.asStateFlow()
 
-    private val _selectedClipId = MutableStateFlow<String?>(null)
+    internal val _selectedClipId = MutableStateFlow<String?>(null)
     val selectedClipId: StateFlow<String?> = _selectedClipId.asStateFlow()
 
     /** Ids currently in a multi-selection (single selection is a set of one). */
-    private val _selectedClipIds = MutableStateFlow<Set<String>>(emptySet())
+    internal val _selectedClipIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedClipIds: StateFlow<Set<String>> = _selectedClipIds.asStateFlow()
 
-    private val _selectedTextId = MutableStateFlow<String?>(null)
+    internal val _selectedTextId = MutableStateFlow<String?>(null)
     val selectedTextId: StateFlow<String?> = _selectedTextId.asStateFlow()
 
-    private val _activeSheet = MutableStateFlow(ActiveToolSheet.NONE)
+    internal val _activeSheet = MutableStateFlow(ActiveToolSheet.NONE)
     val activeSheet: StateFlow<ActiveToolSheet> = _activeSheet.asStateFlow()
 
     private val _isEyedropperActive = MutableStateFlow(false)
@@ -218,7 +227,7 @@ class EditorViewModel(
     private val _watermarkEnabled = MutableStateFlow(false)
     val watermarkEnabled: StateFlow<Boolean> = _watermarkEnabled.asStateFlow()
 
-    private val _appLanguage = MutableStateFlow(AppLanguage.SYSTEM)
+    internal val _appLanguage = MutableStateFlow(AppLanguage.SYSTEM)
     val appLanguage: StateFlow<AppLanguage> = _appLanguage.asStateFlow()
 
     private val _cacheSizeMb = MutableStateFlow(0)
@@ -227,8 +236,8 @@ class EditorViewModel(
     private val _isImporting = MutableStateFlow(false)
     val isImporting: StateFlow<Boolean> = _isImporting.asStateFlow()
 
-    private val voiceRecorder = context?.let { VoiceRecorder(it) }
-    private val speechSynthesizer = context?.let { SpeechSynthesizer(it) }
+    internal val voiceRecorder = context?.let { VoiceRecorder(it) }
+    internal val speechSynthesizer = context?.let { SpeechSynthesizer(it) }
 
     fun setAppThemeMode(mode: com.example.ui.theme.AppThemeMode) {
         _appThemeMode.value = mode
@@ -290,9 +299,9 @@ class EditorViewModel(
     }
 
     // Voice recording with real MediaRecorder
-    private val _isRecordingVoice = MutableStateFlow(false)
+    internal val _isRecordingVoice = MutableStateFlow(false)
     val isRecordingVoice: StateFlow<Boolean> = _isRecordingVoice.asStateFlow()
-    private val _voiceRecordingDurationMs = MutableStateFlow(0L)
+    internal val _voiceRecordingDurationMs = MutableStateFlow(0L)
     val voiceRecordingDurationMs: StateFlow<Long> = _voiceRecordingDurationMs.asStateFlow()
 
     // Undo / Redo history stacks
@@ -457,7 +466,7 @@ class EditorViewModel(
          */
         const val PLAYHEAD_RESYNC_TOLERANCE_MS = 750L
     }
-    private var voiceRecordJob: Job? = null
+    internal var voiceRecordJob: Job? = null
     private var exportJob: Job? = null
     private var importJob: Job? = null
 
@@ -1558,7 +1567,7 @@ class EditorViewModel(
      * [transform] and autosaves. [coalesceKey] groups a drag/slider stream so
      * one gesture becomes exactly one undo step (plan §12 coalescing rule).
      */
-    private fun updateProject(
+    internal fun updateProject(
         coalesceKey: String? = null,
         transform: (VideoProject) -> VideoProject
     ) {
@@ -2038,285 +2047,66 @@ class EditorViewModel(
     }
 
     /** Track-level mute. Passes [TimelineTrackIds.MAIN] for the main video track. */
-    fun setTrackMuted(trackId: String, muted: Boolean) {
-        updateProject { proj ->
-            if (trackId == TimelineTrackIds.MAIN) {
-                return@updateProject proj.copy(isMainTrackMuted = muted)
-            }
-            proj.copy(
-                overlayTracks = proj.overlayTracks.map { track ->
-                    if (track.id == trackId) track.copy(isMuted = muted) else track
-                }
-            )
-        }
-    }
+    fun setTrackMuted(trackId: String, muted: Boolean) =
+        TrackControlFeature.setTrackMuted(this, trackId, muted)
 
-    fun setTrackLocked(trackId: String, locked: Boolean) {
-        updateProject { proj ->
-            if (trackId == TimelineTrackIds.MAIN) {
-                return@updateProject proj.copy(isMainTrackLocked = locked)
-            }
-            proj.copy(
-                overlayTracks = proj.overlayTracks.map { track ->
-                    if (track.id == trackId) track.copy(isLocked = locked) else track
-                }
-            )
-        }
-    }
+    fun setTrackLocked(trackId: String, locked: Boolean) =
+        TrackControlFeature.setTrackLocked(this, trackId, locked)
 
     /** Solo silences every other video track's audio, like an audio desk. */
-    fun setTrackSolo(trackId: String, solo: Boolean) {
-        updateProject { proj ->
-            if (trackId == TimelineTrackIds.MAIN) {
-                return@updateProject proj.copy(isMainTrackSolo = solo)
-            }
-            val cleared = if (solo) proj.copy(
-                isMainTrackSolo = false,
-                overlayTracks = proj.overlayTracks.map { it.copy(isSolo = false) }
-            ) else {
-                proj
-            }
-            if (solo) {
-                cleared.copy(
-                    overlayTracks = cleared.overlayTracks.map { track ->
-                        if (track.id == trackId) track.copy(isSolo = true) else track
-                    }
-                )
-            } else {
-                cleared
-            }
-        }
-    }
+    fun setTrackSolo(trackId: String, solo: Boolean) =
+        TrackControlFeature.setTrackSolo(this, trackId, solo)
 
     /** Mutes or unmutes a single clip (audio gain only; the video stays visible). */
-    fun setClipMuted(clipId: String, muted: Boolean) {
-        updateProject { proj ->
-            proj.copy(
-                clips = proj.clips.map {                    if (it.id == clipId) it.copy(isMuted = muted) else it
-                },
-                overlayTracks = proj.overlayTracks.map { track ->
-                    track.copy(
-                        clips = track.clips.map {
-                            if (it.id == clipId) it.copy(isMuted = muted) else it
-                        }
-                    )
-                }
-            )
-        }
-    }
+    fun setClipMuted(clipId: String, muted: Boolean) =
+        TrackControlFeature.setClipMuted(this, clipId, muted)
 
     /** Mutes or unmutes one audio clip (the per-audio-row header toggle). */
-    fun setAudioClipMuted(audioId: String, muted: Boolean) {
-        updateProject { proj ->
-            proj.copy(
-                audioTracks = proj.audioTracks.map { audio ->
-                    if (audio.id == audioId) audio.copy(isMuted = muted) else audio
-                }
-            )
-        }
-    }
+    fun setAudioClipMuted(audioId: String, muted: Boolean) =
+        TrackControlFeature.setAudioClipMuted(this, audioId, muted)
 
     /** Mutes or unmutes every audio clip at once (the "Audio" row header). */
-    fun setAllAudioMuted(muted: Boolean) {
-        val project = _currentProject.value ?: return
-        if (project.audioTracks.isEmpty()) return
-        updateProject { proj ->
-            proj.copy(audioTracks = proj.audioTracks.map { it.copy(isMuted = muted) })
-        }
-    }
+    fun setAllAudioMuted(muted: Boolean) = TrackControlFeature.setAllAudioMuted(this, muted)
 
     /** Adds a marker at the playhead. */
-    fun addMarker(label: String = "") {
-        updateProject { proj ->
-            val at = _currentPositionMs.value.coerceAtLeast(0L)
-            proj.copy(markers = proj.markers + TimelineMarker(atMs = at, label = label))
-        }
-    }
+    fun addMarker(label: String = "") = MarkerFeature.addMarker(this, label)
 
-    fun removeMarker(markerId: String) {
-        updateProject { proj ->
-            proj.copy(markers = proj.markers.filterNot { it.id == markerId })
-        }
-    }
+    fun removeMarker(markerId: String) = MarkerFeature.removeMarker(this, markerId)
 
-    fun moveMarkerToPlayhead(markerId: String) {
-        updateProject { proj ->
-            val at = _currentPositionMs.value.coerceAtLeast(0L)
-            proj.copy(
-                markers = proj.markers.map { marker ->
-                    if (marker.id == markerId) marker.copy(atMs = at) else marker
-                }
-            )
-        }
-    }
+    fun moveMarkerToPlayhead(markerId: String) =
+        MarkerFeature.moveMarkerToPlayhead(this, markerId)
 
-    fun seekToMarker(markerId: String) {
-        val marker = _currentProject.value?.markers?.firstOrNull { it.id == markerId } ?: return
-        seekTo(marker.atMs)
-    }
+    fun seekToMarker(markerId: String) = MarkerFeature.seekToMarker(this, markerId)
 
     /** Jumps to the marker before/after the playhead. Returns the new position. */
-    fun jumpToMarker(direction: Int): Long? {
-        val markers = _currentProject.value?.markers?.sortedBy { it.atMs } ?: return null
-        if (markers.isEmpty()) return null
-        val here = _currentPositionMs.value
-        val target = if (direction >= 0) {
-            markers.firstOrNull { it.atMs > here } ?: markers.last()
-        } else {
-            markers.lastOrNull { it.atMs < here } ?: markers.first()
-        }
-        seekTo(target.atMs)
-        return target.atMs
-    }
+    fun jumpToMarker(direction: Int): Long? = MarkerFeature.jumpToMarker(this, direction)
 
     /** Reorders overlay tracks (top row = first layer rendered). */
-    fun moveOverlayTrack(fromIndex: Int, toIndex: Int) {
-        updateProject { proj ->
-            if (fromIndex !in proj.overlayTracks.indices) return@updateProject proj
-            if (toIndex !in proj.overlayTracks.indices) return@updateProject proj
-            if (fromIndex == toIndex) return@updateProject proj
-            val tracks = proj.overlayTracks.toMutableList()
-            val track = tracks.removeAt(fromIndex)
-            tracks.add(toIndex, track)
-            proj.copy(overlayTracks = tracks)
-        }
-    }
+    fun moveOverlayTrack(fromIndex: Int, toIndex: Int) =
+        TrackControlFeature.moveOverlayTrack(this, fromIndex, toIndex)
 
     /**
      * Moves an audio clip to a new start time. The drop snaps to neighbouring
      * audio clips and clamps inside the project.
      */
-    fun moveAudioClip(audioId: String, desiredStartMs: Long) {
-        updateProject { proj ->
-            val clip = proj.audioTracks.firstOrNull { it.id == audioId } ?: return@updateProject proj
-            val others = proj.audioTracks.filter { it.id != audioId }
-            val occupied = SnapEngine.occupiedRanges(
-                others.map { it.startTimelineMs to it.durationMs }
-            )
-            val snapped = SnapEngine.magneticStart(desiredStartMs, clip.durationMs, occupied)
-            val maxStart = (proj.totalDurationMs - clip.durationMs).coerceAtLeast(0L)
-            val start = snapped.coerceIn(0L, maxStart)
-            proj.copy(
-                audioTracks = proj.audioTracks.map { existing ->
-                    if (existing.id == audioId) existing.copy(startTimelineMs = start) else existing
-                }
-            )
-        }
-    }
+    fun moveAudioClip(audioId: String, desiredStartMs: Long) =
+        TrackControlFeature.moveAudioClip(this, audioId, desiredStartMs)
 
     /**
      * Moves the selected main-track clips as one contiguous block by [delta]
      * positions. A group keeps its internal order; neighbours close the gap.
      */
-    fun moveSelectedMainClips(delta: Int) {
-        if (delta == 0) return
-        updateProject { proj ->
-            if (proj.isMainTrackLocked) return@updateProject proj
-            val ids = _selectedClipIds.value
-            if (ids.isEmpty()) return@updateProject proj
-            val selectedIndices = proj.clips
-                .withIndex()
-                .filter { it.value.id in ids }
-                .map { it.index }
-            if (selectedIndices.isEmpty()) return@updateProject proj
-
-            // Only a contiguous block can move as one group.
-            val isContiguous = selectedIndices.zipWithNext().all { (a, b) -> b == a + 1 }
-            if (!isContiguous) return@updateProject proj
-
-            val first = selectedIndices.first()
-            val last = selectedIndices.last()
-            val block = proj.clips.subList(first, last + 1)
-            val targetFirst = (first + delta).coerceIn(0, proj.clips.size - block.size)
-            if (targetFirst == first) return@updateProject proj
-
-            val clips = proj.clips.toMutableList()
-            clips.subList(first, last + 1).clear()
-            clips.addAll(targetFirst, block)
-            proj.copy(clips = clips)
-        }
-    }
+    fun moveSelectedMainClips(delta: Int) =
+        TrackControlFeature.moveSelectedMainClips(this, delta)
 
     /** Snapshot of the visual/audio attributes that "paste attributes" copies. */
-    private var attributeClipboard: ClipAttributeClipboard? = null
-
-    private data class ClipAttributeClipboard(
-        val filter: com.example.model.VideoFilter,
-        val brightness: Float,
-        val contrast: Float,
-        val saturation: Float,
-        val vignette: Float,
-        val hslAdjustments: List<com.example.model.HslAdjustment>,
-        val speed: Float,
-        val volume: Float,
-        val isMuted: Boolean
-    )
+    internal var attributeClipboard: ClipAttributeClipboard? = null
 
     /** Copies the selected clip's look/audio attributes for paste-attributes. */
-    fun copySelectedClipAttributes() {
-        val project = _currentProject.value ?: return
-        val clip = project.allVideoClips.firstOrNull { it.id == _selectedClipId.value } ?: return
-        attributeClipboard = ClipAttributeClipboard(
-            filter = clip.filter,
-            brightness = clip.brightness,
-            contrast = clip.contrast,
-            saturation = clip.saturation,
-            vignette = clip.vignette,
-            hslAdjustments = clip.hslAdjustments,
-            speed = clip.speed,
-            volume = clip.volume,
-            isMuted = clip.isMuted
-        )
-    }
+    fun copySelectedClipAttributes() = ClipAttributeFeature.copySelectedClipAttributes(this)
 
     /** Applies the copied look/audio attributes to every selected clip. */
-    fun pasteClipAttributes() {
-        val clipboard = attributeClipboard ?: return
-        val ids = _selectedClipIds.value
-        if (ids.isEmpty()) return
-        updateProject { proj ->
-            proj.copy(
-                clips = proj.clips.map { clip ->
-                    if (clip.id in ids) {
-                        clip.copy(
-                            filter = clipboard.filter,
-                            brightness = clipboard.brightness,
-                            contrast = clipboard.contrast,
-                            saturation = clipboard.saturation,
-                            vignette = clipboard.vignette,
-                            hslAdjustments = clipboard.hslAdjustments,
-                            speed = clipboard.speed,
-                            volume = clipboard.volume,
-                            isMuted = clipboard.isMuted
-                        )
-                    } else {
-                        clip
-                    }
-                },
-                overlayTracks = proj.overlayTracks.map { track ->
-                    track.copy(
-                        clips = track.clips.map { clip ->
-                            if (clip.id in ids) {
-                                clip.copy(
-                                    filter = clipboard.filter,
-                                    brightness = clipboard.brightness,
-                                    contrast = clipboard.contrast,
-                                    saturation = clipboard.saturation,
-                                    vignette = clipboard.vignette,
-                                    hslAdjustments = clipboard.hslAdjustments,
-                                    speed = clipboard.speed,
-                                    volume = clipboard.volume,
-                                    isMuted = clipboard.isMuted
-                                )
-                            } else {
-                                clip
-                            }
-                        }
-                    )
-                }
-            )
-        }
-    }
+    fun pasteClipAttributes() = ClipAttributeFeature.pasteClipAttributes(this)
 
     /**
      * Trims the selected clip from an inline timeline handle.
@@ -2829,196 +2619,26 @@ class EditorViewModel(
     // ==========================================
 
     /** Adds an audio track from a URI (real duration + waveform). */
-    fun addAudioTrackFromUri(uriString: String, title: String, artist: String = "Unknown") {
-        val ctx = context ?: return
-        val uri = Uri.parse(uriString)
-        viewModelScope.launch {
-            val durationMs = MediaMetadata.durationMs(ctx, uri)
-            val waveform = MediaMetadata.waveform(ctx, uri, 48) ?: emptyList()
-            val realTitle = title.takeIf { it.isNotBlank() }
-                ?: MediaMetadata.displayName(ctx, uri)
-            val audio = AudioClip(
-                id = UUID.randomUUID().toString(),
-                title = realTitle,
-                artist = artist,
-                uriString = uriString,
-                startTimelineMs = _currentPositionMs.value,
-                durationMs = if (durationMs > 0) durationMs else 6000L,
-                waveform = waveform.ifEmpty { emptyList() }
-            )
-            updateProject { proj ->
-                proj.copy(audioTracks = proj.audioTracks + audio)
-            }
-        }
-    }
+    fun addAudioTrackFromUri(uriString: String, title: String, artist: String = "Unknown") =
+        AudioFeature.addAudioTrackFromUri(this, uriString, title, artist)
 
-    fun addAudioTrack(audioClip: AudioClip) {
-        updateProject { proj ->
-            val track = audioClip.copy(
-                id = UUID.randomUUID().toString(),
-                startTimelineMs = _currentPositionMs.value
-            )
-            proj.copy(audioTracks = proj.audioTracks + track)
-        }
-    }
+    fun addAudioTrack(audioClip: AudioClip) = AudioFeature.addAudioTrack(this, audioClip)
 
-    fun deleteAudioTrack(id: String) {
-        updateProject { proj ->
-            proj.copy(audioTracks = proj.audioTracks.filterNot { it.id == id })
-        }
-    }
+    fun deleteAudioTrack(id: String) = AudioFeature.deleteAudioTrack(this, id)
 
-    /**
-     * Extracts the selected clip's audio as a real timeline audio track. The
-     * source trim and speed are carried over, so the extracted track lines up
-     * with the picture in both preview and export instead of starting from the
-     * beginning of the original recording.
-     */
-    fun extractAudioFromSelectedClip() {
-        val ctx = context ?: return
-        val project = _currentProject.value ?: return
-        val selectedId = _selectedClipId.value
-
-        var found: MediaClip? = null
-        var startMs = 0L
-        var cursor = 0L
-        for (clip in project.clips) {
-            if (clip.id == selectedId) {
-                found = clip
-                startMs = cursor
-                break
-            }
-            cursor += clip.durationMs
-        }
-        if (found == null) {
-            project.overlayTracks.forEach { track ->
-                track.clips.firstOrNull { it.id == selectedId }?.let { clip ->
-                    found = clip
-                    startMs = clip.startTimelineMs
-                }
-            }
-        }
-
-        val clip = found ?: return
-        val uriString = clip.uriString
-        if (uriString.isNullOrBlank()) {
-            AppLog.warn(
-                "EditorViewModel",
-                "Cannot extract audio: '${clip.title}' has no media source"
-            )
-            return
-        }
-
-        val sourceLength = ClipTiming.sourceLengthMs(clip)
-        val trimStart = clip.trimStartMs.coerceAtLeast(0L)
-        val trimEnd = if (clip.trimEndMs > trimStart) clip.trimEndMs else trimStart + sourceLength
-        val effectiveSpeed = if (ClipTiming.hasSpeedCurve(clip)) {
-            (sourceLength.toFloat() / clip.durationMs.coerceAtLeast(1L)).coerceIn(0.1f, 16f)
-        } else {
-            clip.speed.coerceIn(0.1f, 16f)
-        }
-
-        viewModelScope.launch {
-            val waveform = withContext(Dispatchers.IO) {
-                MediaMetadata.waveform(ctx, Uri.parse(uriString), 48)
-            } ?: emptyList()
-            val audio = AudioClip(
-                id = UUID.randomUUID().toString(),
-                title = "${clip.title} (Audio)",
-                artist = "Extracted",
-                uriString = uriString,
-                startTimelineMs = startMs,
-                durationMs = clip.durationMs.coerceAtLeast(300L),
-                trimStartMs = trimStart,
-                trimEndMs = trimEnd,
-                speed = effectiveSpeed,
-                volume = clip.volume.coerceIn(0f, 2f),
-                waveform = waveform
-            )
-            updateProject { proj ->
-                proj.copy(audioTracks = proj.audioTracks + audio)
-            }
-            AppLog.info(
-                "EditorViewModel",
-                "Extracted audio from '${clip.title}': start=${startMs}ms, duration=${audio.durationMs}ms"
-            )
-        }
-    }
+    /** Extracts the selected clip's audio as a real timeline audio track. */
+    fun extractAudioFromSelectedClip() = AudioFeature.extractAudioFromSelectedClip(this)
 
     /** Starts a real microphone recording. */
-    fun startVoiceRecording() {
-        val recorder = voiceRecorder ?: return
-        val ok = recorder.start()
-        if (ok) {
-            _isRecordingVoice.value = true
-            _voiceRecordingDurationMs.value = 0L
-            voiceRecordJob?.cancel()
-            voiceRecordJob = viewModelScope.launch {
-                while (isActive && _isRecordingVoice.value) {
-                    delay(100L)
-                    _voiceRecordingDurationMs.value += 100L
-                }
-            }
-        }
-    }
+    fun startVoiceRecording() = AudioFeature.startVoiceRecording(this)
 
     /** Stops the recording and adds the clip to the timeline. */
-    fun stopAndSaveVoiceRecording() {
-        val recorder = voiceRecorder ?: return
-        val file = recorder.stop()
-        _isRecordingVoice.value = false
-        voiceRecordJob?.cancel()
-        voiceRecordJob = null
+    fun stopAndSaveVoiceRecording() = AudioFeature.stopAndSaveVoiceRecording(this)
 
-        if (file != null && file.exists()) {
-            val duration = _voiceRecordingDurationMs.value
-            val audio = AudioClip(
-                id = UUID.randomUUID().toString(),
-                title = "Voiceover",
-                artist = "You",
-                uriString = file.absolutePath,
-                startTimelineMs = _currentPositionMs.value,
-                durationMs = duration.coerceAtLeast(500L),
-                isVoiceover = true,
-                waveform = emptyList() // could compute later
-            )
-            updateProject { proj ->
-                proj.copy(audioTracks = proj.audioTracks + audio)
-            }
-        }
-    }
-
-    fun cancelVoiceRecording() {
-        voiceRecorder?.cancel()
-        _isRecordingVoice.value = false
-        _voiceRecordingDurationMs.value = 0L
-        voiceRecordJob?.cancel()
-        voiceRecordJob = null
-    }
+    fun cancelVoiceRecording() = AudioFeature.cancelVoiceRecording(this)
 
     /** Generates a voice-over from text using the device TTS engine. */
-    fun startTtsVoiceover(text: String) {
-        val tts = speechSynthesizer ?: return
-        _activeSheet.value = ActiveToolSheet.TTS_VOICEOVER
-        tts.synthesize(text) { file, error ->
-            if (file != null) {
-                val audio = AudioClip(
-                    id = UUID.randomUUID().toString(),
-                    title = "AI Voiceover",
-                    artist = "CatByte TTS",
-                    uriString = file.absolutePath,
-                    startTimelineMs = _currentPositionMs.value,
-                    durationMs = MediaDurationFallback.durationMs(context!!, Uri.fromFile(file)),
-                    isVoiceover = true,
-                    waveform = emptyList()
-                )
-                updateProject { proj ->
-                    proj.copy(audioTracks = proj.audioTracks + audio)
-                }
-                }
-            // The UI can show error if needed
-        }
-    }
+    fun startTtsVoiceover(text: String) = AudioFeature.startTtsVoiceover(this, text)
 
     // ==========================================
     // Text & Subtitles
@@ -3029,173 +2649,45 @@ class EditorViewModel(
         val issues: List<String> = emptyList()
     )
 
-    /** Refuses to parse caption files larger than 2 MB. */
-    private val MAX_SUBTITLE_BYTES = 2 * 1024 * 1024L
+    fun importSubtitles(raw: String) = TextFeature.importSubtitles(this, raw)
 
-    /**
-     * Parses an SRT/VTT file's contents and places every cue as a bottom-centred
-     * text overlay. Existing overlays are kept; the first imported cue is
-     * selected so the sheet opens on something real.
-     */
-    fun importSubtitles(raw: String): SubtitleImportResult {
-        val project = _currentProject.value ?: return SubtitleImportResult(0, listOf("No project is open"))
-        if (raw.length > MAX_SUBTITLE_BYTES) {
-            return SubtitleImportResult(0, listOf("File is too large (max 2 MB)"))
-        }
-        val cues = SubtitleIO.parse(raw)
-        if (cues.isEmpty()) {
-            return SubtitleImportResult(0, listOf("No valid timecodes found in the file"))
-        }
-        val issues = CaptionBridge.issues(cues, project.totalDurationMs)
-        val overlays = CaptionBridge.overlaysFromCues(cues)
-        updateProject { proj ->
-            proj.copy(textOverlays = proj.textOverlays + overlays)
-        }
-        // Select the first imported cue so the sheet opens on something real.
-        _selectedTextId.value = overlays.firstOrNull()?.id
-        return SubtitleImportResult(overlays.size, issues)
-    }
+    fun exportSubtitles(toVtt: Boolean = false) = TextFeature.exportSubtitles(this, toVtt)
 
-    /**
-     * Serialises the timeline's text overlays as an SRT file, or a VTT file when
-     * [toVtt] is set. Returns null when there is nothing worth exporting.
-     */
-    fun exportSubtitles(toVtt: Boolean = false): String? {
-        val project = _currentProject.value ?: return null
-        val cues = CaptionBridge.cuesFromOverlays(project.textOverlays)
-        if (cues.isEmpty()) return null
-        return if (toVtt) SubtitleIO.toVtt(cues) else SubtitleIO.toSrt(cues)
-    }
-
-    /**
-     * Places offline sample captions on the timeline. Cues come from
-     * [AutoCaptionManager], so a three-second phrase becomes two or three short
-     * subtitle cards instead of one wall of text.
-     */
-    fun addAutoCaptions() {
-        val project = _currentProject.value ?: return
-        viewModelScope.launch {
-            val bengali = _appLanguage.value.tag?.startsWith("bn") == true
-            val overlays = AutoCaptionManager.generateCaptions(
-                durationMs = project.totalDurationMs,
-                language = if (bengali) "Bengali" else "English",
-            )
-            if (overlays.isEmpty()) return@launch
-            updateProject { proj ->
-                proj.copy(textOverlays = proj.textOverlays + overlays)
-            }
-            _selectedTextId.value = overlays.first().id
-            AppLog.info("EditorViewModel", "Added ${overlays.size} auto captions")
-        }
-    }
+    fun addAutoCaptions() = TextFeature.addAutoCaptions(this)
 
     fun addTextOverlay(
         text: String = "Double tap to edit",
         fontStyle: TextFontStyle = TextFontStyle.CAPCUT_BOLD,
         color: Long = 0xFFFFFFFF,
         animation: TextAnimationType = TextAnimationType.POP_UP
-    ) {
-        val newText = TextOverlay(
-            id = UUID.randomUUID().toString(),
-            text = text,
-            startTimelineMs = _currentPositionMs.value,
-            durationMs = 3000L,
-            fontStyle = fontStyle,
-            color = color,
-            animation = animation,
-            posX = 0.5f,
-            posY = 0.5f
-        )
-        updateProject { proj ->
-            proj.copy(textOverlays = proj.textOverlays + newText)
-        }
-        _selectedTextId.value = newText.id
-    }
+    ) = TextFeature.addTextOverlay(this, text, fontStyle, color, animation)
 
     fun updateSelectedText(
         text: String,
         fontStyle: TextFontStyle,
         color: Long,
         animation: TextAnimationType
-    ) {
-        val id = _selectedTextId.value ?: return
-        updateProject { proj ->
-            val updated = proj.textOverlays.map { item ->
-                if (item.id == id) {
-                    item.copy(text = text, fontStyle = fontStyle, color = color, animation = animation)
-                } else item
-            }
-            proj.copy(textOverlays = updated)
-        }
-    }
+    ) = TextFeature.updateSelectedText(this, text, fontStyle, color, animation)
 
-    fun deleteSelectedText() {
-        val id = _selectedTextId.value ?: return
-        updateProject { proj ->
-            proj.copy(textOverlays = proj.textOverlays.filterNot { it.id == id })
-        }
-        _selectedTextId.value = null
-    }
+    fun deleteSelectedText() = TextFeature.deleteSelectedText(this)
 
     // ==========================================
     // Stickers & Effects
     // ==========================================
 
-    fun addSticker(symbol: String) {
-        val sticker = StickerOverlay(
-            id = UUID.randomUUID().toString(),
-            symbol = symbol,
-            startTimelineMs = _currentPositionMs.value,
-            durationMs = 2500L,
-            posX = 0.5f,
-            posY = 0.4f,
-            scale = 1.0f
-        )
-        updateProject { proj ->
-            proj.copy(stickers = proj.stickers + sticker)
-        }
-    }
+    fun addSticker(symbol: String) = StickerFeature.addSticker(this, symbol)
 
-    fun deleteSticker(id: String) {
-        updateProject { proj ->
-            proj.copy(stickers = proj.stickers.filterNot { it.id == id })
-        }
-    }
+    fun deleteSticker(id: String) = StickerFeature.deleteSticker(this, id)
 
-    fun addTimelineEffect(effectType: EffectType) {
-        val effect = TimelineEffect(
-            id = UUID.randomUUID().toString(),
-            name = effectType.displayName,
-            effectType = effectType,
-            startTimelineMs = _currentPositionMs.value,
-            durationMs = 2500L
-        )
-        updateProject { proj ->
-            proj.copy(effects = proj.effects + effect)
-        }
-    }
+    fun addTimelineEffect(effectType: EffectType) =
+        TimelineEffectFeature.addTimelineEffect(this, effectType)
 
-    fun deleteTimelineEffect(id: String) {
-        updateProject { proj ->
-            proj.copy(effects = proj.effects.filterNot { it.id == id })
-        }
-    }
+    fun deleteTimelineEffect(id: String) =
+        TimelineEffectFeature.deleteTimelineEffect(this, id)
 
-    // ==========================================
-    // Canvas & Aspect Ratio
-    // ==========================================
+    fun setAspectRatio(ratio: AspectRatioType) = CanvasFeature.setAspectRatio(this, ratio)
 
-    fun setAspectRatio(ratio: AspectRatioType) {
-        updateProject { proj ->
-            proj.copy(aspectRatio = ratio)
-        }
-    }
-
-    fun setPaperStyle(style: String) {
-        updateProject { proj ->
-            proj.copy(paperStyle = style)
-        }
-    }
+    fun setPaperStyle(style: String) = CanvasFeature.setPaperStyle(this, style)
 
     // ==========================================
     // Export & Rendering Pipeline
