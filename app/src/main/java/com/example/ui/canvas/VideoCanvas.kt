@@ -1,107 +1,60 @@
 package com.example.ui.canvas
 
-import android.view.SurfaceView
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.runtime.key
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.State
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.Player
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import coil.transform.CircleCropTransformation
-import com.example.R
-import com.example.data.KeyframeInterpolator
 import com.example.data.ScrubPreviewFrame
-import com.example.engine.backgroundArgbFor
-import com.example.model.AspectRatioType
-import com.example.model.BlendMode
-import com.example.model.EffectType
-import com.example.model.MaskType
 import com.example.model.MediaClip
-import com.example.ui.components.CapCutMeadowCanvas
-import com.example.ui.components.LocalVideoPlayer
 import com.example.model.TextAnimationType
+import com.example.model.VideoProject
+import com.example.ui.theme.PencilTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import com.example.model.TextFontStyle
-import com.example.model.TransitionType
-import com.example.model.VideoFilter
-import com.example.model.VideoProject
-import com.example.ui.theme.DraftingCropCorners
-import com.example.ui.theme.PencilTheme
-import com.example.ui.theme.WashiTapeCorner
-import com.example.ui.theme.sketchPencilBorder
 
-
+/**
+ * The editor's video preview frame.
+ *
+ * This file owns the frame itself (sizing, the active clip, the pulse
+ * animation and the gesture wiring); every layer lives in its own file under
+ * `ui/canvas/`:
+ *  - `CanvasOverlayLayers.kt`: text, sticker and watermark overlays.
+ *  - `CanvasTransformHandles.kt`: the selection bounding box and handles.
+ *  - `CanvasEyedropperReticle.kt`: the chroma-key colour picker reticle.
+ *  - `CanvasPlaybackHud.kt`: the play button, the filter pill and the
+ *    render-fidelity notice.
+ *  - `CanvasEmptyState.kt`: the "no media" placeholder.
+ *  - `CanvasGestures.kt`: the pointer handling of the frame.
+ */
 @Composable
 fun VideoCanvas(
     project: VideoProject,
@@ -186,9 +139,9 @@ fun VideoCanvas(
     // so every play/pause cycle leaked an immortal 60 fps coroutine and the
     // editor got laggier with each one (repro: scrub, press play, watch the
     // timeline stutter more and more).
-    var canvasSize by remember { mutableStateOf(IntSize(1, 1)) }
-    var reticlePos by remember { mutableStateOf(Offset(0.5f, 0.5f)) }
-    val pulseAlphaState: androidx.compose.runtime.MutableState<Float> = remember { mutableStateOf(0.85f) }
+    val canvasSizeState = remember { mutableStateOf(IntSize(1, 1)) }
+    val reticlePos = remember { mutableStateOf(Offset(0.5f, 0.5f)) }
+    val pulseAlphaState: MutableState<Float> = remember { mutableStateOf(0.85f) }
     val needsPulse = player == null ||
         (activeClip != null && activeClip.uriString == null && activeClip.drawableResId == null) ||
         project.textOverlays.any { it.animation == TextAnimationType.NEON_PULSE }
@@ -266,48 +219,20 @@ fun VideoCanvas(
                 .height(fittedHeight)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color.Black)
-                .onSizeChanged { canvasSize = it }
-                .pointerInput(isEyedropperActive) {
-                    if (isEyedropperActive) {
-                        detectDragGestures(
-                            onDragStart = { offset ->
-                                val nx = (offset.x / canvasSize.width.toFloat()).coerceIn(0f, 1f)
-                                val ny = (offset.y / canvasSize.height.toFloat()).coerceIn(0f, 1f)
-                                reticlePos = Offset(nx, ny)
-                                onSampleColorAt?.invoke(nx, ny)
-                            },
-                            onDrag = { change, _ ->
-                                change.consume()
-                                val nx = (change.position.x / canvasSize.width.toFloat()).coerceIn(0f, 1f)
-                                val ny = (change.position.y / canvasSize.height.toFloat()).coerceIn(0f, 1f)
-                                reticlePos = Offset(nx, ny)
-                                onSampleColorAt?.invoke(nx, ny)
-                            }
-                        )
-                    }
-                }
-                .pointerInput(isEyedropperActive, isTransformInteractive, selectedClip?.id) {
-                    if (isEyedropperActive) {
-                        detectTapGestures { offset ->
-                            val nx = (offset.x / canvasSize.width.toFloat()).coerceIn(0f, 1f)
-                            val ny = (offset.y / canvasSize.height.toFloat()).coerceIn(0f, 1f)
-                            reticlePos = Offset(nx, ny)
-                            onSampleColorAt?.invoke(nx, ny)
-                        }
-                    } else if (isTransformInteractive && selectedClip != null) {
-                        detectTransformGestures { _, pan, zoom, rotation ->
-                            val panDeltaX = pan.x / canvasSize.width.toFloat()
-                            val panDeltaY = pan.y / canvasSize.height.toFloat()
-                            onTransformClip?.invoke(zoom, rotation, panDeltaX, panDeltaY)
-                        }
-                    } else {
-                        detectTapGestures { onTogglePlay() }
-                    }
-                }
+                .onSizeChanged { canvasSizeState.value = it }
+                .canvasGestures(
+                    isEyedropperActive = isEyedropperActive,
+                    isTransformInteractive = isTransformInteractive,
+                    selectedClipId = selectedClip?.id,
+                    canvasSize = canvasSizeState,
+                    onReticleMoved = { reticlePos.value = it },
+                    onSampleColorAt = onSampleColorAt,
+                    onTransformClip = onTransformClip,
+                    onTogglePlay = onTogglePlay
+                )
                 .testTag("video_canvas_preview"),
             contentAlignment = Alignment.Center
         ) {
-
 
             val isSampleClip = activeClip != null && activeClip.uriString == null && activeClip.drawableResId == null
             if (isSampleClip) {
@@ -338,7 +263,7 @@ fun VideoCanvas(
                 )
 
                 // Transition effect
-                if (activeClip.transition != TransitionType.NONE && clipLocalTimeMs < activeClip.transitionDurationMs) {
+                if (activeClip.transition != com.example.model.TransitionType.NONE && clipLocalTimeMs < activeClip.transitionDurationMs) {
                     RenderTransitionEffect(
                         transition = activeClip.transition,
                         progress = clipLocalTimeMs.toFloat() / activeClip.transitionDurationMs
@@ -346,25 +271,7 @@ fun VideoCanvas(
                 }
             } else {
                 // Empty state inside canvas
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.no_media_clips),
-                        color = Color.LightGray,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.tap_plus_add_footage),
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center,
-                        fontSize = 11.sp
-                    )
-                }
+                CanvasEmptyState()
             }
 
             // Timeline scrub: draw the source frame extracted for the playhead
@@ -388,345 +295,53 @@ fun VideoCanvas(
                 )
             }
 
-            // Text Overlays (fallback renderer only - composition burns them in;
-            // during a scrub the extracted frame is raw, so draw them on top).
+            // Text / sticker / watermark overlays (fallback renderer only -
+            // composition burns them in; during a scrub the extracted frame is
+            // raw, so draw them on top).
             if (!compositionPreview || scrubBitmap != null) {
-            activeTexts.forEach { textOverlay ->
-                val displayText = if (textOverlay.animation == TextAnimationType.TYPEWRITER) {
-                    val progress = ((positionMs - textOverlay.startTimelineMs).toFloat() / textOverlay.durationMs).coerceIn(0f, 1f)
-                    val charCount = (textOverlay.text.length * progress * 2).toInt().coerceIn(1, textOverlay.text.length)
-                    textOverlay.text.take(charCount)
-                } else {
-                    textOverlay.text
+                CanvasTextOverlayLayers(
+                    activeTexts = activeTexts,
+                    positionMs = positionMs,
+                    pulseAlpha = pulseAlphaState.value
+                )
+                CanvasStickerOverlayLayer(activeStickers)
+                if (watermarkEnabled) {
+                    CanvasWatermarkOverlay()
                 }
-
-                val textScale = if (textOverlay.animation == TextAnimationType.POP_UP) {
-                    val p = ((positionMs - textOverlay.startTimelineMs).toFloat() / 300f).coerceIn(0f, 1f)
-                    0.6f + (0.4f * p)
-                } else if (textOverlay.animation == TextAnimationType.NEON_PULSE) {
-                    pulseAlphaState.value
-                } else {
-                    1.0f
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    contentAlignment = when {
-                        textOverlay.posY < 0.4f -> Alignment.TopCenter
-                        textOverlay.posY > 0.6f -> Alignment.BottomCenter
-                        else -> Alignment.Center
-                    }
-                ) {
-                    Text(
-                        text = displayText,
-                        color = Color(textOverlay.color),
-                        fontSize = when (textOverlay.fontStyle) {
-                            TextFontStyle.CAPCUT_BOLD -> 23.sp
-                            TextFontStyle.NEON_GLOW -> 21.sp
-                            TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> 20.sp
-                            TextFontStyle.SUBTITLE -> 16.sp
-                            else -> 17.sp
-                        },
-                        fontWeight = when (textOverlay.fontStyle) {
-                            TextFontStyle.CAPCUT_BOLD -> FontWeight.Black
-                            TextFontStyle.CINEMATIC_SERIF -> FontWeight.SemiBold
-                            else -> FontWeight.Bold
-                        },
-                        fontFamily = when (textOverlay.fontStyle) {
-                            TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> FontFamily.Serif
-                            else -> FontFamily.SansSerif
-                        },
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .scale(textScale * textOverlay.scale)
-                            .background(
-                                color = if (textOverlay.backgroundColor != null) Color(textOverlay.backgroundColor) else Color.Transparent,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    )
-                }
-            }
-
-            // Sticker Overlays
-            activeStickers.forEach { sticker ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = sticker.symbol,
-                        fontSize = (44 * sticker.scale).sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            // Watermark overlay
-            if (watermarkEnabled) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(12.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "✏️ CatByte",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
             } // end fallback-only 2D layers
 
-            // Centered Play/Pause HUD when paused - Sketched Paper & Graphite Button
             // CapCut-style Selection Bounding Box & Transform Handles
             if (isTransformInteractive && selectedClip != null && !isEyedropperActive) {
-                val clipScale = selectedClip.scale
-                val clipRotation = selectedClip.rotation
-                val clipPosX = selectedClip.posX
-                val clipPosY = selectedClip.posY
-
-                Box(modifier = Modifier.fillMaxSize()) {
-                    val density = androidx.compose.ui.platform.LocalDensity.current
-                    val boxWidthDp = with(density) { (canvasSize.width * 0.80f * clipScale).toDp() }
-                    val boxHeightDp = with(density) { (canvasSize.height * 0.80f * clipScale).toDp() }
-
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .offset {
-                                val cx = clipPosX * canvasSize.width
-                                val cy = clipPosY * canvasSize.height
-                                val halfW = (canvasSize.width * 0.40f * clipScale)
-                                val halfH = (canvasSize.height * 0.40f * clipScale)
-                                IntOffset((cx - halfW).toInt(), (cy - halfH).toInt())
-                            }
-                            .size(boxWidthDp.coerceAtLeast(40.dp), boxHeightDp.coerceAtLeast(40.dp))
-                            .rotate(clipRotation)
-                            .border(1.5.dp, colors.accentCyan, RoundedCornerShape(4.dp))
-                    ) {
-                        listOf(
-                            Alignment.TopStart to IntOffset(-6, -6),
-                            Alignment.TopEnd to IntOffset(6, -6),
-                            Alignment.BottomStart to IntOffset(-6, 6),
-                            Alignment.BottomEnd to IntOffset(6, 6)
-                        ).forEach { (align, offs) ->
-                            Box(
-                                modifier = Modifier
-                                    .align(align)
-                                    .offset(offs.x.dp, offs.y.dp)
-                                    .size(12.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White)
-                                    .border(2.dp, colors.accentCyan, CircleShape)
-                            )
-                        }
-
-                        // Top Rotation Handle
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .offset(y = (-20).dp)
-                                .size(16.dp)
-                                .clip(CircleShape)
-                                .background(colors.accentYellow)
-                                .border(1.5.dp, Color.White, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("⟳", fontSize = 10.sp, color = Color.Black, fontWeight = FontWeight.Black)
-                        }
-
-                        // Badge showing scale and rotation
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .offset(y = 24.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color.Black.copy(alpha = 0.8f))
-                                .border(0.8.dp, colors.accentCyan.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "${(clipScale * 100).toInt()}% • ${clipRotation.toInt()}°",
-                                color = Color.White,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
+                CanvasTransformHandles(
+                    selectedClip = selectedClip,
+                    canvasSize = canvasSizeState.value
+                )
             }
 
             // CapCut-style Eyedropper Magnifier Reticle
             if (isEyedropperActive) {
-                val pickedColorHex = selectedClip?.chromaKey?.keyColorHex ?: 0xFF00FF00L
-                Box(modifier = Modifier.fillMaxSize()) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .offset {
-                                val rx = (reticlePos.x * canvasSize.width) - 26.dp.toPx()
-                                val ry = (reticlePos.y * canvasSize.height) - 26.dp.toPx()
-                                IntOffset(rx.toInt(), ry.toInt())
-                            }
-                            .size(52.dp)
-                    ) {
-                        // Outer ring with sampled color
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                                .background(Color.Transparent)
-                                .border(3.dp, Color(pickedColorHex), CircleShape)
-                        )
-                        // Inner circle border
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .align(Alignment.Center)
-                                .clip(CircleShape)
-                                .background(Color.Transparent)
-                                .border(1.5.dp, Color.White, CircleShape)
-                        )
-                        // Center dot with sampled color
-                        Box(
-                            modifier = Modifier
-                                .size(14.dp)
-                                .align(Alignment.Center)
-                                .clip(CircleShape)
-                                .background(Color(pickedColorHex))
-                                .border(1.5.dp, Color.White, CircleShape)
-                        )
-                        // Crosshairs
-                        Box(
-                            modifier = Modifier
-                                .width(1.5.dp)
-                                .height(52.dp)
-                                .align(Alignment.Center)
-                                .background(Color.White.copy(alpha = 0.7f))
-                        )
-                        Box(
-                            modifier = Modifier
-                                .width(52.dp)
-                                .height(1.5.dp)
-                                .align(Alignment.Center)
-                                .background(Color.White.copy(alpha = 0.7f))
-                        )
-                    }
-
-                    // Bottom instruction pill
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 8.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color.Black.copy(alpha = 0.85f))
-                            .border(1.dp, colors.accentCyan, RoundedCornerShape(6.dp))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "🎯 Tap or drag reticle to pick chroma key color",
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                CanvasEyedropperReticle(
+                    reticlePos = reticlePos.value,
+                    canvasSize = canvasSizeState.value,
+                    pickedColorHex = selectedClip?.chromaKey?.keyColorHex ?: 0xFF00FF00L
+                )
             }
 
             if (!isPlaying && !isTransformInteractive && !isEyedropperActive) {
-                Box(
-                    modifier = Modifier
-                        .size(58.dp)
-                        .clip(CircleShape)
-                        .background(colors.surface.copy(alpha = 0.90f))
-                        .sketchPencilBorder(strokeWidth = 2.dp, color = colors.border, cornerRadius = 29.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Play",
-                        tint = colors.textPrimary,
-                        modifier = Modifier
-                            .size(34.dp)
-                            .offset(x = 2.dp)
-                    )
-                }
+                CanvasPlayHud()
             }
 
             // Top Status Overlay (Active Filter only).
             // Canvas ratio is shown in the transport row below the preview, never
             // on top of the video frame itself.
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Active Filter Pill
-                if (activeClip != null && activeClip.filter != VideoFilter.NONE) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(colors.accentCyan)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = activeClip.filter.displayName,
-                            color = Color.Black,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                }
-            }
+            CanvasTopStatusRow(activeClip)
 
-            // Render-fidelity notice. Warnings are never hidden: if a mask or
-            // blend mode is approximated, the user sees it before exporting.
-            // A stored player error is hidden while the extracted scrub frame is
-            // on screen: that frame is decoded from the source and proves the
-            // preview is working, so the pill would be stale noise.
-            val shownError = previewError.takeIf { scrubBitmap == null }
-            val previewNotice = shownError?.let { "Preview error: $it" }
-                ?: previewWarnings.firstOrNull()
-            if (previewNotice != null) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 36.dp, start = 16.dp, end = 16.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(
-                            if (shownError != null) {
-                                colors.accentRed.copy(alpha = 0.92f)
-                            } else {
-                                colors.accentYellow.copy(alpha = 0.92f)
-                            }
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = if (previewWarnings.size > 1) {
-                            "$previewNotice (+${previewWarnings.size - 1} more)"
-                        } else {
-                            previewNotice
-                        },
-                        color = Color.Black,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2
-                    )
-                }
-            }
+            // Render-fidelity notice.
+            CanvasPreviewNotice(
+                previewError = previewError,
+                previewWarnings = previewWarnings,
+                hasScrubFrame = scrubBitmap != null
+            )
 
             // The playhead timecode lives in the timeline's left gutter (see
             // EditorTimecodeText). Nothing time-related is painted over the video.
