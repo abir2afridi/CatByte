@@ -25,6 +25,8 @@ import com.example.data.composition.ClipTransformEffect
 import com.example.data.composition.MirrorAndRotationEffect
 import com.example.data.composition.ProjectCompositorSettings
 import com.example.data.export.ColorGradeEffect
+import com.example.data.export.ConstantGainProvider
+import com.example.data.export.ConstantSpeedProvider
 import com.example.data.export.ExportResolution
 import com.example.data.export.FilterMapper
 import com.example.engine.ClipAnimationMath
