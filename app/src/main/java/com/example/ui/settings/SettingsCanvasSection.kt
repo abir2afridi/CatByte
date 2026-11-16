@@ -11,7 +11,9 @@ import com.example.ui.theme.PencilTheme
 @Composable
 internal fun SettingsCanvasSection(
     showPaperGrid: Boolean,
-    onTogglePaperGrid: (Boolean) -> Unit
+    showSafeAreaGuides: Boolean = false,
+    onTogglePaperGrid: (Boolean) -> Unit,
+    onToggleSafeAreaGuides: (Boolean) -> Unit = {}
 ) {
     val colors = PencilTheme.colors
 
@@ -25,6 +27,12 @@ internal fun SettingsCanvasSection(
             description = stringResource(R.string.subtle_pencil_grid),
             checked = showPaperGrid,
             onCheckedChange = onTogglePaperGrid
+        )
+        SettingsToggleRow(
+            title = stringResource(R.string.safe_area_guides),
+            description = stringResource(R.string.safe_area_guides_desc),
+            checked = showSafeAreaGuides,
+            onCheckedChange = onToggleSafeAreaGuides
         )
     }
 }

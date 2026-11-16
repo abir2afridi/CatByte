@@ -5,6 +5,7 @@ import com.example.model.VideoProject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -76,6 +77,38 @@ class ProjectRepositoryTest {
         val updated = repo.projects.value.find { it.id == project.id }
         assertEquals("Renamed", updated?.title)
         assertEquals(1, repo.projects.value.size)
+    }
+
+    @Test
+    fun `renameProject trims the title and persists it`() {
+        val repo = ProjectRepository()
+        val project = repo.createNewProject("Old Name")
+        val renamed = repo.renameProject(project.id, "  Trip Highlights  ")
+        assertEquals("Trip Highlights", renamed?.title)
+        assertEquals("Trip Highlights", repo.projects.value.find { it.id == project.id }?.title)
+    }
+
+    @Test
+    fun `renameProject caps very long titles`() {
+        val repo = ProjectRepository()
+        val project = repo.createNewProject("Short")
+        val longTitle = "x".repeat(ProjectRepository.MAX_TITLE_LENGTH + 40)
+        val renamed = repo.renameProject(project.id, longTitle)
+        assertEquals(ProjectRepository.MAX_TITLE_LENGTH, renamed?.title?.length)
+    }
+
+    @Test
+    fun `renameProject ignores blank titles`() {
+        val repo = ProjectRepository()
+        val project = repo.createNewProject("Keep Me")
+        assertNull(repo.renameProject(project.id, "   "))
+        assertEquals("Keep Me", repo.projects.value.find { it.id == project.id }?.title)
+    }
+
+    @Test
+    fun `renameProject returns null for an unknown project`() {
+        val repo = ProjectRepository()
+        assertNull(repo.renameProject("does_not_exist", "New Name"))
     }
 
     @Test

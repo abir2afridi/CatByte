@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -17,12 +18,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.PencilTheme
 
-/** Overflow menu for a project card: duplicate or delete. */
+/** Overflow menu for a project card: rename, duplicate or delete. */
 @Composable
 internal fun ProjectCardMenu(
     expanded: Boolean,
     onOpen: () -> Unit,
     onDismiss: () -> Unit,
+    onRename: () -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -43,6 +45,14 @@ internal fun ProjectCardMenu(
                 .background(colors.surface)
                 .border(1.2.dp, colors.border)
         ) {
+            DropdownMenuItem(
+                text = { Text("Rename", color = colors.textPrimary) },
+                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = colors.textPrimary) },
+                onClick = {
+                    onDismiss()
+                    onRename()
+                }
+            )
             DropdownMenuItem(
                 text = { Text("Duplicate", color = colors.textPrimary) },
                 leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = colors.textPrimary) },

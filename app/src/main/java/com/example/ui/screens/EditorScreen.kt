@@ -12,6 +12,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,9 +32,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import com.example.R
+import com.example.data.MediaAvailability
 import com.example.data.ScrubPreviewFrame
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
+import com.example.ui.components.MissingMediaBanner
+import com.example.ui.components.MissingMediaSheet
 
 /**
  * The editor screen.
@@ -87,6 +92,7 @@ fun EditorScreen(
     val canRedo by viewModel.canRedo.collectAsState()
     val magneticSnap by viewModel.magneticSnap.collectAsState()
     val watermarkEnabled by viewModel.watermarkEnabled.collectAsState()
+    val showSafeAreaGuides by viewModel.showSafeAreaGuides.collectAsState()
     val snapBeats by viewModel.snapBeats.collectAsState()
     val exportSettings by viewModel.exportSettings.collectAsState()
 
@@ -95,6 +101,7 @@ fun EditorScreen(
     var ttsInputText by remember { mutableStateOf("") }
     var isMultiSelect by remember { mutableStateOf(false) }
     var showFeatureSearch by remember { mutableStateOf(false) }
+    var showMissingMediaSheet by remember { mutableStateOf(false) }
     var isPreviewFullscreen by remember { mutableStateOf(false) }
     var showExportDropdown by remember { mutableStateOf(false) }
     var showExportOptionsBottomSheet by remember { mutableStateOf(false) }
@@ -263,6 +270,17 @@ fun EditorScreen(
         }
     }
 
+    val scanMissing by viewModel.missingMedia.collectAsState()
+    // Only keep entries that are still part of this project, so deleting a
+    // broken clip removes its warning immediately.
+    val projectMediaIds = remember(project) {
+        project?.let { MediaAvailability.mediaRefs(it).map { ref -> ref.id }.toSet() }
+            ?: emptySet()
+    }
+    val visibleMissing = remember(scanMissing, projectMediaIds) {
+        scanMissing.filter { it.id in projectMediaIds }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -318,13 +336,25 @@ fun EditorScreen(
                 )
             }
 
-            // 2. Video Preview Canvas
+            // 2. Missing-media warning (relink flow)
+            if (!isPreviewFullscreen && visibleMissing.isNotEmpty()) {
+                MissingMediaBanner(
+                    missing = visibleMissing,
+                    onOpen = {
+                        viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                        showMissingMediaSheet = true
+                    }
+                )
+            }
+
+            // 3. Video Preview Canvas
             EditorPreviewStage(
                 viewModel = viewModel,
                 project = project!!,
                 positionState = positionState,
                 isPlaying = isPlaying,
                 watermarkEnabled = watermarkEnabled,
+                showSafeAreaGuides = showSafeAreaGuides,
                 scrubFrameState = scrubFrameState,
                 currentClip = currentClip,
                 isTransformActive = isTransformActive,
@@ -430,6 +460,25 @@ fun EditorScreen(
             showQuitExportDialog = showQuitExportDialog,
             onDismissQuitExport = { showQuitExportDialog = false }
         )
+
+        if (showMissingMediaSheet) {
+            // The sheet closes itself once every file resolves.
+            LaunchedEffect(visibleMissing.isEmpty()) {
+                if (visibleMissing.isEmpty()) showMissingMediaSheet = false
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+            ) {
+                MissingMediaSheet(
+                    missing = visibleMissing,
+                    onRelink = { clipId, uri -> viewModel.relinkClipMedia(clipId, uri) },
+                    onClose = { showMissingMediaSheet = false }
+                )
+            }
+        }
 
         if (showFeatureSearch) {
             EditorFeatureSearch(

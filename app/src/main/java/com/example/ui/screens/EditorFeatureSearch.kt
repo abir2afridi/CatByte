@@ -239,6 +239,9 @@ internal fun EditorFeatureSearch(
             EditorSearchEntry("Timeline tools", "Markers, beat sync, snap, zoom", "multi select") {
                 viewModel.setActiveSheet(ActiveToolSheet.TIMELINE_TOOLS)
             },
+            EditorSearchEntry("Safe area guides", "Toggle action/title-safe and thirds guides", "grid composition framing") {
+                viewModel.toggleSafeAreaGuides(!viewModel.showSafeAreaGuides.value)
+            },
             EditorSearchEntry("AI tools", "Cloud features and their status", "ai remix remove bg") {
                 viewModel.setActiveSheet(ActiveToolSheet.AI_TOOLS)
             },

@@ -72,10 +72,22 @@ object ProjectCompositionFactory {
      * aspect ratio identical means every coordinate and effect lands in the same
      * place when the project is exported.
      */
-    fun buildPreview(project: VideoProject, watermarkEnabled: Boolean): Result {
+    fun buildPreview(
+        project: VideoProject,
+        watermarkEnabled: Boolean,
+        /** Decoded canvas background image (null = colour background only). */
+        backgroundImage: android.graphics.Bitmap? = null
+    ): Result {
         val height = ExportResolution.heightFor(project.resolution).coerceIn(360, 720)
         val (width, safeHeight) = ExportResolution.outputSizeForHeight(project.aspectRatio, height)
-        return build(project, width, safeHeight, project.fps.coerceIn(15, 60), watermarkEnabled)
+        return build(
+            project,
+            width,
+            safeHeight,
+            project.fps.coerceIn(15, 60),
+            watermarkEnabled,
+            backgroundImage = backgroundImage
+        )
     }
 
     fun buildExport(
@@ -83,10 +95,19 @@ object ProjectCompositionFactory {
         resolution: String,
         fps: Int,
         watermarkEnabled: Boolean,
-        removeVideo: Boolean = false
+        removeVideo: Boolean = false,
+        backgroundImage: android.graphics.Bitmap? = null
     ): Result {
         val (width, height) = ExportResolution.outputSize(project.aspectRatio, resolution)
-        return build(project, width, height, fps.coerceIn(15, 60), watermarkEnabled, removeVideo)
+        return build(
+            project,
+            width,
+            height,
+            fps.coerceIn(15, 60),
+            watermarkEnabled,
+            removeVideo,
+            backgroundImage
+        )
     }
 
     /**
@@ -155,7 +176,9 @@ object ProjectCompositionFactory {
         fps: Int,
         watermarkEnabled: Boolean,
         /** Drops every video track so Transformer renders an audio-only file. */
-        removeVideo: Boolean = false
+        removeVideo: Boolean = false,
+        /** Decoded canvas background image (null = colour background only). */
+        backgroundImage: android.graphics.Bitmap? = null
     ): Result {
         require(width > 0 && height > 0) { "Invalid output size ${width}x$height" }
 
@@ -175,7 +198,9 @@ object ProjectCompositionFactory {
         // A single full-frame canvas keeps all 2D layers in one texture and is
         // also where timeline effects and the watermark are burned in.
         if (!removeVideo) {
-            compositionEffects += OverlayEffect(listOf(TimelineCanvasOverlay(project, watermarkEnabled)))
+            compositionEffects += OverlayEffect(
+                listOf(TimelineCanvasOverlay(project, watermarkEnabled, backgroundImage))
+            )
         }
 
         val compositorSettings = ProjectCompositorSettings(width, height, overlayInputs)

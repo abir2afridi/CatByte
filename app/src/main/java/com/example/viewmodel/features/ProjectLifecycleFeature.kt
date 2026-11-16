@@ -30,6 +30,9 @@ internal object ProjectLifecycleFeature {
         vm.redoStack.clear()
         vm._canUndo.value = false
         vm._canRedo.value = false
+        // A project can outlive the media it points at; check right away so the
+        // editor can offer relinking instead of showing a silent black frame.
+        RelinkFeature.refresh(vm)
         AppLog.debug("EditorViewModel", "openProject() completed, currentProject set")
     }
 
@@ -64,6 +67,17 @@ internal object ProjectLifecycleFeature {
         createNewProjectWithParams(vm, "New Project #${System.currentTimeMillis() % 1000}")
     }
 
+    /**
+     * Renames a project from the home list. The open project is updated in place
+     * so the editor title changes immediately, without reloading the player.
+     */
+    fun renameProject(vm: EditorViewModel, id: String, title: String) {
+        val renamed = vm.repository.renameProject(id, title) ?: return
+        if (vm._currentProject.value?.id == id) {
+            vm._currentProject.value = renamed
+        }
+    }
+
     fun duplicateProject(vm: EditorViewModel, id: String) {
         vm.repository.duplicateProject(id)
         vm._currentProject.value?.let { vm.playerManager?.loadProject(it) }
@@ -82,6 +96,7 @@ internal object ProjectLifecycleFeature {
         vm.repository.saveProject(project)
         vm._currentProject.value = project
         vm.playerManager?.loadProject(project)
+        RelinkFeature.refresh(vm)
     }
 
     /** Clears ALL projects from the repository (database + memory). */

@@ -43,6 +43,9 @@ internal fun BackgroundToolSheet(
     BackgroundSheet(
         currentPaperStyle = project.paperStyle,
         onSelectBackground = { viewModel.setPaperStyle(it) },
+        currentBackgroundImageUri = project.backgroundImageUri,
+        onPickBackgroundImage = { viewModel.setBackgroundImage(it) },
+        onClearBackgroundImage = { viewModel.setBackgroundImage("") },
         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
     )
 }

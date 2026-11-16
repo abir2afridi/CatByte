@@ -45,6 +45,7 @@ fun SettingsScreen(
     defaultFps: Int,
     showPaperGrid: Boolean,
     watermarkEnabled: Boolean,
+    showSafeAreaGuides: Boolean = false,
     cacheSizeMb: Int,
     appLanguage: AppLanguage = AppLanguage.SYSTEM,
     aiBaseUrl: String = "",
@@ -56,6 +57,7 @@ fun SettingsScreen(
     onSelectFps: (Int) -> Unit,
     onTogglePaperGrid: (Boolean) -> Unit,
     onToggleWatermark: (Boolean) -> Unit,
+    onToggleSafeAreaGuides: (Boolean) -> Unit = {},
     onSelectLanguage: (AppLanguage) -> Unit = {},
     onSaveAiConfig: (String, String, String, String) -> Unit = { _, _, _, _ -> },
     onClearCache: () -> Unit,
@@ -102,7 +104,9 @@ fun SettingsScreen(
 
             SettingsCanvasSection(
                 showPaperGrid = showPaperGrid,
-                onTogglePaperGrid = onTogglePaperGrid
+                showSafeAreaGuides = showSafeAreaGuides,
+                onTogglePaperGrid = onTogglePaperGrid,
+                onToggleSafeAreaGuides = onToggleSafeAreaGuides
             )
 
             SettingsExportQualitySection(

@@ -109,6 +109,8 @@
     <string name="cache_completely_clear">Cache is completely clear!</string>
     <string name="places_sketch_logo">Places a subtle logo on exported videos</string>
     <string name="subtle_pencil_grid">Display subtle grid on timeline</string>
+    <string name="safe_area_guides">Safe area guides</string>
+    <string name="safe_area_guides_desc">Show action/title-safe boxes and rule-of-thirds over the preview</string>
     <string name="warm_cream_paper">Light background</string>
     <string name="dark_chalkboard">Dark background</string>
     <string name="match_phone_setting">Automatically match system dark/light setting</string>

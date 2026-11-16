@@ -41,6 +41,8 @@ object ProjectJson {
         put("isMainTrackLocked", project.isMainTrackLocked)
         put("isMainTrackSolo", project.isMainTrackSolo)
         put("thumbnailResId", project.thumbnailResId ?: JSONObject.NULL)
+        put("coverFrameMs", project.coverFrameMs)
+        put("coverImageUri", project.coverImageUri)
         put("clips", JSONArray().also { array -> project.clips.forEach { array.put(clipToJson(it)) } })
         put(
             "overlayTracks",
@@ -107,6 +109,8 @@ object ProjectJson {
         stickers = json.optJSONArray("stickers").mapObjects { stickerFromJson(it) },
         effects = json.optJSONArray("effects").mapObjects { effectFromJson(it) },
         thumbnailResId = if (json.isNull("thumbnailResId")) null else json.optInt("thumbnailResId"),
+        coverFrameMs = json.optLong("coverFrameMs", 0L),
+        coverImageUri = json.optString("coverImageUri", ""),
         lastModified = json.optLong("lastModified", System.currentTimeMillis()),
         resolution = json.optString("resolution", "1080P"),
         fps = json.optInt("fps", 30),

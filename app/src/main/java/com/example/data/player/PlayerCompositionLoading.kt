@@ -9,6 +9,7 @@ import androidx.media3.effect.MultipleInputVideoGraph
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.transformer.CompositionPlayer
 import com.example.data.AppLog
+import com.example.data.CanvasBackgroundLoader
 import com.example.data.PlayerManager
 import com.example.data.PlayerManager.Companion.TAG
 import com.example.data.ProjectCompositionFactory
@@ -144,7 +145,11 @@ internal fun PlayerManager.loadProjectInternal(
             ) {
                 cached
             } else {
-                ProjectCompositionFactory.buildPreview(project, watermarkEnabled).also {
+                ProjectCompositionFactory.buildPreview(
+                    project,
+                    watermarkEnabled,
+                    backgroundImage = CanvasBackgroundLoader.load(appContext, project.backgroundImageUri)
+                ).also {
                     cachedBuild = it
                     cachedBuildProject = project
                     cachedBuildWatermark = watermarkEnabled

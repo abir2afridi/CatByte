@@ -21,6 +21,8 @@ data class AppSettings(
     val defaultFps: Int = 30,
     val showPaperGrid: Boolean = true,
     val watermarkEnabled: Boolean = false,
+    /** Preview-only safe-area and rule-of-thirds guides. */
+    val showSafeAreaGuides: Boolean = false,
     val language: AppLanguage = AppLanguage.SYSTEM,
     /**
      * OpenAI-compatible AI endpoint. Empty means "no AI configured" and the
@@ -54,6 +56,7 @@ class SettingsRepository(private val context: Context) {
         val FPS = intPreferencesKey("default_fps")
         val PAPER_GRID = booleanPreferencesKey("show_paper_grid")
         val WATERMARK = booleanPreferencesKey("watermark_enabled")
+        val SAFE_AREA_GUIDES = booleanPreferencesKey("safe_area_guides")
         val LANGUAGE = stringPreferencesKey("app_language")
         val AI_BASE_URL = stringPreferencesKey("ai_base_url")
         val AI_API_KEY = stringPreferencesKey("ai_api_key")
@@ -78,6 +81,7 @@ class SettingsRepository(private val context: Context) {
                 defaultFps = prefs[Keys.FPS] ?: 30,
                 showPaperGrid = prefs[Keys.PAPER_GRID] ?: true,
                 watermarkEnabled = prefs[Keys.WATERMARK] ?: false,
+                showSafeAreaGuides = prefs[Keys.SAFE_AREA_GUIDES] ?: false,
                 language = prefs[Keys.LANGUAGE]
                     ?.let { value -> AppLanguage.entries.firstOrNull { it.name == value } }
                     ?: AppLanguage.SYSTEM,
@@ -106,6 +110,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setWatermarkEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.WATERMARK] = enabled }
+    }
+
+    suspend fun setShowSafeAreaGuides(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.SAFE_AREA_GUIDES] = enabled }
     }
 
     suspend fun setLanguage(language: AppLanguage) {

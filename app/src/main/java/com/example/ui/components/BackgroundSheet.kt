@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -57,14 +60,23 @@ val BackgroundPresets: List<BackgroundPreset> = listOf(
 fun BackgroundSheet(
     currentPaperStyle: String,
     onSelectBackground: (String) -> Unit,
+    /** Current background image (uri string); empty means colour only. */
+    currentBackgroundImageUri: String = "",
+    onPickBackgroundImage: ((String) -> Unit)? = null,
+    onClearBackgroundImage: (() -> Unit)? = null,
     onClose: () -> Unit
 ) {
     val colors = PencilTheme.colors
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) onPickBackgroundImage?.invoke(uri.toString())
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(190.dp)
+            .height(250.dp)
             .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .background(colors.surface)
             .border(1.dp, colors.borderSubtle.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
@@ -167,8 +179,57 @@ fun BackgroundSheet(
         }
 
         Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (onPickBackgroundImage != null) {
+                Text(
+                    text = if (currentBackgroundImageUri.isBlank()) "Pick background image" else "Change background image",
+                    color = colors.accentCyan,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(colors.surfaceElevated)
+                        .border(1.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
+                        .clickable {
+                            imagePicker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .testTag("background_pick_image")
+                )
+            }
+            if (currentBackgroundImageUri.isNotBlank() && onClearBackgroundImage != null) {
+                Text(
+                    text = "Remove image",
+                    color = colors.accentRed,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onClearBackgroundImage() }
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .testTag("background_clear_image")
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = if (currentBackgroundImageUri.isBlank()) "Colour" else "Image",
+                color = colors.textTertiary,
+                fontSize = 10.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = "Saved to the project and used by the render graph. The live GL compositor still draws a black canvas, so this colour is not visible in preview/export yet.",
+            text = "The background fills the bars around a clip whose aspect does not match the canvas, in both the preview and the exported file.",
             color = colors.textTertiary,
             fontSize = 10.sp,
             modifier = Modifier.padding(horizontal = 16.dp)

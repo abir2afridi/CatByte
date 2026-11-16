@@ -119,6 +119,12 @@ internal class CameraCaptureController {
         )
     }
 
+    /**
+     * Starts a recording. [hasAudioPermission] is the caller's runtime check:
+     * CameraX's `withAudioEnabled()` itself requires RECORD_AUDIO, so lint
+     * cannot see that the permission was already verified.
+     */
+    @android.annotation.SuppressLint("MissingPermission")
     fun startRecording(context: Context, hasAudioPermission: Boolean) {
         val video = videoCapture
         if (video == null) {

@@ -2,6 +2,8 @@ package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import com.example.data.TemplateEngine
 import com.example.model.VideoProject
@@ -29,12 +31,14 @@ internal fun TimelineToolsToolSheet(
     selectedClipId: String?,
     onMultiSelectChange: (Boolean) -> Unit
 ) {
+    val safeAreaGuides by viewModel.showSafeAreaGuides.collectAsState()
     TimelineToolsSheet(
         isMultiSelect = isMultiSelect,
         magneticSnap = magneticSnap,
         zoom = timelineZoom,
         markerCount = project?.markers?.size ?: 0,
         hasSelectedClip = selectedClipId != null,
+        safeAreaGuides = safeAreaGuides,
         onBeatSync = { viewModel.autoCutToBeat() },
         onAddMarker = { viewModel.addMarker() },
         onPreviousMarker = { viewModel.jumpToMarker(-1) },
@@ -46,6 +50,7 @@ internal fun TimelineToolsToolSheet(
             if (!next) viewModel.clearSelection()
         },
         onToggleMagneticSnap = { viewModel.toggleMagneticSnap() },
+        onToggleSafeAreaGuides = { viewModel.toggleSafeAreaGuides(it) },
         onZoomChanged = { viewModel.setTimelineZoom(it) },
         onToggleKeyframe = { viewModel.toggleKeyframeAtPlayhead() },
         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
@@ -108,8 +113,9 @@ internal fun CoverEditorToolSheet(
     val context = LocalContext.current
     CoverEditorSheet(
         project = project,
-        onSaveCover = { _, _ ->
-            Toast.makeText(context, "Cover saved successfully", Toast.LENGTH_SHORT).show()
+        onSaveCover = { frameMs, customUri ->
+            viewModel.setProjectCover(frameMs, customUri?.toString().orEmpty())
+            Toast.makeText(context, "Cover saved", Toast.LENGTH_SHORT).show()
         },
         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
     )

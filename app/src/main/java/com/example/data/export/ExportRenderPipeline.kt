@@ -3,6 +3,7 @@ package com.example.data.export
 import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.common.util.UnstableApi
 import com.example.data.AppLog
+import com.example.data.CanvasBackgroundLoader
 import com.example.data.ExportManager
 import com.example.data.MediaStoreSaver
 import com.example.data.ProjectCompositionFactory
@@ -111,7 +112,8 @@ internal suspend fun ExportManager.runExportPipeline(
             height = outHeight,
             fps = target.fps,
             watermarkEnabled = watermarkEnabled,
-            removeVideo = audioOnly
+            removeVideo = audioOnly,
+            backgroundImage = CanvasBackgroundLoader.load(appContext, project.backgroundImageUri)
         )
     } catch (error: Throwable) {
         AppLog.error("ExportManager", "Failed to build the project render graph", error)

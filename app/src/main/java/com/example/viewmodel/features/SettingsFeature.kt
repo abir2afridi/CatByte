@@ -94,6 +94,11 @@ internal object SettingsFeature {
         }
     }
 
+    fun toggleSafeAreaGuides(vm: EditorViewModel, enabled: Boolean) {
+        vm._showSafeAreaGuides.value = enabled
+        vm.viewModelScope.launch { vm.settingsRepository?.setShowSafeAreaGuides(enabled) }
+    }
+
     fun toggleMagneticSnap(vm: EditorViewModel) {
         vm._magneticSnap.value = !vm._magneticSnap.value
     }

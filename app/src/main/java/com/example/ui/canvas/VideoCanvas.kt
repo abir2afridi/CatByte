@@ -28,12 +28,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.data.ScrubPreviewFrame
+import com.example.engine.backgroundArgbFor
 import com.example.model.MediaClip
 import com.example.model.TextAnimationType
 import com.example.model.VideoProject
@@ -62,6 +66,8 @@ fun VideoCanvas(
     isPlaying: Boolean,
     onTogglePlay: () -> Unit,
     watermarkEnabled: Boolean = false,
+    /** Draws the action/title-safe boxes and rule-of-thirds grid over the video. */
+    showSafeAreaGuides: Boolean = false,
     /**
      * Frame decoded straight from the source media while the timeline is being
      * scrubbed, together with the position it belongs to. Drawn over the player
@@ -218,7 +224,9 @@ fun VideoCanvas(
                 .width(fittedWidth)
                 .height(fittedHeight)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.Black)
+                // The project background is what shows in the bars around a
+                // video whose aspect does not match the canvas.
+                .background(Color(backgroundArgbFor(project.paperStyle)))
                 .onSizeChanged { canvasSizeState.value = it }
                 .canvasGestures(
                     isEyedropperActive = isEyedropperActive,
@@ -233,6 +241,20 @@ fun VideoCanvas(
                 .testTag("video_canvas_preview"),
             contentAlignment = Alignment.Center
         ) {
+
+            // Project background image (fallback preview only; the composition
+            // preview paints it into the canvas bars itself).
+            if (project.backgroundImageUri.isNotBlank()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(project.backgroundImageUri)
+                        .crossfade(false)
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
             val isSampleClip = activeClip != null && activeClip.uriString == null && activeClip.drawableResId == null
             if (isSampleClip) {
@@ -309,6 +331,11 @@ fun VideoCanvas(
                     CanvasWatermarkOverlay()
                 }
             } // end fallback-only 2D layers
+
+            // Composition guides (preview only, never exported).
+            if (showSafeAreaGuides) {
+                CanvasSafeAreaGuides()
+            }
 
             // CapCut-style Selection Bounding Box & Transform Handles
             if (isTransformInteractive && selectedClip != null && !isEyedropperActive) {

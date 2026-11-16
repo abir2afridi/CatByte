@@ -109,6 +109,8 @@
     <string name="cache_completely_clear">ক্যাশ একদম পরিষ্কার!</string>
     <string name="places_sketch_logo">এক্সপোর্ট হওয়া ভিডিওতে হালকা লোগো বসায়</string>
     <string name="subtle_pencil_grid">টাইমলাইনে হালকা গ্রিড দেখান</string>
+    <string name="safe_area_guides">সেফ এরিয়া গাইড</string>
+    <string name="safe_area_guides_desc">প্রিভিউতে অ্যাকশন/টাইটেল সেফ বক্স ও থার্ডস গ্রিড দেখান</string>
     <string name="warm_cream_paper">হালকা ব্যাকগ্রাউন্ড</string>
     <string name="dark_chalkboard">গাঢ় ব্যাকগ্রাউন্ড</string>
     <string name="match_phone_setting">ফোনের ডার্ক/লাইট সেটিং ব্যবহার করুন</string>

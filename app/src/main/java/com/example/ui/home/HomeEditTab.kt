@@ -33,6 +33,7 @@ internal fun HomeEditTab(
     onSelectFilter: (Int) -> Unit,
     onSelectProject: (VideoProject) -> Unit,
     onToggleFavorite: (String) -> Unit,
+    onRenameProject: (id: String, title: String) -> Unit,
     onDuplicateProject: (String) -> Unit,
     onRequestDeleteProject: (VideoProject) -> Unit
 ) {
@@ -89,6 +90,7 @@ internal fun HomeEditTab(
                 onStartCreating = onNewProjectClick,
                 onSelectProject = onSelectProject,
                 onToggleFavorite = onToggleFavorite,
+                onRenameProject = onRenameProject,
                 onDuplicateProject = onDuplicateProject,
                 onRequestDeleteProject = onRequestDeleteProject
             )

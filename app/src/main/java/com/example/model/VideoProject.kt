@@ -11,6 +11,10 @@ data class VideoProject(
     val stickers: List<StickerOverlay> = emptyList(),
     val effects: List<TimelineEffect> = emptyList(),
     val thumbnailResId: Int? = null,
+    /** Timeline position of the frame used as the project cover (home thumbnail). */
+    val coverFrameMs: Long = 0L,
+    /** Custom cover image (uri string). Empty means "use [coverFrameMs] from the video". */
+    val coverImageUri: String = "",
     val lastModified: Long = System.currentTimeMillis(),
     val resolution: String = "1080P",
     val fps: Int = 30,

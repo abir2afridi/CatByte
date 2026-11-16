@@ -47,6 +47,7 @@ fun CapCutApp(
     val defaultFps by viewModel.defaultFps.collectAsStateWithLifecycle()
     val showPaperGrid by viewModel.showPaperGrid.collectAsStateWithLifecycle()
     val watermarkEnabled by viewModel.watermarkEnabled.collectAsStateWithLifecycle()
+    val showSafeAreaGuides by viewModel.showSafeAreaGuides.collectAsStateWithLifecycle()
     val cacheSizeMb by viewModel.cacheSizeMb.collectAsStateWithLifecycle()
     val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
     val aiConfig by viewModel.aiConfig.collectAsStateWithLifecycle()
@@ -164,6 +165,9 @@ fun CapCutApp(
                     onDuplicateProject = { id ->
                         viewModel.duplicateProject(id)
                     },
+                    onRenameProject = { id, title ->
+                        viewModel.renameProject(id, title)
+                    },
                     onDeleteProject = { id ->
                         viewModel.deleteProject(id)
                     },
@@ -213,6 +217,7 @@ fun CapCutApp(
                     defaultFps = defaultFps,
                     showPaperGrid = showPaperGrid,
                     watermarkEnabled = watermarkEnabled,
+                    showSafeAreaGuides = showSafeAreaGuides,
                     cacheSizeMb = cacheSizeMb,
                     appLanguage = appLanguage,
                     aiBaseUrl = aiConfig.baseUrl,
@@ -224,6 +229,7 @@ fun CapCutApp(
                     onSelectFps = { viewModel.setDefaultFps(it) },
                     onTogglePaperGrid = { viewModel.togglePaperGrid(it) },
                     onToggleWatermark = { viewModel.toggleWatermark(it) },
+                    onToggleSafeAreaGuides = { viewModel.toggleSafeAreaGuides(it) },
                     onSelectLanguage = { viewModel.setAppLanguage(it) },
                     onSaveAiConfig = { url, key, model, imageModel ->
                         viewModel.saveAiConfig(url, key, model, imageModel)

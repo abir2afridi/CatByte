@@ -69,6 +69,23 @@ class ProjectRepository(context: Context? = null) {
         persist(stamped)
     }
 
+    /**
+     * Renames a project and persists it.
+     *
+     * The title is trimmed and capped at [MAX_TITLE_LENGTH] so the home list and
+     * the editor title bar stay readable. Blank input and a no-op rename leave
+     * the stored project untouched. Returns the updated project, or null when
+     * the project does not exist / the title was unusable.
+     */
+    fun renameProject(id: String, title: String): VideoProject? {
+        val normalized = normalizeTitle(title) ?: return null
+        val current = getProject(id) ?: return null
+        if (current.title == normalized) return current
+        val renamed = current.copy(title = normalized)
+        saveProject(renamed)
+        return getProject(id)
+    }
+
     fun toggleFavorite(id: String) {
         val current = _projects.value.toMutableList()
         val index = current.indexOfFirst { it.id == id }
@@ -87,29 +104,15 @@ class ProjectRepository(context: Context? = null) {
         resolution: String = "1080P",
         fps: Int = 30
     ): VideoProject {
-        val coverPath = SampleDataProvider.COVER_VIDEO_PATH
-        val clipsToUse = if (initialClips.isEmpty()) {
-            listOf(
-                MediaClip(
-                    id = "clip_${UUID.randomUUID().toString().take(8)}",
-                    title = "CatByte Cover Video",
-                    uriString = coverPath,
-                    startTimelineMs = 0L,
-                    durationMs = 16000L,
-                    originalDurationMs = 16000L,
-                    filter = com.example.model.VideoFilter.NONE
-                )
-            )
-        } else {
-            initialClips
-        }
-
+        // A new project starts with an empty timeline. Seeding it with a demo
+        // video used to point every fresh project at a desktop-only file path,
+        // so on a phone the first clip was unreadable and the export failed.
         val project = VideoProject(
             id = "proj_${UUID.randomUUID().toString().take(8)}",
             title = title,
             aspectRatio = aspectRatio,
             paperStyle = paperStyle,
-            clips = clipsToUse,
+            clips = initialClips,
             resolution = resolution,
             fps = fps,
             lastModified = System.currentTimeMillis()
@@ -158,6 +161,15 @@ class ProjectRepository(context: Context? = null) {
             runCatching { dao.upsert(project.toEntity()) }
                 .onFailure { AppLog.error("ProjectRepository", "Could not store the project", it) }
         }
+    }
+
+    companion object {
+        /** Longest project title the home list and editor bar are designed for. */
+        const val MAX_TITLE_LENGTH = 80
+
+        /** Trimmed title, or null when the input is empty after trimming. */
+        fun normalizeTitle(raw: String): String? =
+            raw.trim().take(MAX_TITLE_LENGTH).takeIf { it.isNotEmpty() }
     }
 
     private fun VideoProject.toEntity(): ProjectEntity = ProjectEntity(

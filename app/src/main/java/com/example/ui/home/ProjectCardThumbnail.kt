@@ -13,16 +13,21 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.VideoProject
+import com.example.data.ProjectThumbnailLoader
 import com.example.ui.theme.PencilTheme
 
 /** Project thumbnail with its aspect-ratio badge. */
@@ -31,6 +36,17 @@ internal fun ProjectCardThumbnail(
     project: VideoProject
 ) {
     val colors = PencilTheme.colors
+    val context = LocalContext.current
+    // Real cover: a frame of the project video (or the user's cover image).
+    val cover by produceState<android.graphics.Bitmap?>(
+        initialValue = null,
+        project.id,
+        project.coverFrameMs,
+        project.coverImageUri,
+        project.clips.firstOrNull()?.uriString
+    ) {
+        value = ProjectThumbnailLoader.load(context, project)
+    }
 
     // Thumbnail with subtle border
     Box(
@@ -43,6 +59,13 @@ internal fun ProjectCardThumbnail(
         if (project.thumbnailResId != null) {
             Image(
                 painter = painterResource(id = project.thumbnailResId),
+                contentDescription = project.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (cover != null) {
+            Image(
+                bitmap = cover!!.asImageBitmap(),
                 contentDescription = project.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()

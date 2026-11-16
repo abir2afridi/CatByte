@@ -193,6 +193,7 @@ internal class ImportFeature(private val vm: EditorViewModel) {
             vm._selectedClipId.value = built.lastOrNull()?.id
             vm._isImporting.value = false
             AppLog.info("EditorViewModel", "importMultipleUris() completed ${built.size} clip(s)")
+            RelinkFeature.refresh(vm)
             onComplete()
         }
     }

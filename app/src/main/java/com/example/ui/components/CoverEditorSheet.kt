@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,45 +22,45 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Crop
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.ProjectThumbnailLoader
 import com.example.model.VideoProject
+import kotlin.math.roundToInt
 
 /**
- * CapCut-style Cover Frame Editor matching Screenshot 2:
- * - Top Bar: Close (X) on left, Cyan "Save" button on right.
- * - Center: Cover Video Preview Frame.
- * - Filmstrip: "+ Upload" custom photo, video frame scrubber with white needle, "Smart cover" chip.
- * - Bottom Bar: Select, Text, Stickers, Add photo, AI edit tools.
+ * CapCut-style cover editor.
+ *
+ * The cover is a real frame of the project video (scrubbed with the slider) or a
+ * custom photo. Saving stores both on the project, and the home list renders the
+ * same image the user picked here.
  */
 @Composable
 fun CoverEditorSheet(
@@ -69,21 +69,33 @@ fun CoverEditorSheet(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Select, 1: Text, 2: Stickers, 3: Add photo, 4: AI edit
-    var coverFrameMs by remember { mutableLongStateOf(project.clips.firstOrNull()?.startTimelineMs ?: 0L) }
-    var customCoverUri by remember { mutableStateOf<Uri?>(null) }
-    var coverTextOverlay by remember { mutableStateOf("") }
-    var showCoverTextInput by remember { mutableStateOf(false) }
-
-    val totalMs = project.totalDurationMs.coerceAtLeast(1000L)
+    val totalMs = project.totalDurationMs.coerceAtLeast(1L)
+    var coverFrameMs by remember { mutableLongStateOf(project.coverFrameMs.coerceIn(0L, totalMs)) }
+    var customCoverUri by remember {
+        mutableStateOf(project.coverImageUri.takeIf { it.isNotBlank() }?.let(Uri::parse))
+    }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
             customCoverUri = uri
-            Toast.makeText(context, "Custom cover photo uploaded", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Custom cover photo selected", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // Decode the exact frame the user is looking at (custom photo wins).
+    val preview by produceState<android.graphics.Bitmap?>(
+        initialValue = null,
+        coverFrameMs,
+        customCoverUri
+    ) {
+        value = ProjectThumbnailLoader.load(
+            context = context,
+            project = project,
+            frameMs = coverFrameMs,
+            coverImageUri = customCoverUri?.toString().orEmpty()
+        )
     }
 
     Box(
@@ -94,7 +106,6 @@ fun CoverEditorSheet(
             .testTag("cover_editor_sheet")
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header Row: Close (X) + Save Button
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -110,7 +121,12 @@ fun CoverEditorSheet(
                         modifier = Modifier.size(24.dp)
                     )
                 }
-
+                Text(
+                    text = "Cover",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
                 Button(
                     onClick = {
                         onSaveCover(coverFrameMs, customCoverUri)
@@ -119,13 +135,12 @@ fun CoverEditorSheet(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF26E5D7)),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 6.dp),
-                    modifier = Modifier.height(34.dp)
+                    modifier = Modifier.height(34.dp).testTag("cover_save")
                 ) {
                     Text("Save", color = Color(0xFF041E21), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
-            // Center Video / Custom Image Preview Area
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -140,198 +155,122 @@ fun CoverEditorSheet(
                         .background(Color(0xFF141416)),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (customCoverUri != null) {
-                        CapCutMeadowCanvas(modifier = Modifier.fillMaxSize())
+                    val frame = preview
+                    if (frame != null) {
+                        Image(
+                            bitmap = frame.asImageBitmap(),
+                            contentDescription = "Cover preview",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     } else {
-                        CapCutMeadowCanvas(modifier = Modifier.fillMaxSize())
-                    }
-
-                    if (coverTextOverlay.isNotBlank()) {
                         Text(
-                            text = coverTextOverlay,
-                            color = Color.White,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                            text = "No frame available yet",
+                            color = Color(0xFFA5A8B2),
+                            fontSize = 12.sp
                         )
                     }
                 }
             }
 
-            // Cover Scrubber Filmstrip Section (Above Bottom Bar)
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Frame ${(coverFrameMs / 1000f).formatOne()}s",
+                        color = Color(0xFFA5A8B2),
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = "of ${(totalMs / 1000f).formatOne()}s",
+                        color = Color(0xFFA5A8B2),
+                        fontSize = 11.sp
+                    )
+                }
+                Slider(
+                    value = coverFrameMs.toFloat(),
+                    onValueChange = { coverFrameMs = it.toLong().coerceIn(0L, totalMs) },
+                    valueRange = 0f..totalMs.toFloat(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // "+ Upload" custom photo button
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF24252A))
-                            .clickable {
-                                photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Upload",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text("Upload", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-                    }
+                        .testTag("cover_frame_slider")
+                )
 
-                    // Video Frame Scrubber Filmstrip
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(64.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF1E2026))
-                            .border(1.dp, Color(0xFF2A2B34), RoundedCornerShape(8.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(modifier = Modifier.fillMaxSize()) {
-                            CapCutMeadowCanvas(modifier = Modifier.fillMaxSize())
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .width(2.dp)
-                                .fillMaxHeight()
-                                .background(Color.White)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // "✨ Smart cover" chip
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF24252A))
-                        .clickable {
-                            coverFrameMs = (totalMs / 3L)
-                            Toast.makeText(context, "Smart cover frame selected", Toast.LENGTH_SHORT).show()
-                        }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("✨", fontSize = 11.sp)
-                    Text("Smart cover", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-            }
-
-            // Bottom Navigation Bar (Cover Tools: Select, Text, Stickers, Add photo, AI edit)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(58.dp)
-                    .background(Color(0xFF121215))
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                listOf(
-                    Triple(0, "Select", Icons.Default.Crop),
-                    Triple(1, "Text", Icons.Default.TextFields),
-                    Triple(2, "Stickers", Icons.Default.Palette),
-                    Triple(3, "Add photo", Icons.Default.AddPhotoAlternate),
-                    Triple(4, "AI edit", Icons.Default.AutoAwesome)
-                ).forEach { (index, label, icon) ->
-                    val isSelected = selectedTab == index
-                    val itemColor = if (isSelected) Color(0xFF26E5D7) else Color(0xFFA5A8B2)
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                selectedTab = index
-                                when (index) {
-                                    1 -> showCoverTextInput = true
-                                    2 -> Toast.makeText(context, "Stickers picker", Toast.LENGTH_SHORT).show()
-                                    3 -> photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                                    4 -> Toast.makeText(context, "AI cover enhancement applied", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                            .padding(vertical = 4.dp)
+                    CoverActionChip(
+                        label = if (customCoverUri == null) "Upload photo" else "Change photo",
+                        icon = Icons.Default.Upload,
+                        testTag = "cover_upload"
                     ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = label,
-                            tint = itemColor,
-                            modifier = Modifier.size(20.dp)
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = label,
-                            color = itemColor,
-                            fontSize = 10.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
-                        if (isSelected) {
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Box(
-                                modifier = Modifier
-                                    .width(16.dp)
-                                    .height(2.dp)
-                                    .background(Color(0xFF26E5D7), RoundedCornerShape(1.dp))
-                            )
+                    }
+                    CoverActionChip(
+                        label = "Smart frame",
+                        icon = Icons.Default.Restore,
+                        testTag = "cover_smart"
+                    ) {
+                        // Pick the frame at one third of the timeline: usually
+                        // past an intro fade, still before the ending cards.
+                        coverFrameMs = (totalMs / 3L).coerceAtLeast(0L)
+                    }
+                    if (customCoverUri != null) {
+                        CoverActionChip(
+                            label = "Remove photo",
+                            icon = Icons.Default.Close,
+                            testTag = "cover_remove_photo"
+                        ) {
+                            customCoverUri = null
                         }
                     }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
             }
-        }
-
-        if (showCoverTextInput) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { showCoverTextInput = false },
-                title = { Text("Cover Text Overlay", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold) },
-                text = {
-                    androidx.compose.material3.OutlinedTextField(
-                        value = coverTextOverlay,
-                        onValueChange = { coverTextOverlay = it },
-                        placeholder = { Text("Enter cover title...", color = Color(0xFFA5A8B2)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
-                confirmButton = {
-                    androidx.compose.material3.TextButton(onClick = { showCoverTextInput = false }) {
-                        Text("Apply", color = Color(0xFF26E5D7), fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    androidx.compose.material3.TextButton(onClick = {
-                        coverTextOverlay = ""
-                        showCoverTextInput = false
-                    }) {
-                        Text("Clear", color = Color.White)
-                    }
-                },
-                containerColor = Color(0xFF1E2026)
-            )
         }
     }
+}
+
+@Composable
+private fun CoverActionChip(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    testTag: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF24252A))
+            .border(1.dp, Color(0xFF2A2B34), RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp)
+            .testTag(testTag),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color(0xFF26E5D7),
+            modifier = Modifier.size(14.dp)
+        )
+        Text(label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+private fun Float.formatOne(): String = (this * 10).roundToInt().let { tenths ->
+    "${tenths / 10}.${tenths % 10}"
 }

@@ -46,12 +46,14 @@ internal fun ProjectCardItem(
     project: VideoProject,
     onSelect: () -> Unit,
     onToggleFavorite: () -> Unit = {},
+    onRename: (String) -> Unit = {},
     onDuplicate: () -> Unit,
     onDelete: () -> Unit
 ) {
     val colors = PencilTheme.colors
     var menuExpanded by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -129,6 +131,7 @@ internal fun ProjectCardItem(
                 expanded = menuExpanded,
                 onOpen = { menuExpanded = true },
                 onDismiss = { menuExpanded = false },
+                onRename = { showRenameDialog = true },
                 onDuplicate = onDuplicate,
                 onDelete = { showDeleteConfirm = true }
             )
@@ -151,6 +154,18 @@ internal fun ProjectCardItem(
                 )
             }
         }
+    }
+
+    // Rename dialog
+    if (showRenameDialog) {
+        ProjectRenameDialog(
+            currentTitle = project.title,
+            onDismiss = { showRenameDialog = false },
+            onConfirm = { title ->
+                showRenameDialog = false
+                onRename(title)
+            }
+        )
     }
 
     // Delete confirmation dialog

@@ -27,6 +27,17 @@ internal object CanvasFeature {
     }
 
     /**
+     * Sets or clears the canvas background image. The decoded bitmap cache is
+     * dropped so a replaced file at the same uri is re-read on the next build.
+     */
+    fun setBackgroundImage(vm: EditorViewModel, uriString: String) {
+        com.example.data.CanvasBackgroundLoader.clear()
+        vm.updateProject { proj ->
+            proj.copy(backgroundImageUri = uriString)
+        }
+    }
+
+    /**
      * Applies the "Original" canvas ratio: the ratio of the imported footage.
      *
      * When the source size is already known the ratio is applied right away

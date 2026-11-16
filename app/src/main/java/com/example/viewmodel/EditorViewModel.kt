@@ -20,6 +20,7 @@ import com.example.data.ProjectRepository
 import com.example.export.ExportSettings
 import com.example.export.ExportUiState
 import com.example.data.PlayerRecoveryPolicy
+import com.example.data.MissingMediaRef
 import com.example.data.ScrubFrameAccuracy
 import com.example.data.ScrubFrameLoader
 import com.example.data.ScrubFramePolicy
@@ -87,6 +88,7 @@ import com.example.viewmodel.features.ClipEditFeature
 import com.example.viewmodel.features.ClipMoveFeature
 import com.example.viewmodel.features.ClipTrimFeature
 import com.example.viewmodel.features.ImportFeature
+import com.example.viewmodel.features.RelinkFeature
 import com.example.viewmodel.features.HistoryFeature
 import com.example.viewmodel.features.PlaybackFeature
 import com.example.viewmodel.features.ScrubPreviewFeature
@@ -247,6 +249,14 @@ class EditorViewModel(
     internal val _watermarkEnabled = MutableStateFlow(false)
     val watermarkEnabled: StateFlow<Boolean> = _watermarkEnabled.asStateFlow()
 
+    /** Preview-only safe-area / rule-of-thirds guides (never exported). */
+    internal val _showSafeAreaGuides = MutableStateFlow(false)
+    val showSafeAreaGuides: StateFlow<Boolean> = _showSafeAreaGuides.asStateFlow()
+
+    /** Media referenced by the open project that can no longer be opened. */
+    internal val _missingMedia = MutableStateFlow<List<MissingMediaRef>>(emptyList())
+    val missingMedia: StateFlow<List<MissingMediaRef>> = _missingMedia.asStateFlow()
+
     internal val _appLanguage = MutableStateFlow(AppLanguage.SYSTEM)
     val appLanguage: StateFlow<AppLanguage> = _appLanguage.asStateFlow()
 
@@ -288,6 +298,9 @@ class EditorViewModel(
     fun togglePaperGrid(enabled: Boolean) = SettingsFeature.togglePaperGrid(this, enabled)
 
     fun toggleWatermark(enabled: Boolean) = SettingsFeature.toggleWatermark(this, enabled)
+
+    fun toggleSafeAreaGuides(enabled: Boolean) =
+        SettingsFeature.toggleSafeAreaGuides(this, enabled)
 
     fun refreshCacheSize() = SettingsFeature.refreshCacheSize(this)
 
@@ -421,6 +434,7 @@ class EditorViewModel(
                     _defaultFps.value = settings.defaultFps
                     _showPaperGrid.value = settings.showPaperGrid
                     _watermarkEnabled.value = settings.watermarkEnabled
+                    _showSafeAreaGuides.value = settings.showSafeAreaGuides
                     _appLanguage.value = settings.language
                     _aiConfig.value = com.example.data.ai.AiConfig(
                         baseUrl = settings.aiBaseUrl,
@@ -496,6 +510,18 @@ class EditorViewModel(
 
     fun openProject(project: VideoProject) = ProjectLifecycleFeature.openProject(this, project)
 
+    /** Re-scans the open project for media files that no longer resolve. */
+    fun refreshMissingMedia() = RelinkFeature.refresh(this)
+
+    /**
+     * Points a clip at a replacement file, keeping its trims, speed, filters
+     * and keyframes, then clears the missing-media warning for that clip.
+     */
+    fun relinkClipMedia(clipId: String, uriString: String) =
+        RelinkFeature.relinkClip(this, clipId, uriString)
+
+    fun forgetMissingMedia(clipId: String) = RelinkFeature.forget(this, clipId)
+
     fun toggleProjectFavorite(id: String) = ProjectLifecycleFeature.toggleProjectFavorite(this, id)
 
     fun createNewProjectWithParams(
@@ -505,6 +531,10 @@ class EditorViewModel(
     ) = ProjectLifecycleFeature.createNewProjectWithParams(this, title, ratio, paperStyle)
 
     fun createNewProject() = ProjectLifecycleFeature.createNewProject(this)
+
+    /** Renames a project (home list long-press menu / project settings). */
+    fun renameProject(id: String, title: String) =
+        ProjectLifecycleFeature.renameProject(this, id, title)
 
     fun duplicateProject(id: String) = ProjectLifecycleFeature.duplicateProject(this, id)
 
@@ -948,6 +978,24 @@ class EditorViewModel(
     fun setAspectRatio(ratio: AspectRatioType) = CanvasFeature.setAspectRatio(this, ratio)
 
     fun setPaperStyle(style: String) = CanvasFeature.setPaperStyle(this, style)
+
+    /** Sets (or, with an empty string, clears) the canvas background image. */
+    fun setBackgroundImage(uriString: String) =
+        CanvasFeature.setBackgroundImage(this, uriString)
+
+    /**
+     * Stores the project cover: a timeline frame and/or a custom image. Both the
+     * home thumbnail and the cover editor read it back.
+     */
+    fun setProjectCover(frameMs: Long, imageUri: String) {
+        com.example.data.ProjectThumbnailLoader.clear()
+        updateProject { proj ->
+            proj.copy(
+                coverFrameMs = frameMs.coerceAtLeast(0L),
+                coverImageUri = imageUri
+            )
+        }
+    }
 
     /**
      * Applies the "Original" canvas ratio (the ratio of the imported footage).

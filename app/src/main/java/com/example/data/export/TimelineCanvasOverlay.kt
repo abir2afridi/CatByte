@@ -1,5 +1,6 @@
 package com.example.data.export
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -17,8 +18,11 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.CanvasOverlay
 import androidx.media3.effect.StaticOverlaySettings
 import com.example.data.KeyframeInterpolator
+import com.example.engine.BackgroundMath
+import com.example.engine.backgroundArgbFor
 import com.example.model.EffectType
 import com.example.model.KeyframeProperty
+import com.example.model.MediaClip
 import com.example.model.StickerOverlay
 import com.example.model.TextAnimationType
 import com.example.model.TextFontStyle
@@ -43,7 +47,9 @@ import kotlin.math.sin
 @UnstableApi
 class TimelineCanvasOverlay(
     private val project: VideoProject,
-    private val watermarkEnabled: Boolean
+    private val watermarkEnabled: Boolean,
+    /** Decoded canvas background image, already downscaled (null = colour only). */
+    private val backgroundImage: Bitmap? = null
 ) : CanvasOverlay(true) {
 
     private val overlaySettings: OverlaySettings = StaticOverlaySettings.Builder()
@@ -53,6 +59,7 @@ class TimelineCanvasOverlay(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val backgroundImagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val effectPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = overlaySettings
@@ -67,11 +74,112 @@ class TimelineCanvasOverlay(
         val height = canvas.height.toFloat()
         if (width <= 0f || height <= 0f) return
 
+        drawCanvasBackground(canvas, timeMs, width, height)
         drawVignette(canvas, timeMs, width, height)
         drawTimelineEffects(canvas, timeMs, width, height)
         project.textOverlays.forEach { drawText(canvas, it, timeMs, width, height) }
         project.stickers.forEach { drawSticker(canvas, it, timeMs, width, height) }
         if (watermarkEnabled) drawWatermark(canvas, width, height)
+    }
+
+    // ------------------------------------------------------------------
+    // Canvas background (the bars around a video that does not fill the canvas)
+    // ------------------------------------------------------------------
+
+    /**
+     * Fills the letterbox/pillarbox bars with the project's background colour
+     * and (when set) the background image. The video itself is never covered:
+     * the fitted rectangle comes from [BackgroundMath] and matches the contain
+     * layout Media3 uses for the clip.
+     */
+    private fun drawCanvasBackground(canvas: Canvas, timeMs: Long, width: Float, height: Float) {
+        val active = mainClipAndLocal(timeMs) ?: return
+        val clip = active.first
+        val localMs = active.second
+        val sourceAspect = sourceAspectOf(clip) ?: return
+        // During a transition two clips share the frame; filling the outgoing
+        // clip's bars could paint over the incoming picture.
+        if (clip.transition != com.example.model.TransitionType.NONE &&
+            localMs < clip.transitionDurationMs
+        ) {
+            return
+        }
+        // A zoomed/cropped clip (scale > 1) already fills the frame; painting
+        // anything would cover real pixels.
+        if (clip.scale > 1.0001f) return
+
+        val rect = BackgroundMath.fittedVideoRect(sourceAspect, width / height)
+        val left = rect.left * width
+        val top = rect.top * height
+        val right = rect.right * width
+        val bottom = rect.bottom * height
+        val fillsCanvas = rect.width >= 0.999f && rect.height >= 0.999f
+        if (fillsCanvas) return
+
+        val bars = arrayOf(
+            RectF(0f, 0f, width, top),
+            RectF(0f, bottom, width, height),
+            RectF(0f, top, left, bottom),
+            RectF(right, top, width, bottom)
+        )
+
+        backgroundPaint.apply {
+            shader = null
+            style = Paint.Style.FILL
+            alpha = 255
+            color = backgroundArgbFor(project.paperStyle).toInt()
+        }
+        bars.forEach { bar ->
+            if (bar.width() > 0f && bar.height() > 0f) canvas.drawRect(bar, backgroundPaint)
+        }
+
+        val bitmap = backgroundImage ?: return
+        if (bitmap.isRecycled || bitmap.width <= 0 || bitmap.height <= 0) return
+        val destination = coverRect(bitmap, width, height)
+        bars.forEach { bar ->
+            if (bar.width() <= 0f || bar.height() <= 0f) return@forEach
+            canvas.save()
+            canvas.clipRect(bar)
+            canvas.drawBitmap(bitmap, null, destination, backgroundImagePaint)
+            canvas.restore()
+        }
+    }
+
+    /** Centre-cropped destination of [bitmap] covering the whole canvas (CSS `cover`). */
+    private fun coverRect(bitmap: Bitmap, width: Float, height: Float): RectF {
+        val imageAspect = bitmap.width.toFloat() / bitmap.height.toFloat()
+        val canvasAspect = width / height
+        return if (imageAspect > canvasAspect) {
+            val drawnWidth = height * imageAspect
+            val left = (width - drawnWidth) / 2f
+            RectF(left, 0f, left + drawnWidth, height)
+        } else {
+            val drawnHeight = width / imageAspect
+            val top = (height - drawnHeight) / 2f
+            RectF(0f, top, width, top + drawnHeight)
+        }
+    }
+
+    /** Active main clip plus its clip-local time (main clips are cumulative). */
+    private fun mainClipAndLocal(timeMs: Long): Pair<MediaClip, Long>? {
+        var cursor = 0L
+        for (clip in project.clips) {
+            val end = cursor + clip.durationMs
+            if (timeMs < end) return clip to (timeMs - cursor).coerceAtLeast(0L)
+            cursor = end
+        }
+        val last = project.clips.lastOrNull() ?: return null
+        return last to last.durationMs
+    }
+
+    /** Display aspect of the clip's source, swapping for 90°/270° rotation. */
+    private fun sourceAspectOf(clip: MediaClip): Float? {
+        val width = clip.sourceWidth
+        val height = clip.sourceHeight
+        if (width <= 0 || height <= 0) return null
+        val rotation = ((clip.rotation % 180f) + 180f) % 180f
+        val swapped = rotation > 45f && rotation < 135f
+        return if (swapped) height.toFloat() / width else width.toFloat() / height
     }
 
     // ------------------------------------------------------------------
@@ -140,11 +248,13 @@ class TimelineCanvasOverlay(
             color = withAlpha(overlay.color.toInt(), alpha)
             textSize = width * 0.085f * keyScale * animationScale
             // Font style + the user's bold/italic/letter-spacing overrides.
-            typeface = Typeface.create(
-                typefaceFor(overlay.fontStyle),
-                (if (overlay.isBold) Typeface.BOLD else Typeface.NORMAL) or
-                    (if (overlay.isItalic) Typeface.ITALIC else 0)
-            )
+            val textStyle = when {
+                overlay.isBold && overlay.isItalic -> Typeface.BOLD_ITALIC
+                overlay.isBold -> Typeface.BOLD
+                overlay.isItalic -> Typeface.ITALIC
+                else -> Typeface.NORMAL
+            }
+            typeface = Typeface.create(typefaceFor(overlay.fontStyle), textStyle)
             letterSpacing = overlay.letterSpacingEm
             textAlign = Paint.Align.CENTER
             isAntiAlias = true

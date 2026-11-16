@@ -33,6 +33,7 @@ fun HomeScreen(
     onToggleFavorite: (String) -> Unit = {},
     onAddMediaClips: (List<Uri>) -> Unit,
     onOpenCamera: () -> Unit = {},
+    onRenameProject: (id: String, title: String) -> Unit = { _, _ -> },
     onDuplicateProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
     onRestoreProject: (VideoProject) -> Unit = {}, // NEW: undo delete
@@ -120,6 +121,7 @@ fun HomeScreen(
                         onSelectFilter = { filterChoice = it },
                         onSelectProject = onSelectProject,
                         onToggleFavorite = onToggleFavorite,
+                        onRenameProject = onRenameProject,
                         onDuplicateProject = onDuplicateProject,
                         onRequestDeleteProject = { project ->
                             deletedProject = project

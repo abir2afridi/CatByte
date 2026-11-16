@@ -45,6 +45,7 @@ fun TimelineToolsSheet(
     zoom: Float,
     markerCount: Int,
     hasSelectedClip: Boolean,
+    safeAreaGuides: Boolean = false,
     onBeatSync: () -> Unit,
     onAddMarker: () -> Unit,
     onPreviousMarker: () -> Unit,
@@ -52,6 +53,7 @@ fun TimelineToolsSheet(
     onOpenMarkers: () -> Unit = {},
     onToggleMultiSelect: () -> Unit,
     onToggleMagneticSnap: () -> Unit,
+    onToggleSafeAreaGuides: (Boolean) -> Unit = {},
     onZoomChanged: (Float) -> Unit,
     onToggleKeyframe: () -> Unit,
     onClose: () -> Unit
@@ -117,6 +119,9 @@ fun TimelineToolsSheet(
             ToolChip("Markers: $markerCount", markerCount > 0) { onOpenMarkers() }
             ToolChip("Multi-select", isMultiSelect, "multiselect") { onToggleMultiSelect() }
             ToolChip("Snap", magneticSnap, "snap") { onToggleMagneticSnap() }
+            ToolChip("Safe area", safeAreaGuides, "safe_area") {
+                onToggleSafeAreaGuides(!safeAreaGuides)
+            }
             ToolChip("Keyframe", false, "keyframe") {
                 if (hasSelectedClip) onToggleKeyframe()
             }

@@ -26,6 +26,7 @@ internal fun LazyListScope.homeProjectListItems(
     onStartCreating: () -> Unit,
     onSelectProject: (VideoProject) -> Unit,
     onToggleFavorite: (String) -> Unit,
+    onRenameProject: (id: String, title: String) -> Unit = { _, _ -> },
     onDuplicateProject: (String) -> Unit,
     onRequestDeleteProject: (VideoProject) -> Unit
 ) {
@@ -56,6 +57,7 @@ internal fun LazyListScope.homeProjectListItems(
                     project = project,
                     onSelect = { onSelectProject(project) },
                     onToggleFavorite = { onToggleFavorite(project.id) },
+                    onRename = { title -> onRenameProject(project.id, title) },
                     onDuplicate = { onDuplicateProject(project.id) },
                     onDelete = { onRequestDeleteProject(project) }
                 )

@@ -150,6 +150,7 @@ import com.example.viewmodel.EditorViewModel
 import com.example.data.MediaDurationFallback
 import com.example.data.ScrubPreviewFrame
 
+@android.annotation.SuppressLint("SuspiciousIndentation")
 @Composable
 internal fun EditorTtsDialog(
     text: String,
