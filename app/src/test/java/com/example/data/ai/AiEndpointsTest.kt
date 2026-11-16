@@ -62,6 +62,25 @@ class AiEndpointsTest {
     }
 
     @Test
+    fun `transcription endpoint mirrors the chat rules`() {
+        assertEquals(
+            "https://api.openai.com/v1/audio/transcriptions",
+            AiEndpoints.transcriptions("https://api.openai.com")
+        )
+        assertEquals(
+            "https://gateway.example.com/v1/audio/transcriptions",
+            AiEndpoints.transcriptions("https://gateway.example.com/v1/audio/transcriptions")
+        )
+        assertEquals("", AiEndpoints.transcriptions(""))
+    }
+
+    @Test
+    fun `speech model defaults to whisper`() {
+        assertEquals("whisper-1", AiConfig().speechModel)
+        assertEquals("whisper-large-v3", AiConfig(speechModel = "whisper-large-v3").speechModel)
+    }
+
+    @Test
     fun `empty base url stays empty`() {
         assertEquals("", AiEndpoints.chatCompletions(""))
         assertEquals("", AiEndpoints.imageGenerations("   "))

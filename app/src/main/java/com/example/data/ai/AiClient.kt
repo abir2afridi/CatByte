@@ -94,9 +94,71 @@ object AiClient {
         }
     }
 
+    /**
+     * Speech-to-text for AI auto captions (Whisper-compatible endpoint).
+     *
+     * [language] is an ISO-639-1 code ("en", "bn", …); null lets the model
+     * detect it. [fallbackDurationMs] is used when the server returns plain
+     * text without timed segments.
+     */
+    suspend fun transcribe(
+        config: AiConfig,
+        audio: ByteArray,
+        fileName: String = "audio.m4a",
+        language: String? = null,
+        fallbackDurationMs: Long = 0L
+    ): AiResult<Transcript> = withContext(Dispatchers.IO) {
+        if (!config.isConfigured) return@withContext AiResult.Failure(NO_ENDPOINT)
+        if (!AiEndpoints.isValidBaseUrl(config.baseUrl)) {
+            return@withContext AiResult.Failure("The AI base URL must start with http:// or https://")
+        }
+        if (audio.isEmpty()) return@withContext AiResult.Failure("There is no audio to transcribe")
+        if (audio.size > MAX_UPLOAD_BYTES) {
+            return@withContext AiResult.Failure(
+                "The extracted audio is too large for the endpoint (limit ~24 MB). " +
+                    "Trim the clip or transcribe a shorter selection."
+            )
+        }
+
+        val boundary = "CatByteBoundary${System.nanoTime()}"
+        val fields = buildMap {
+            put("model", config.speechModel.ifBlank { "whisper-1" })
+            put("response_format", "verbose_json")
+            if (!language.isNullOrBlank()) put("language", language)
+        }
+        val body = MultipartForm.body(
+            boundary = boundary,
+            fields = fields,
+            fileFieldName = "file",
+            fileName = fileName,
+            fileBytes = audio,
+            fileContentType = "audio/mp4"
+        )
+
+        when (
+            val response = send(
+                config = config,
+                url = AiEndpoints.transcriptions(config.baseUrl),
+                contentType = MultipartForm.contentType(boundary),
+                body = body
+            )
+        ) {
+            is AiResult.Failure -> response
+            is AiResult.Ok -> parseTranscript(response.value, fallbackDurationMs)
+        }
+    }
+
     // ---------------------------------------------------------------- HTTP
 
-    private fun post(config: AiConfig, url: String, body: String): AiResult<String> {
+    private fun post(config: AiConfig, url: String, body: String): AiResult<String> =
+        send(config, url, "application/json; charset=utf-8", body.toByteArray(Charsets.UTF_8))
+
+    private fun send(
+        config: AiConfig,
+        url: String,
+        contentType: String,
+        body: ByteArray
+    ): AiResult<String> {
         if (url.isBlank()) return AiResult.Failure("The AI base URL is empty")
         var connection: HttpURLConnection? = null
         return try {
@@ -105,13 +167,13 @@ object AiClient {
                 connectTimeout = CONNECT_TIMEOUT_MS
                 readTimeout = READ_TIMEOUT_MS
                 doOutput = true
-                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                setRequestProperty("Content-Type", contentType)
                 setRequestProperty("Accept", "application/json")
                 if (config.apiKey.isNotBlank()) {
                     setRequestProperty("Authorization", "Bearer ${config.apiKey}")
                 }
             }
-            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            connection.outputStream.use { it.write(body) }
 
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
@@ -169,6 +231,36 @@ object AiClient {
         }
     }
 
+    internal fun parseTranscript(raw: String, fallbackDurationMs: Long): AiResult<Transcript> {
+        return runCatching {
+            val root = JSONObject(raw)
+            val segments = mutableListOf<TranscriptSegment>()
+            val array = root.optJSONArray("segments")
+            if (array != null) {
+                for (i in 0 until array.length()) {
+                    val item = array.optJSONObject(i) ?: continue
+                    val text = item.optString("text").trim()
+                    if (text.isEmpty()) continue
+                    val start = (item.optDouble("start", 0.0) * 1000.0).toLong().coerceAtLeast(0L)
+                    val end = (item.optDouble("end", item.optDouble("start", 0.0)) * 1000.0)
+                        .toLong().coerceAtLeast(start + 1L)
+                    segments += TranscriptSegment(start, end, text)
+                }
+            }
+            if (segments.isEmpty()) {
+                val text = root.optString("text").trim()
+                if (text.isEmpty()) {
+                    return@runCatching AiResult.Failure("The AI endpoint heard no speech in this clip")
+                }
+                val duration = fallbackDurationMs.coerceAtLeast(1_000L)
+                segments += TranscriptSegment(0L, duration, text)
+            }
+            AiResult.Ok(Transcript(segments = segments))
+        }.getOrElse {
+            AiResult.Failure("Could not read the transcript: ${it.message}")
+        }
+    }
+
     private fun parseImage(raw: String): AiResult<ByteArray> {
         return runCatching {
             val data = JSONObject(raw).optJSONArray("data")
@@ -211,4 +303,7 @@ object AiClient {
 
     const val NO_ENDPOINT: String =
         "No AI endpoint configured. Add a base URL in Settings → AI to use this feature."
+
+    /** Whisper-class upload limit (24 MB, leaving room for the multipart envelope). */
+    private const val MAX_UPLOAD_BYTES = 24 * 1024 * 1024
 }

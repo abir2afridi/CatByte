@@ -242,7 +242,7 @@ internal fun EditorFeatureSearch(
             EditorSearchEntry("Safe area guides", "Toggle action/title-safe and thirds guides", "grid composition framing") {
                 viewModel.toggleSafeAreaGuides(!viewModel.showSafeAreaGuides.value)
             },
-            EditorSearchEntry("AI tools", "Cloud features and their status", "ai remix remove bg") {
+            EditorSearchEntry("AI tools", "Endpoint-backed AI: remix, translate, captions, image", "ai remix remove bg") {
                 viewModel.setActiveSheet(ActiveToolSheet.AI_TOOLS)
             },
             EditorSearchEntry("Export", "Render the project", "save share mp4") {

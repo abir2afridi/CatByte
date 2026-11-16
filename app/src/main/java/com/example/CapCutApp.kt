@@ -224,6 +224,7 @@ fun CapCutApp(
                     aiApiKey = aiConfig.apiKey,
                     aiModel = aiConfig.model,
                     aiImageModel = aiConfig.imageModel,
+                    aiSpeechModel = aiConfig.speechModel,
                     onSelectTheme = { viewModel.setAppThemeMode(it) },
                     onSelectResolution = { viewModel.setDefaultResolution(it) },
                     onSelectFps = { viewModel.setDefaultFps(it) },
@@ -231,8 +232,8 @@ fun CapCutApp(
                     onToggleWatermark = { viewModel.toggleWatermark(it) },
                     onToggleSafeAreaGuides = { viewModel.toggleSafeAreaGuides(it) },
                     onSelectLanguage = { viewModel.setAppLanguage(it) },
-                    onSaveAiConfig = { url, key, model, imageModel ->
-                        viewModel.saveAiConfig(url, key, model, imageModel)
+                    onSaveAiConfig = { url, key, model, imageModel, speechModel ->
+                        viewModel.saveAiConfig(url, key, model, imageModel, speechModel)
                     },
                     onClearCache = { viewModel.clearCache() },
                     onClearAllProjects = { viewModel.clearAllProjects() },

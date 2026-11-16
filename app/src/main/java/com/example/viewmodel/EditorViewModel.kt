@@ -290,8 +290,13 @@ class EditorViewModel(
     fun setDefaultResolution(res: String) = SettingsFeature.setDefaultResolution(this, res)
 
     /** Stores the AI endpoint used by the editor AI features (Settings → AI). */
-    fun saveAiConfig(baseUrl: String, apiKey: String, model: String, imageModel: String) =
-        SettingsFeature.saveAiConfig(this, baseUrl, apiKey, model, imageModel)
+    fun saveAiConfig(
+        baseUrl: String,
+        apiKey: String,
+        model: String,
+        imageModel: String,
+        speechModel: String = "whisper-1"
+    ) = SettingsFeature.saveAiConfig(this, baseUrl, apiKey, model, imageModel, speechModel)
 
     fun setDefaultFps(fps: Int) = SettingsFeature.setDefaultFps(this, fps)
 
@@ -440,7 +445,8 @@ class EditorViewModel(
                         baseUrl = settings.aiBaseUrl,
                         apiKey = settings.aiApiKey,
                         model = settings.aiModel,
-                        imageModel = settings.aiImageModel
+                        imageModel = settings.aiImageModel,
+                        speechModel = settings.aiSpeechModel
                     )
                 }
             }
@@ -935,7 +941,12 @@ class EditorViewModel(
 
     fun exportSubtitles(toVtt: Boolean = false) = TextFeature.exportSubtitles(this, toVtt)
 
-    fun addAutoCaptions() = TextFeature.addAutoCaptions(this)
+    /**
+     * AI auto captions from the user's configured endpoint. Suspends while the
+     * clip's audio is extracted and transcribed; the returned string is shown
+     * to the user as a toast.
+     */
+    suspend fun addAutoCaptions(): String = TextFeature.addAutoCaptions(this)
 
     fun addTextOverlay(
         text: String = "Double tap to edit",

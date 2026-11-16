@@ -151,10 +151,10 @@ fun VolumeSheet(
 
         VolumeToggleRow(
             title = "Reduce noise",
-            subtitle = "Neural denoise needs the online AI engine",
+            subtitle = "Needs a denoise model — a chat/image endpoint cannot do this",
             checked = isNoiseReductionEnabled,
             enabled = false,
-            badge = "Cloud",
+            badge = "Model",
             onCheckedChange = onToggleNoiseReduction
         )
         VolumeToggleRow(

@@ -46,11 +46,11 @@ internal fun ExportAiUhdCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text("AI ultra HD", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Text("| Example", color = Color(0xFFA5A8B2), fontSize = 10.sp)
+                Text("| Needs an upscaler", color = Color(0xFFA5A8B2), fontSize = 10.sp)
             }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "Make your video clearer and smoother with AI enhancement and frame interpolation.",
+                text = "Video upscaling needs a dedicated upscaler model; the configured chat/image endpoint cannot do this.",
                 color = Color(0xFFA5A8B2),
                 fontSize = 10.sp
             )

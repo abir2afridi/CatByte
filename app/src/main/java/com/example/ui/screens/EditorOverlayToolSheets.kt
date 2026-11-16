@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import com.example.model.MediaClip
 import com.example.model.TextOverlay
@@ -14,6 +15,7 @@ import com.example.ui.components.TransitionsPickerSheet
 import com.example.ui.text.TextEditorSheet
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
+import kotlinx.coroutines.launch
 
 /**
  * The overlay tool sheets of the editor: text, stickers, timeline effects,
@@ -29,6 +31,7 @@ internal fun TextEditorToolSheet(
     onLaunchCaptionImport: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     TextEditorSheet(
         textOverlay = currentText,
         onAddOrUpdateText = { text, font, color, anim ->
@@ -55,7 +58,9 @@ internal fun TextEditorToolSheet(
         onUpdateTextStyle = { bold, italic, letterSpacing, lineSpacing ->
             viewModel.setSelectedTextStyle(bold, italic, letterSpacing, lineSpacing)
         },
-        onAutoCaptions = { viewModel.addAutoCaptions() },
+        onAutoCaptions = {
+            scope.launch { Toast.makeText(context, viewModel.addAutoCaptions(), Toast.LENGTH_LONG).show() }
+        },
         onClose = { viewModel.closeToolSheet() }
     )
 }

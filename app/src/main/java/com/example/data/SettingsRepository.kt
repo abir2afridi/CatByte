@@ -34,7 +34,9 @@ data class AppSettings(
     /** Chat/completions model used by text features (remix, lyrics, translate). */
     val aiModel: String = "gpt-4o-mini",
     /** Images model used by the AI image feature. */
-    val aiImageModel: String = "dall-e-3"
+    val aiImageModel: String = "dall-e-3",
+    /** Speech-to-text model used by AI auto captions (Whisper-compatible). */
+    val aiSpeechModel: String = "whisper-1"
 ) {
     /** True when the user has pointed the app at an AI endpoint. */
     val hasAiEndpoint: Boolean get() = aiBaseUrl.isNotBlank()
@@ -62,6 +64,7 @@ class SettingsRepository(private val context: Context) {
         val AI_API_KEY = stringPreferencesKey("ai_api_key")
         val AI_MODEL = stringPreferencesKey("ai_model")
         val AI_IMAGE_MODEL = stringPreferencesKey("ai_image_model")
+        val AI_SPEECH_MODEL = stringPreferencesKey("ai_speech_model")
     }
 
     val settings: Flow<AppSettings> = context.settingsDataStore.data
@@ -88,7 +91,8 @@ class SettingsRepository(private val context: Context) {
                 aiBaseUrl = prefs[Keys.AI_BASE_URL] ?: "",
                 aiApiKey = prefs[Keys.AI_API_KEY] ?: "",
                 aiModel = prefs[Keys.AI_MODEL] ?: "gpt-4o-mini",
-                aiImageModel = prefs[Keys.AI_IMAGE_MODEL] ?: "dall-e-3"
+                aiImageModel = prefs[Keys.AI_IMAGE_MODEL] ?: "dall-e-3",
+                aiSpeechModel = prefs[Keys.AI_SPEECH_MODEL] ?: "whisper-1"
             )
         }
 
@@ -126,12 +130,19 @@ class SettingsRepository(private val context: Context) {
      * An empty [baseUrl] disables AI again (the editor then explains that no
      * endpoint is configured instead of failing mid-edit).
      */
-    suspend fun setAiConfig(baseUrl: String, apiKey: String, model: String, imageModel: String) {
+    suspend fun setAiConfig(
+        baseUrl: String,
+        apiKey: String,
+        model: String,
+        imageModel: String,
+        speechModel: String = "whisper-1"
+    ) {
         context.settingsDataStore.edit { prefs ->
             prefs[Keys.AI_BASE_URL] = baseUrl.trim()
             prefs[Keys.AI_API_KEY] = apiKey.trim()
             prefs[Keys.AI_MODEL] = model.trim().ifBlank { "gpt-4o-mini" }
             prefs[Keys.AI_IMAGE_MODEL] = imageModel.trim().ifBlank { "dall-e-3" }
+            prefs[Keys.AI_SPEECH_MODEL] = speechModel.trim().ifBlank { "whisper-1" }
         }
     }
 }

@@ -32,16 +32,18 @@ internal object SettingsFeature {
         baseUrl: String,
         apiKey: String,
         model: String,
-        imageModel: String
+        imageModel: String,
+        speechModel: String = "whisper-1"
     ) {
         vm._aiConfig.value = com.example.data.ai.AiConfig(
             baseUrl = baseUrl.trim(),
             apiKey = apiKey.trim(),
             model = model.trim().ifBlank { "gpt-4o-mini" },
-            imageModel = imageModel.trim().ifBlank { "dall-e-3" }
+            imageModel = imageModel.trim().ifBlank { "dall-e-3" },
+            speechModel = speechModel.trim().ifBlank { "whisper-1" }
         )
         vm.viewModelScope.launch {
-            vm.settingsRepository?.setAiConfig(baseUrl, apiKey, model, imageModel)
+            vm.settingsRepository?.setAiConfig(baseUrl, apiKey, model, imageModel, speechModel)
         }
     }
 

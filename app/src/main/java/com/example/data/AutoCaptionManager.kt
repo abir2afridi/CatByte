@@ -1,51 +1,66 @@
 package com.example.data
 
+import com.example.data.ai.TranscriptSegment
 import com.example.engine.CaptionBridge
 import com.example.engine.CaptionTimeline
 import com.example.engine.SubtitleCue
 import com.example.model.TextOverlay
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
- * Offline auto-caption generator.
+ * Turns a speech-to-text result into timed, readable subtitle overlays.
  *
- * There is no speech-recognition model in the APK yet, so the phrases below are
- * placeholders — but the *timing* path is the real one: each phrase is split into
- * short readable cues by [CaptionTimeline] and converted with [CaptionBridge],
- * which is exactly what a recogniser's word timestamps will feed later. Swapping
- * in a model only replaces [phrasesFor].
+ * The AI endpoint returns phrase-level segments; each phrase is split into
+ * short cards here (max characters/words) so a long sentence becomes several
+ * readable subtitles, then shifted from *source* time into *timeline* time
+ * using the clip's start, trim and speed. Everything is pure so the mapping is
+ * unit-tested instead of discovered on device.
  */
 object AutoCaptionManager {
 
     const val MAX_CHARS_PER_CUE = 32
     const val MAX_WORDS_PER_CUE = 5
-    const val LEAD_IN_MS = 500L
-    const val PHRASE_GAP_MS = 400L
-    const val MIN_PHRASE_MS = 300L
+    const val MIN_CUE_MS = 120L
 
-    /** Reading speed a caption is stretched towards, characters per second. */
-    const val TARGET_CPS = 17f
+    /**
+     * @param segments transcript segments, relative to the uploaded audio file
+     * @param sourceOffsetMs absolute source position of the uploaded file's first sample
+     * @param clipStartMs clip position on the timeline
+     * @param trimStartMs clip's source trim start
+     * @param speed clip playback speed (1 = real time)
+     * @param clipDurationMs timeline length of the clip
+     */
+    fun overlaysFromTranscript(
+        segments: List<TranscriptSegment>,
+        sourceOffsetMs: Long,
+        clipStartMs: Long,
+        trimStartMs: Long,
+        speed: Float,
+        clipDurationMs: Long
+    ): List<TextOverlay> {
+        if (segments.isEmpty() || clipDurationMs <= 0L) return emptyList()
+        val safeSpeed = if (speed.isFinite() && speed > 0.01f) speed else 1f
+        val cues = mutableListOf<SubtitleCue>()
 
-    suspend fun generateCaptions(
-        durationMs: Long,
-        language: String = "English",
-    ): List<TextOverlay> = withContext(Dispatchers.Default) {
-        if (durationMs <= 0L) return@withContext emptyList()
-
-        val cues = ArrayList<CaptionTimeline.Cue>()
-        var cursor = LEAD_IN_MS
-        for ((phrase, phraseDuration) in phrasesFor(language)) {
-            if (cursor >= durationMs) break
-            val span = minOf(phraseDuration, durationMs - cursor)
-            if (span < MIN_PHRASE_MS) break
-            cues += cuesFor(phrase, cursor, span)
-            cursor += phraseDuration + PHRASE_GAP_MS
+        segments.forEach { segment ->
+            val localStart = ((sourceOffsetMs + segment.startMs - trimStartMs) / safeSpeed)
+                .toLong()
+                .coerceIn(0L, clipDurationMs)
+            val localEnd = ((sourceOffsetMs + segment.endMs - trimStartMs) / safeSpeed)
+                .toLong()
+                .coerceIn(localStart + 1L, clipDurationMs)
+            if (localStart >= clipDurationMs) return@forEach
+            val span = (localEnd - localStart).coerceAtLeast(MIN_CUE_MS)
+            // cuesFor() returns word-timed CaptionTimeline cues; the rest of
+            // this class speaks SubtitleCue, so flatten them here.
+            cues.addAll(
+                cuesFor(segment.text, clipStartMs + localStart, span).map {
+                    SubtitleCue(it.startMs, it.endMs, it.text)
+                }
+            )
         }
 
-        val readable = CaptionTimeline.extendForReadability(cues, TARGET_CPS, gapMs = 60L)
-            .map { cue -> SubtitleCue(cue.startMs, minOf(cue.endMs, durationMs), cue.text) }
-        CaptionBridge.overlaysFromCues(readable)
+        if (cues.isEmpty()) return emptyList()
+        return CaptionBridge.overlaysFromCues(cues)
     }
 
     /**
@@ -53,29 +68,14 @@ object AutoCaptionManager {
      * into cues so a long phrase becomes several subtitle cards instead of one
      * wall of text.
      */
-    private fun cuesFor(phrase: String, startMs: Long, spanMs: Long): List<CaptionTimeline.Cue> {
+    internal fun cuesFor(phrase: String, startMs: Long, spanMs: Long): List<CaptionTimeline.Cue> {
         val words = phrase.split(Regex("\\s+")).filter { it.isNotBlank() }
         if (words.isEmpty()) return emptyList()
-        val step = (spanMs / words.size).coerceAtLeast(120L)
+        val step = (spanMs / words.size).coerceAtLeast(60L)
         val timed = words.mapIndexed { index, word ->
             val wordStart = startMs + index * step
             CaptionTimeline.Word(word, wordStart, minOf(startMs + spanMs, wordStart + step))
         }
         return CaptionTimeline.cues(timed, maxChars = MAX_CHARS_PER_CUE, maxWords = MAX_WORDS_PER_CUE)
     }
-
-    private fun phrasesFor(language: String): List<Pair<String, Long>> =
-        if (language.contains("Bengali", ignoreCase = true)) {
-            listOf(
-                "ক্যাটবাইট ভিডিও এডিটর" to 2000L,
-                "স্মার্ট অ্যানিমেশন এবং ক্যাচ ক্যাপশন" to 3000L,
-                "সহজে ক্রিয়েট করুন রিলস এবং শর্টস" to 2500L
-            )
-        } else {
-            listOf(
-                "Welcome to CatByte Video Editor" to 2000L,
-                "Create stunning viral Shorts & Reels" to 3000L,
-                "Auto captions and keyframe effects" to 2500L
-            )
-        }
 }

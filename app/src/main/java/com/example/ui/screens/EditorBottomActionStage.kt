@@ -120,8 +120,10 @@ internal fun EditorBottomActionStage(
         if (!hasVoice) {
             notify("This video has no voice to transcribe")
         } else {
-            notify("Generating transcript")
-            viewModel.addAutoCaptions()
+            scope.launch {
+                notify("Transcribing audio with AI…")
+                notify(viewModel.addAutoCaptions())
+            }
         }
     }
 
@@ -237,7 +239,10 @@ internal fun EditorBottomActionStage(
 
             EditorMainTab.CAPTIONS -> when (subFeature.id) {
                 "enter_captions" -> viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR)
-                "auto_captions" -> viewModel.addAutoCaptions()
+                "auto_captions" -> scope.launch {
+                    notify("Transcribing audio with AI…")
+                    notify(viewModel.addAutoCaptions())
+                }
                 "caption_template" -> viewModel.setActiveSheet(ActiveToolSheet.CAPTIONS)
                 "import_captions" -> onImportCaptions()
                 "ai_packaging" -> scope.launch {

@@ -49,7 +49,8 @@ internal fun SettingsAiSection(
     apiKey: String,
     model: String,
     imageModel: String,
-    onSave: (baseUrl: String, apiKey: String, model: String, imageModel: String) -> Unit
+    speechModel: String = "whisper-1",
+    onSave: (baseUrl: String, apiKey: String, model: String, imageModel: String, speechModel: String) -> Unit
 ) {
     val colors = PencilTheme.colors
     val scope = rememberCoroutineScope()
@@ -58,6 +59,7 @@ internal fun SettingsAiSection(
     var key by remember(apiKey) { mutableStateOf(apiKey) }
     var textModel by remember(model) { mutableStateOf(model) }
     var imagesModel by remember(imageModel) { mutableStateOf(imageModel) }
+    var speech by remember(speechModel) { mutableStateOf(speechModel) }
     var status by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
 
@@ -68,7 +70,7 @@ internal fun SettingsAiSection(
     ) {
         Text(
             text = "Add the base URL of an AI endpoint and the editor's AI tools " +
-                "(remix, lyrics, translate, packaging, emoji, image) will use it. " +
+                "(remix, translate, packaging, image, auto captions) will use it. " +
                 "Anything OpenAI-compatible works.",
             color = colors.textSecondary,
             fontSize = 12.sp,
@@ -145,6 +147,25 @@ internal fun SettingsAiSection(
                 .testTag("settings_ai_image_model")
         )
 
+        Spacer(modifier = Modifier.height(10.dp))
+
+        OutlinedTextField(
+            value = speech,
+            onValueChange = { speech = it },
+            label = { Text("Speech-to-text model") },
+            placeholder = { Text("whisper-1") },
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("settings_ai_speech_model")
+        )
+        Text(
+            text = "Used by AI auto captions (Whisper-compatible /audio/transcriptions).",
+            color = colors.textTertiary,
+            fontSize = 10.sp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+
         Spacer(modifier = Modifier.height(12.dp))
 
         Row(
@@ -153,7 +174,7 @@ internal fun SettingsAiSection(
         ) {
             Button(
                 onClick = {
-                    onSave(url, key, textModel, imagesModel)
+                    onSave(url, key, textModel, imagesModel, speech)
                     status = "Saved. The editor AI tools now use this endpoint."
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = colors.accentCyan),
@@ -176,7 +197,8 @@ internal fun SettingsAiSection(
                             baseUrl = url,
                             apiKey = key,
                             model = textModel,
-                            imageModel = imagesModel
+                            imageModel = imagesModel,
+                            speechModel = speech
                         )
                         status = AiFeature.testConnection(config)
                         testing = false

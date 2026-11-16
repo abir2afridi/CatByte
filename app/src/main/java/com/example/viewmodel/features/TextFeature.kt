@@ -2,7 +2,11 @@ package com.example.viewmodel.features
 
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppLog
+import com.example.data.AiAudioExtractor
 import com.example.data.AutoCaptionManager
+import com.example.data.ClipTiming
+import com.example.data.ai.AiClient
+import com.example.data.ai.AiResult
 import com.example.engine.CaptionBridge
 import com.example.engine.SubtitleIO
 import com.example.model.TextAnimationType
@@ -55,26 +59,97 @@ internal object TextFeature {
     }
 
     /**
-     * Places offline sample captions on the timeline. Cues come from
-     * [AutoCaptionManager], so a three-second phrase becomes two or three short
-     * subtitle cards instead of one wall of text.
+     * AI auto captions: extracts the selected clip's audio, sends it to the
+     * speech-to-text endpoint configured in Settings → AI, and places the timed
+     * result as subtitle overlays. Nothing is inserted when no endpoint is
+     * configured (the old demo phrases were misleading).
      */
-    fun addAutoCaptions(vm: EditorViewModel) {
-        val project = vm._currentProject.value ?: return
-        vm.viewModelScope.launch {
-            val bengali = vm._appLanguage.value.tag?.startsWith("bn") == true
-            val overlays = AutoCaptionManager.generateCaptions(
-                durationMs = project.totalDurationMs,
-                language = if (bengali) "Bengali" else "English",
-            )
-            if (overlays.isEmpty()) return@launch
-            vm.updateProject { proj ->
-                proj.copy(textOverlays = proj.textOverlays + overlays)
-            }
-            vm._selectedTextId.value = overlays.first().id
-            AppLog.info("EditorViewModel", "Added ${overlays.size} auto captions")
+    suspend fun addAutoCaptions(vm: EditorViewModel): String {
+        val project = vm._currentProject.value ?: return "Open a project first"
+        val context = vm.context ?: return "AI captions need the app context"
+        val config = vm.aiConfig.value
+        if (!config.isConfigured) {
+            return "Auto captions need an AI endpoint. Add a base URL in Settings → AI."
         }
+
+        val selectedId = vm._selectedClipId.value
+        val clip = project.allVideoClips.firstOrNull { it.id == selectedId }
+            ?: project.allVideoClips.firstOrNull { !it.uriString.isNullOrBlank() }
+            ?: return "Add a video clip with audio first"
+        val uriString = clip.uriString
+        if (uriString.isNullOrBlank()) return "This clip has no media file to transcribe"
+
+        val sourceSpanMs = (clip.durationMs * clip.speed.coerceAtLeast(0.01f)).toLong()
+            .takeIf { it > 0L }
+            ?: ClipTiming.sourceLengthMs(clip)
+        val extracted = AiAudioExtractor.extract(
+            context = context,
+            uriString = uriString,
+            startMs = clip.trimStartMs,
+            durationMs = sourceSpanMs.coerceAtMost(ClipTiming.sourceLengthMs(clip))
+        )
+        val audio = when (extracted) {
+            is AiAudioExtractor.Result.Failure -> return extracted.message
+            is AiAudioExtractor.Result.Ok -> extracted
+        }
+
+        val bytes = runCatching { audio.file.readBytes() }.getOrElse {
+            return "Could not read the extracted audio: ${it.message}"
+        }
+        val bengali = vm._appLanguage.value.tag?.startsWith("bn") == true
+        val result = try {
+            AiClient.transcribe(
+                config = config,
+                audio = bytes,
+                fileName = audio.file.name,
+                language = if (bengali) "bn" else null,
+                fallbackDurationMs = audio.durationMs
+            )
+        } finally {
+            runCatching { audio.file.delete() }
+        }
+
+        val transcript = when (result) {
+            is AiResult.Failure -> return result.message
+            is AiResult.Ok -> result.value
+        }
+
+        val overlays = AutoCaptionManager.overlaysFromTranscript(
+            segments = transcript.segments,
+            sourceOffsetMs = audio.sourceStartMs,
+            clipStartMs = timelineStartOf(project, clip.id),
+            trimStartMs = clip.trimStartMs,
+            speed = clip.speed,
+            clipDurationMs = clip.durationMs
+        ).take(MAX_AI_CAPTIONS)
+
+        if (overlays.isEmpty()) {
+            return "The AI endpoint heard no speech in this clip"
+        }
+        vm.updateProject { proj ->
+            proj.copy(textOverlays = proj.textOverlays + overlays)
+        }
+        vm._selectedTextId.value = overlays.first().id
+        AppLog.info("EditorViewModel", "Added ${overlays.size} AI captions from ${config.speechModel}")
+        return "Added ${overlays.size} AI caption${if (overlays.size == 1) "" else "s"} from the configured endpoint"
     }
+
+    /** Position of a clip on the timeline (main clips are cumulative). */
+    private fun timelineStartOf(project: com.example.model.VideoProject, clipId: String): Long {
+        var cursor = 0L
+        for (clip in project.clips) {
+            if (clip.id == clipId) return cursor
+            cursor += clip.durationMs
+        }
+        return project.overlayTracks
+            .flatMap { it.clips }
+            .firstOrNull { it.id == clipId }
+            ?.startTimelineMs
+            ?: 0L
+    }
+
+    /** Upper bound so a long monologue cannot flood the timeline in one tap. */
+    private const val MAX_AI_CAPTIONS = 400
 
     fun addTextOverlay(
         vm: EditorViewModel,

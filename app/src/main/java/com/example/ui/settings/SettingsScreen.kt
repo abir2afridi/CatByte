@@ -52,6 +52,7 @@ fun SettingsScreen(
     aiApiKey: String = "",
     aiModel: String = "gpt-4o-mini",
     aiImageModel: String = "dall-e-3",
+    aiSpeechModel: String = "whisper-1",
     onSelectTheme: (AppThemeMode) -> Unit,
     onSelectResolution: (String) -> Unit,
     onSelectFps: (Int) -> Unit,
@@ -59,7 +60,7 @@ fun SettingsScreen(
     onToggleWatermark: (Boolean) -> Unit,
     onToggleSafeAreaGuides: (Boolean) -> Unit = {},
     onSelectLanguage: (AppLanguage) -> Unit = {},
-    onSaveAiConfig: (String, String, String, String) -> Unit = { _, _, _, _ -> },
+    onSaveAiConfig: (String, String, String, String, String) -> Unit = { _, _, _, _, _ -> },
     onClearCache: () -> Unit,
     onClearAllProjects: () -> Unit,
     onOpenSystemLogs: () -> Unit,
@@ -126,6 +127,7 @@ fun SettingsScreen(
                 apiKey = aiApiKey,
                 model = aiModel,
                 imageModel = aiImageModel,
+                speechModel = aiSpeechModel,
                 onSave = onSaveAiConfig
             )
 

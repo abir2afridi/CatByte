@@ -442,7 +442,8 @@ fun EditorScreen(
             voiceRecordingDurationMs = voiceRecordingDurationMs,
             audioSheetTab = audioSheetTab,
             onShowTts = { showTtsDialog = true },
-            onLaunchCaptionImport = { importCaptionsLauncher.launch(arrayOf("*/*")) }
+            onLaunchCaptionImport = { importCaptionsLauncher.launch(arrayOf("*/*")) },
+            onOpenSettings = onOpenSettings
         )
 
         // Export surfaces: dropdown, options sheet, progress/result and quit guard.

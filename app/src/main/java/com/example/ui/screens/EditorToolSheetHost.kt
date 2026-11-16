@@ -50,7 +50,8 @@ internal fun BoxScope.EditorToolSheetHost(
     voiceRecordingDurationMs: Long,
     audioSheetTab: Int,
     onShowTts: () -> Unit,
-    onLaunchCaptionImport: () -> Unit
+    onLaunchCaptionImport: () -> Unit,
+    onOpenSettings: () -> Unit = {}
 ) {
     if (activeSheet == ActiveToolSheet.NONE || activeSheet == ActiveToolSheet.EXPORT_MODAL) return
     Box(
@@ -162,7 +163,7 @@ internal fun BoxScope.EditorToolSheetHost(
                 OpacityToolSheet(viewModel = viewModel, currentClip = currentClip)
             }
             ActiveToolSheet.AI_TOOLS -> {
-                AiToolsToolSheet(viewModel = viewModel)
+                AiToolsToolSheet(viewModel = viewModel, onOpenSettings = onOpenSettings)
             }
             ActiveToolSheet.TIMELINE_TOOLS -> {
                 TimelineToolsToolSheet(

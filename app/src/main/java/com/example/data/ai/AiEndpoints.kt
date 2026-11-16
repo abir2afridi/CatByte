@@ -17,12 +17,16 @@ object AiEndpoints {
 
     private const val CHAT_PATH = "chat/completions"
     private const val IMAGES_PATH = "images/generations"
+    private const val TRANSCRIPTIONS_PATH = "audio/transcriptions"
 
     /** Endpoint for chat/completions style text features. */
     fun chatCompletions(baseUrl: String): String = endpoint(baseUrl, CHAT_PATH)
 
     /** Endpoint for image generation features. */
     fun imageGenerations(baseUrl: String): String = endpoint(baseUrl, IMAGES_PATH)
+
+    /** Endpoint for speech-to-text (AI auto captions). */
+    fun transcriptions(baseUrl: String): String = endpoint(baseUrl, TRANSCRIPTIONS_PATH)
 
     private fun endpoint(baseUrl: String, path: String): String {
         val trimmed = baseUrl.trim().trimEnd('/')

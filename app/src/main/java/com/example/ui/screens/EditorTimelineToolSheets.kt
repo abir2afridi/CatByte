@@ -4,9 +4,14 @@ import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.example.data.TemplateEngine
 import com.example.model.VideoProject
+import com.example.ui.components.AiImagePromptDialog
 import com.example.ui.components.AiToolsSheet
 import com.example.ui.components.CaptionsSheet
 import com.example.ui.components.CoverEditorSheet
@@ -14,6 +19,8 @@ import com.example.ui.components.TemplatePickerSheet
 import com.example.ui.components.TimelineToolsSheet
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
+import com.example.viewmodel.features.AiFeature
+import kotlinx.coroutines.launch
 
 /**
  * The project-level tool sheets of the editor: the timeline tools (markers,
@@ -64,8 +71,11 @@ internal fun CaptionsToolSheet(
     onLaunchCaptionImport: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     CaptionsSheet(
-        onAutoCaptions = { viewModel.addAutoCaptions() },
+        onAutoCaptions = {
+            scope.launch { Toast.makeText(context, viewModel.addAutoCaptions(), Toast.LENGTH_LONG).show() }
+        },
         onImportCaptions = { onLaunchCaptionImport() },
         onExportSrt = {
             val content = viewModel.exportSubtitles(toVtt = false)
@@ -91,18 +101,52 @@ internal fun CaptionsToolSheet(
 }
 
 @Composable
-internal fun AiToolsToolSheet(viewModel: EditorViewModel) {
+internal fun AiToolsToolSheet(
+    viewModel: EditorViewModel,
+    onOpenSettings: () -> Unit
+) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val aiConfig by viewModel.aiConfig.collectAsState()
+    val project by viewModel.currentProject.collectAsState()
+    var showImagePrompt by remember { mutableStateOf(false) }
+
+    fun notify(message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    }
+
     AiToolsSheet(
-        onSelect = { name ->
-            Toast.makeText(
-                context,
-                "$name needs an online AI model — unavailable in this offline build",
-                Toast.LENGTH_LONG
-            ).show()
+        configured = aiConfig.isConfigured,
+        endpointLabel = android.net.Uri.parse(aiConfig.baseUrl).host ?: aiConfig.baseUrl,
+        onRunTool = { id ->
+            when (id) {
+                "remix" -> scope.launch { notify(AiFeature.remixScript(viewModel)) }
+                "translate" -> scope.launch { notify(AiFeature.translateCaptions(viewModel)) }
+                "packaging" -> scope.launch { notify(AiFeature.packagingTitles(viewModel)) }
+                "captions" -> scope.launch { notify(viewModel.addAutoCaptions()) }
+                "image" -> showImagePrompt = true
+                else -> notify("This tool needs a specialised model that the configured endpoint does not provide")
+            }
         },
+        onOpenSettings = onOpenSettings,
         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
     )
+
+    if (showImagePrompt) {
+        AiImagePromptDialog(
+            defaultPrompt = project?.title?.ifBlank { "cinematic background" }
+                ?.plus(", vertical 9:16 background, no text")
+                ?: "cinematic 9:16 background, no text",
+            onGenerate = { prompt ->
+                showImagePrompt = false
+                scope.launch {
+                    notify("Generating image with ${aiConfig.imageModel}…")
+                    notify(AiFeature.generateBackgroundImage(viewModel, prompt))
+                }
+            },
+            onDismiss = { showImagePrompt = false }
+        )
+    }
 }
 
 @Composable

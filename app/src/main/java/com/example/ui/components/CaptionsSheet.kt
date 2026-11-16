@@ -115,7 +115,7 @@ fun CaptionsSheet(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Auto captions split the selected clip's audio into timed subtitle cues. Import accepts .srt and .vtt files.",
+            text = "Auto captions transcribe the selected clip with the AI endpoint from Settings → AI. Import accepts .srt and .vtt files.",
             color = colors.textTertiary,
             fontSize = 10.sp,
             modifier = Modifier.padding(horizontal = 14.dp)

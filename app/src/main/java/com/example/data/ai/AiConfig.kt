@@ -11,7 +11,9 @@ data class AiConfig(
     val baseUrl: String = "",
     val apiKey: String = "",
     val model: String = "gpt-4o-mini",
-    val imageModel: String = "dall-e-3"
+    val imageModel: String = "dall-e-3",
+    /** Speech-to-text model used by AI auto captions (Whisper-compatible). */
+    val speechModel: String = "whisper-1"
 ) {
     /** AI features are only offered when an endpoint is configured. */
     val isConfigured: Boolean get() = baseUrl.isNotBlank()

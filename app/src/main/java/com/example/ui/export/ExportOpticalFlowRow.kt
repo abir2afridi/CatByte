@@ -45,11 +45,10 @@ internal fun ExportOpticalFlowRow(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    "Make video playback smoother.",
-                    color = Color(0xFF26E5D7),
+                    "Needs an on-device interpolation pipeline.",
+                    color = Color(0xFFA5A8B2),
                     fontSize = 10.sp
                 )
-                Text("| Example", color = Color(0xFFA5A8B2), fontSize = 10.sp)
             }
         }
         Switch(checked = false, onCheckedChange = null, enabled = false)
