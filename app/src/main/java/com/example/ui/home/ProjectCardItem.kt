@@ -74,7 +74,7 @@ internal fun ProjectCardItem(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (project.isFavorite) {
-                        Text("≡ƒôî", fontSize = 12.sp)
+                        Text("📌", fontSize = 12.sp)
                         Spacer(modifier = Modifier.width(4.dp))
                     }
                     Text(
@@ -89,7 +89,7 @@ internal fun ProjectCardItem(
                 Spacer(modifier = Modifier.height(4.dp))
                 val durationSec = project.totalDurationMs / 1000f
                 Text(
-                    text = "${String.format("%.1fs", durationSec)} ΓÇó ${project.clips.size} clips",
+                    text = "${String.format("%.1fs", durationSec)} • ${project.clips.size} clips",
                     color = colors.textSecondary,
                     fontSize = 12.sp
                 )

@@ -105,7 +105,7 @@ internal fun ProjectSearchAndFilterBar(
         ) {
             val chips = listOf(
                 "All ($totalDraftsCount)",
-                "≡ƒôî Pinned ($pinnedCount)",
+                "📌 Pinned ($pinnedCount)",
                 "9:16 Shorts",
                 "16:9 YouTube"
             )

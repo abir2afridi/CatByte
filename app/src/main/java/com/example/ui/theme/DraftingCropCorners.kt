@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Draft Crop Corners (Γöî ΓöÉ Γöö Γöÿ)
+ * Draft Crop Corners (┌ ┐ └ ┘)
  */
 @Composable
 fun DraftingCropCorners(

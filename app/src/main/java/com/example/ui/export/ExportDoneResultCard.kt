@@ -99,7 +99,7 @@ internal fun ExportDoneResultCard(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Boost your video on TikTok Γôÿ",
+                    text = "Boost your video on TikTok ⓘ",
                     color = Color(0xFFA0ADB8),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium

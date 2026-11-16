@@ -50,7 +50,7 @@ internal fun ExportDoneAiLabBanner() {
                     .background(Color(0xFF24303E)),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Γ£¿", fontSize = 24.sp)
+                Text("✨", fontSize = 24.sp)
             }
         }
     }

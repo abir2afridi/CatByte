@@ -174,7 +174,7 @@ fun MultiTrackTimeline(
                 .fillMaxSize()
                 .padding(top = playheadHeadHeight)
         ) {
-            // CapCut Fixed Left Gutter (Timecode, Mute clip, Cover, ΓÖ¬, T)
+            // CapCut Fixed Left Gutter (Timecode, Mute clip, Cover, ♪, T)
             CapCutTimelineLeftGutter(
                 currentPositionMs = currentPositionMs,
                 totalDurationMs = totalMs,
@@ -287,7 +287,7 @@ fun MultiTrackTimeline(
         // Fixed centre playhead: a pure visual overlay with no pointer input,
         // so it never steals a drag from the timeline beneath. It is a
         // sibling of the whole Row (gutter + viewport), which pins the needle
-        // to the centre of the panel ΓÇö exactly under the play button above.
+        // to the centre of the panel — exactly under the play button above.
         TimelinePlayhead(
             active = scrollState.isScrollInProgress,
             headHeight = playheadHeadHeight,

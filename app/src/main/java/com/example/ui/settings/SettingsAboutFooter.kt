@@ -25,13 +25,13 @@ internal fun SettingsAboutFooter() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "CatByte ΓÇö Pencil & Paper Sketch Edition",
+            text = "CatByte — Pencil & Paper Sketch Edition",
             color = colors.textSecondary,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "Version ${BuildConfig.VERSION_NAME} ΓÇó Powered by Jetpack Compose",
+            text = "Version ${BuildConfig.VERSION_NAME} • Powered by Jetpack Compose",
             color = colors.textTertiary,
             fontSize = 10.sp
         )
