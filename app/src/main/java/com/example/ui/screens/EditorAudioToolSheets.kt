@@ -17,11 +17,13 @@ internal fun AudioToolSheet(
     viewModel: EditorViewModel,
     isRecordingVoice: Boolean,
     voiceRecordingDurationMs: Long,
+    initialTab: Int = 0,
     onShowTts: () -> Unit
 ) {
     AudioSheet(
         isRecordingVoice = isRecordingVoice,
         voiceDurationMs = voiceRecordingDurationMs,
+        initialTab = initialTab,
         onAddAudio = { track ->
             viewModel.addAudioTrack(track)
             viewModel.setActiveSheet(ActiveToolSheet.NONE)

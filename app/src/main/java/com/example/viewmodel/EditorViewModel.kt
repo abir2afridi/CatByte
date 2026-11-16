@@ -51,6 +51,7 @@ import com.example.model.TransitionType
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
+import com.example.model.ViralTemplate
 import com.example.data.KeyframeInterpolator
 import com.example.data.db.ProjectJson
 import com.example.engine.AspectMath
@@ -91,6 +92,7 @@ import com.example.viewmodel.features.PlaybackFeature
 import com.example.viewmodel.features.ScrubPreviewFeature
 import com.example.viewmodel.features.ProjectLifecycleFeature
 import com.example.viewmodel.features.SelectionFeature
+import com.example.viewmodel.features.TemplateFeature
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -136,7 +138,8 @@ enum class ActiveToolSheet {
     AI_TOOLS,
     TIMELINE_TOOLS,
     BACKGROUND,
-    COVER_EDITOR
+    COVER_EDITOR,
+    TEMPLATES
 }
 
 /**
@@ -903,6 +906,24 @@ class EditorViewModel(
     fun setAspectRatio(ratio: AspectRatioType) = CanvasFeature.setAspectRatio(this, ratio)
 
     fun setPaperStyle(style: String) = CanvasFeature.setPaperStyle(this, style)
+
+    /**
+     * Applies the "Original" canvas ratio (the ratio of the imported footage).
+     * Returns the applied ratio, or `null` when the source size still has to
+     * be probed from the media file.
+     */
+    fun applyOriginalAspectRatio(): AspectRatioType? =
+        CanvasFeature.applyOriginalAspectRatio(this)
+
+    // ==========================================
+    // Templates
+    // ==========================================
+
+    /**
+     * Applies a built-in template: a new draft is created from the template
+     * and opened, so the current project is kept untouched.
+     */
+    fun applyTemplate(template: ViralTemplate) = TemplateFeature.applyTemplate(this, template)
 
     // ==========================================
     // Export & Rendering Pipeline

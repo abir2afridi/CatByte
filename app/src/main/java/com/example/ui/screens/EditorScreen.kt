@@ -17,8 +17,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,6 +99,18 @@ fun EditorScreen(
     var showExportDropdown by remember { mutableStateOf(false) }
     var showExportOptionsBottomSheet by remember { mutableStateOf(false) }
     var showQuitExportDialog by remember { mutableStateOf(false) }
+    // Which tab of the Audio & Foley studio the bottom navigation opens.
+    var audioSheetTab by rememberSaveable { mutableIntStateOf(0) }
+
+    // The studio opens on the tab of the entry point that opened it (Sounds,
+    // Sound FX, Record). Every other entry point starts on the first tab.
+    LaunchedEffect(activeSheet) {
+        if (activeSheet != ActiveToolSheet.AUDIO_LIBRARY &&
+            activeSheet != ActiveToolSheet.VOICE_RECORDER
+        ) {
+            audioSheetTab = 0
+        }
+    }
 
     // Intercept back button if any sheet or export is open
     BackHandler {
@@ -362,11 +376,18 @@ fun EditorScreen(
                 // 5. Bottom Action Bar
                 EditorBottomActionStage(
                     viewModel = viewModel,
+                    project = project!!,
                     selectedClipId = selectedClipId,
                     isMultiSelect = isMultiSelect,
                     splitAtPlayhead = splitAtPlayhead,
                     replaceMediaLauncher = replaceMediaLauncher,
-                    addOverlayLauncher = addOverlayLauncher
+                    addOverlayLauncher = addOverlayLauncher,
+                    onOpenAudioSheet = { tab ->
+                        audioSheetTab = tab
+                        viewModel.setActiveSheet(ActiveToolSheet.AUDIO_LIBRARY)
+                    },
+                    onShowTts = { showTtsDialog = true },
+                    onImportCaptions = { importCaptionsLauncher.launch(arrayOf("*/*")) }
                 )
             }
         }
@@ -389,6 +410,7 @@ fun EditorScreen(
             splitAtPlayhead = splitAtPlayhead,
             isRecordingVoice = isRecordingVoice,
             voiceRecordingDurationMs = voiceRecordingDurationMs,
+            audioSheetTab = audioSheetTab,
             onShowTts = { showTtsDialog = true },
             onLaunchCaptionImport = { importCaptionsLauncher.launch(arrayOf("*/*")) }
         )

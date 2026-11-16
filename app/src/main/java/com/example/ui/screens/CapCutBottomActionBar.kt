@@ -15,14 +15,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Mood
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -42,23 +48,33 @@ import com.example.ui.components.CapCutIconOverlay
 /**
  * Minimalist CapCut workspace bottom navigation bar:
  * Compact height (56.dp), sleek minimalist icon size (20.dp white), 10.sp typography.
+ *
+ * The bar has two levels:
+ *  - the main row with the 15 workspace features;
+ *  - the sub-feature row of the selected main feature, with a back action that
+ *    returns to the main row.
  */
 @Composable
 internal fun CapCutBottomActionBar(
-    onEdit: () -> Unit,
-    onAudio: () -> Unit,
-    onText: () -> Unit,
-    onEffects: () -> Unit,
-    onOverlay: () -> Unit,
-    onCaptions: () -> Unit,
-    onStickers: () -> Unit,
-    onFilters: () -> Unit,
-    onAdjust: () -> Unit,
-    onRatio: () -> Unit,
-    onBackground: () -> Unit,
-    onTools: () -> Unit
+    activeTab: EditorMainTab?,
+    onMainTabSelected: (EditorMainTab) -> Unit,
+    onSubFeatureSelected: (EditorMainTab, EditorSubFeature) -> Unit,
+    onBackToMain: () -> Unit
 ) {
     val barBackground = Color(0xFF121215)
+    val tab = activeTab
+    val subFeatures = tab?.subFeatures().orEmpty()
+
+    if (tab != null && subFeatures.isNotEmpty()) {
+        BottomSubFeatureRow(
+            tab = tab,
+            subFeatures = subFeatures,
+            onSubFeatureSelected = { sub -> onSubFeatureSelected(tab, sub) },
+            onBackToMain = onBackToMain,
+            barBackground = barBackground
+        )
+        return
+    }
 
     Row(
         modifier = Modifier
@@ -73,90 +89,211 @@ internal fun CapCutBottomActionBar(
         // 1. Edit (Scissors)
         BottomActionItemVector(
             icon = Icons.Default.ContentCut,
-            label = "Edit",
-            tag = "edit",
-            onClick = onEdit
+            label = EditorMainTab.EDIT.label,
+            tag = EditorMainTab.EDIT.tag,
+            onClick = { onMainTabSelected(EditorMainTab.EDIT) }
         )
 
         // 2. Audio (Music Note)
         BottomActionItemVector(
             icon = Icons.Default.MusicNote,
-            label = "Audio",
-            tag = "audio",
-            onClick = onAudio
+            label = EditorMainTab.AUDIO.label,
+            tag = EditorMainTab.AUDIO.tag,
+            onClick = { onMainTabSelected(EditorMainTab.AUDIO) }
         )
 
         // 3. Text (T)
         BottomActionItemVector(
             icon = Icons.Default.TextFields,
-            label = "Text",
-            tag = "text",
-            onClick = onText
+            label = EditorMainTab.TEXT.label,
+            tag = EditorMainTab.TEXT.tag,
+            onClick = { onMainTabSelected(EditorMainTab.TEXT) }
         )
 
-        // 4. Effects (Star outline)
+        // 4. Effect (Star outline)
         BottomActionItemCustom(
-            label = "Effects",
-            tag = "effects",
-            onClick = onEffects
+            label = EditorMainTab.EFFECT.label,
+            tag = EditorMainTab.EFFECT.tag,
+            onClick = { onMainTabSelected(EditorMainTab.EFFECT) }
         ) {
             CapCutIconEffectsStar(tint = Color.White, size = 20.dp)
         }
 
         // 5. Overlay (Overlapping frames)
         BottomActionItemCustom(
-            label = "Overlay",
-            tag = "overlay",
-            onClick = onOverlay
+            label = EditorMainTab.OVERLAY.label,
+            tag = EditorMainTab.OVERLAY.tag,
+            onClick = { onMainTabSelected(EditorMainTab.OVERLAY) }
         ) {
             CapCutIconOverlay(tint = Color.White, size = 20.dp)
         }
 
         // 6. Captions (Subtitle box)
         BottomActionItemCustom(
-            label = "Captions",
-            tag = "captions",
-            onClick = onCaptions
+            label = EditorMainTab.CAPTIONS.label,
+            tag = EditorMainTab.CAPTIONS.tag,
+            onClick = { onMainTabSelected(EditorMainTab.CAPTIONS) }
         ) {
             CapCutIconCaptions(tint = Color.White, size = 20.dp)
         }
 
-        // 7. Filters (Venn diagram 3 circles)
+        // 7. Filter (Venn diagram 3 circles)
         BottomActionItemCustom(
-            label = "Filters",
-            tag = "filters",
-            onClick = onFilters
+            label = EditorMainTab.FILTER.label,
+            tag = EditorMainTab.FILTER.tag,
+            onClick = { onMainTabSelected(EditorMainTab.FILTER) }
         ) {
             CapCutIconFilters(tint = Color.White, size = 20.dp)
         }
 
-        // Additional tools when scrolled
+        // 8. Adjust
         BottomActionItemVector(
             icon = Icons.Default.Tune,
-            label = "Adjust",
-            tag = "adjust",
-            onClick = onAdjust
+            label = EditorMainTab.ADJUST.label,
+            tag = EditorMainTab.ADJUST.tag,
+            onClick = { onMainTabSelected(EditorMainTab.ADJUST) }
         )
 
+        // 9. Sticker
+        BottomActionItemVector(
+            icon = Icons.Default.Mood,
+            label = EditorMainTab.STICKER.label,
+            tag = EditorMainTab.STICKER.tag,
+            onClick = { onMainTabSelected(EditorMainTab.STICKER) }
+        )
+
+        // 10. Generate media
+        BottomActionItemVector(
+            icon = Icons.Default.AutoFixHigh,
+            label = EditorMainTab.GENERATE_MEDIA.label,
+            tag = EditorMainTab.GENERATE_MEDIA.tag,
+            onClick = { onMainTabSelected(EditorMainTab.GENERATE_MEDIA) }
+        )
+
+        // 11. AI Avatar
+        BottomActionItemVector(
+            icon = Icons.Default.Face,
+            label = EditorMainTab.AI_AVATAR.label,
+            tag = EditorMainTab.AI_AVATAR.tag,
+            onClick = { onMainTabSelected(EditorMainTab.AI_AVATAR) }
+        )
+
+        // 12. Transcript
+        BottomActionItemVector(
+            icon = Icons.Default.Subtitles,
+            label = EditorMainTab.TRANSCRIPT.label,
+            tag = EditorMainTab.TRANSCRIPT.tag,
+            onClick = { onMainTabSelected(EditorMainTab.TRANSCRIPT) }
+        )
+
+        // 13. Aspect ratio
         BottomActionItemVector(
             icon = Icons.Default.AspectRatio,
-            label = "Ratio",
-            tag = "ratio",
-            onClick = onRatio
+            label = EditorMainTab.ASPECT_RATIO.label,
+            tag = EditorMainTab.ASPECT_RATIO.tag,
+            onClick = { onMainTabSelected(EditorMainTab.ASPECT_RATIO) }
         )
 
+        // 14. Background
         BottomActionItemVector(
             icon = Icons.Default.Wallpaper,
-            label = "Background",
-            tag = "background",
-            onClick = onBackground
+            label = EditorMainTab.BACKGROUND.label,
+            tag = EditorMainTab.BACKGROUND.tag,
+            onClick = { onMainTabSelected(EditorMainTab.BACKGROUND) }
         )
 
+        // 15. Template
         BottomActionItemVector(
-            icon = Icons.Default.Build,
-            label = "Tools",
-            tag = "tools",
-            onClick = onTools
+            icon = Icons.Default.Dashboard,
+            label = EditorMainTab.TEMPLATE.label,
+            tag = EditorMainTab.TEMPLATE.tag,
+            onClick = { onMainTabSelected(EditorMainTab.TEMPLATE) }
+        )
+    }
+}
+
+/**
+ * The second level of the bottom navigation: the sub-features of the active
+ * main feature, with a back action that returns to the main row.
+ */
+@Composable
+private fun BottomSubFeatureRow(
+    tab: EditorMainTab,
+    subFeatures: List<EditorSubFeature>,
+    onSubFeatureSelected: (EditorSubFeature) -> Unit,
+    onBackToMain: () -> Unit,
+    barBackground: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .background(barBackground)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .testTag("bottom_sub_row_${tab.tag}"),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            onClick = onBackToMain,
+            modifier = Modifier
+                .size(34.dp)
+                .testTag("bottom_nav_back")
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back to the main features",
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        Text(
+            text = tab.label,
+            color = Color.White.copy(alpha = 0.55f),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            modifier = Modifier.padding(end = 8.dp)
+        )
+
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            subFeatures.forEach { subFeature ->
+                BottomSubFeatureItem(
+                    label = subFeature.label,
+                    tag = "${tab.tag}_${subFeature.id}",
+                    onClick = { onSubFeatureSelected(subFeature) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomSubFeatureItem(
+    label: String,
+    tag: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF232329))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .testTag("bottom_sub_$tag")
+    ) {
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.92f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1
         )
     }
 }

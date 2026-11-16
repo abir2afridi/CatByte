@@ -61,9 +61,12 @@ fun AudioSheet(
     onStartVoiceRecord: () -> Unit,
     onStopVoiceRecord: () -> Unit,
     onTtsVoiceover: (() -> Unit)? = null,
+    initialTab: Int = 0,
     onClose: () -> Unit
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    // The tab follows the entry point that opened the sheet (Sounds, Sound FX
+    // or Record in the bottom navigation), but the user can still switch tabs.
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
     val tabs = listOf("✏️ Foley", "🎵 Music", "🔔 SFX", "🎙️ Mic")
 
     val colors = PencilTheme.colors

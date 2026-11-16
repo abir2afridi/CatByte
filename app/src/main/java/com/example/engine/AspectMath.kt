@@ -1,12 +1,16 @@
 package com.example.engine
 
 import com.example.model.AspectRatioType
+import kotlin.math.abs
 
 /**
  * Chooses the closest canvas ratio for imported footage.
  *
- * The project only ships 9:16/16:9/1:1/4:5 presets, so an unusual source (3:4,
- * 21:9) maps to the nearest one instead of being forced into 9:16.
+ * The editor ships a set of fixed ratios (9:16, 16:9, 1:1, 4:5, 4:3, 3:4,
+ * 5:8, 128:27, 2:1, 2.35:1 and 1.85:1), so an unusual source (21:9, 5:4, ...)
+ * maps to the nearest one instead of being forced into 9:16. The bottom
+ * navigation's "Original" chip uses the same mapping, which is what keeps the
+ * canvas close to the imported footage.
  */
 object AspectMath {
 
@@ -15,12 +19,14 @@ object AspectMath {
         val swapped = rotation % 180 == 90 || rotation % 180 == -90
         val w = if (swapped) height else width
         val h = if (swapped) width else height
-        val ratio = w.toFloat() / h.toFloat()
-        return when {
-            ratio >= 1.75f -> AspectRatioType.RATIO_16_9
-            ratio <= 0.65f -> AspectRatioType.RATIO_9_16
-            ratio <= 0.88f -> AspectRatioType.RATIO_4_5
-            else -> AspectRatioType.RATIO_1_1
-        }
+        return closestTo(w.toFloat() / h.toFloat())
+    }
+
+    /** The preset whose width/height ratio is closest to [ratio]. */
+    fun closestTo(ratio: Float): AspectRatioType {
+        if (ratio <= 0f) return AspectRatioType.RATIO_9_16
+        return AspectRatioType.entries.minByOrNull { candidate ->
+            abs(candidate.ratioWidth / candidate.ratioHeight - ratio)
+        } ?: AspectRatioType.RATIO_9_16
     }
 }

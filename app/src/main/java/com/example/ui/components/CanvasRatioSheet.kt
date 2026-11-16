@@ -199,8 +199,10 @@ fun CanvasRatioSheet(
             Spacer(modifier = Modifier.height(6.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AspectRatioType.values().forEach { r ->
                     val isSelected = r == activeRatio
@@ -235,6 +237,13 @@ fun CanvasRatioSheet(
                                 AspectRatioType.RATIO_16_9 -> "YouTube"
                                 AspectRatioType.RATIO_1_1 -> "Square"
                                 AspectRatioType.RATIO_4_5 -> "Feed Post"
+                                AspectRatioType.RATIO_4_3 -> "Classic TV"
+                                AspectRatioType.RATIO_3_4 -> "Portrait"
+                                AspectRatioType.RATIO_5_8 -> "Tall story"
+                                AspectRatioType.RATIO_128_27 -> "Ultra wide"
+                                AspectRatioType.RATIO_2_1 -> "Cinema"
+                                AspectRatioType.RATIO_2_35_1 -> "Anamorphic"
+                                AspectRatioType.RATIO_1_85_1 -> "Flat cinema"
                             },
                             color = colors.textSecondary,
                             fontSize = 9.sp

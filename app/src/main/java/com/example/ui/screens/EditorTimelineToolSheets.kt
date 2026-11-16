@@ -3,18 +3,20 @@ package com.example.ui.screens
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import com.example.data.TemplateEngine
 import com.example.model.VideoProject
 import com.example.ui.components.AiToolsSheet
 import com.example.ui.components.CaptionsSheet
 import com.example.ui.components.CoverEditorSheet
+import com.example.ui.components.TemplatePickerSheet
 import com.example.ui.components.TimelineToolsSheet
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
 
 /**
  * The project-level tool sheets of the editor: the timeline tools (markers,
- * beat sync, multi-select, zoom), the caption tools, the AI tools and the
- * cover editor.
+ * beat sync, multi-select, zoom), the caption tools, the AI tools, the
+ * template library and the cover editor.
  */
 
 @Composable
@@ -108,6 +110,15 @@ internal fun CoverEditorToolSheet(
         onSaveCover = { _, _ ->
             Toast.makeText(context, "Cover saved successfully", Toast.LENGTH_SHORT).show()
         },
+        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+    )
+}
+
+@Composable
+internal fun TemplateToolSheet(viewModel: EditorViewModel) {
+    TemplatePickerSheet(
+        templates = TemplateEngine.getViralTemplates(),
+        onApplyTemplate = { template -> viewModel.applyTemplate(template) },
         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
     )
 }

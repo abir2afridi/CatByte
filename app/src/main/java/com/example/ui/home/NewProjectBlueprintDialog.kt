@@ -229,6 +229,13 @@ internal fun NewProjectBlueprintDialog(
                                             AspectRatioType.RATIO_16_9 -> "Cinema"
                                             AspectRatioType.RATIO_1_1 -> "Square"
                                             AspectRatioType.RATIO_4_5 -> "Feed"
+                                            AspectRatioType.RATIO_4_3 -> "TV"
+                                            AspectRatioType.RATIO_3_4 -> "Portrait"
+                                            AspectRatioType.RATIO_5_8 -> "Tall"
+                                            AspectRatioType.RATIO_128_27 -> "Ultra wide"
+                                            AspectRatioType.RATIO_2_1 -> "Cinema 2"
+                                            AspectRatioType.RATIO_2_35_1 -> "Anamorphic"
+                                            AspectRatioType.RATIO_1_85_1 -> "Flat"
                                         },
                                         color = colors.textTertiary,
                                         fontSize = 9.sp

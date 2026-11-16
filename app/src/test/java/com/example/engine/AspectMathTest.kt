@@ -28,4 +28,20 @@ class AspectMathTest {
     fun `unknown dimensions fall back to portrait`() {
         assertEquals(AspectRatioType.RATIO_9_16, AspectMath.fromVideo(0, 0))
     }
+
+    @Test
+    fun `the new fixed ratios map to themselves`() {
+        assertEquals(AspectRatioType.RATIO_4_3, AspectMath.fromVideo(1920, 1440))
+        assertEquals(AspectRatioType.RATIO_3_4, AspectMath.fromVideo(1440, 1920))
+        assertEquals(AspectRatioType.RATIO_5_8, AspectMath.fromVideo(1080, 1728))
+        assertEquals(AspectRatioType.RATIO_2_1, AspectMath.fromVideo(1920, 960))
+        assertEquals(AspectRatioType.RATIO_1_85_1, AspectMath.fromVideo(1850, 1000))
+        assertEquals(AspectRatioType.RATIO_128_27, AspectMath.fromVideo(1280, 270))
+    }
+
+    @Test
+    fun `cinema footage maps to the closest cinema ratio`() {
+        assertEquals(AspectRatioType.RATIO_2_35_1, AspectMath.fromVideo(2560, 1080))
+        assertEquals(AspectRatioType.RATIO_16_9, AspectMath.fromVideo(1920, 1080))
+    }
 }

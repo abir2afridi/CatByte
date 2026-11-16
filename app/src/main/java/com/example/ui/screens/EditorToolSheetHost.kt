@@ -48,6 +48,7 @@ internal fun BoxScope.EditorToolSheetHost(
     splitAtPlayhead: () -> Unit,
     isRecordingVoice: Boolean,
     voiceRecordingDurationMs: Long,
+    audioSheetTab: Int,
     onShowTts: () -> Unit,
     onLaunchCaptionImport: () -> Unit
 ) {
@@ -77,6 +78,7 @@ internal fun BoxScope.EditorToolSheetHost(
                     viewModel = viewModel,
                     isRecordingVoice = isRecordingVoice,
                     voiceRecordingDurationMs = voiceRecordingDurationMs,
+                    initialTab = audioSheetTab,
                     onShowTts = onShowTts
                 )
             }
@@ -178,6 +180,9 @@ internal fun BoxScope.EditorToolSheetHost(
             }
             ActiveToolSheet.COVER_EDITOR -> {
                 CoverEditorToolSheet(viewModel = viewModel, project = project)
+            }
+            ActiveToolSheet.TEMPLATES -> {
+                TemplateToolSheet(viewModel = viewModel)
             }
             ActiveToolSheet.EXPORT_MODAL -> {}
             ActiveToolSheet.NONE -> {}
