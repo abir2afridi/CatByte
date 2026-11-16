@@ -177,15 +177,29 @@ object RenderGraphBuilder {
 
     private fun AudioClip.toSpec(): AudioSpec {
         val inUs = startTimelineMs.coerceAtLeast(0L) * 1_000L
-        val lengthUs = durationMs.coerceAtLeast(0L) * 1_000L
+        val presentationDurationMs = AudioTiming.presentationDurationMs(this)
+        val lengthUs = presentationDurationMs.coerceAtLeast(AudioTiming.MIN_AUDIO_DURATION_MS) * 1_000L
+        val sourceDurationUs = AudioTiming.sourceDurationMs(this).coerceAtLeast(1L) * 1_000L
+        val sourceInUs = AudioTiming.sourceStartMs(this).coerceAtLeast(0L) * 1_000L
+        val sourceOutUs = AudioTiming.sourceEndMs(this)
+            .coerceIn(AudioTiming.sourceStartMs(this), AudioTiming.sourceDurationMs(this)) * 1_000L
+        val fades = AudioTiming.clampFades(
+            durationMs = presentationDurationMs,
+            requestedFadeInMs = fadeInMs,
+            requestedFadeOutMs = fadeOutMs
+        )
         return AudioSpec(
             clipId = id,
             assetKey = uriString,
             timelineInUs = inUs,
             timelineOutUs = inUs + lengthUs,
+            sourceDurationUs = sourceDurationUs,
+            sourceInUs = sourceInUs,
+            sourceOutUs = sourceOutUs,
+            speed = AudioTiming.normalizedSpeed(speed),
             volume = if (isMuted) 0f else volume.coerceIn(0f, 2f),
-            fadeInUs = fadeInMs.coerceIn(0L, durationMs).coerceAtLeast(0L) * 1_000L,
-            fadeOutUs = fadeOutMs.coerceIn(0L, durationMs).coerceAtLeast(0L) * 1_000L
+            fadeInUs = fades.first * 1_000L,
+            fadeOutUs = fades.second * 1_000L
         )
     }
 

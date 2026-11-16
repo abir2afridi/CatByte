@@ -105,6 +105,7 @@ class ProjectJsonTest {
                     uriString = "content://media/audio/7",
                     startTimelineMs = 400L,
                     durationMs = 9000L,
+                    originalDurationMs = 10000L,
                     trimStartMs = 150L,
                     trimEndMs = 8850L,
                     speed = 1.15f,

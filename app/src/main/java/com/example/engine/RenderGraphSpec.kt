@@ -56,6 +56,13 @@ data class AudioSpec(
     val assetKey: String?,
     val timelineInUs: Long,
     val timelineOutUs: Long,
+    /** Full source duration before clipping/speed (Media3 duration contract). */
+    val sourceDurationUs: Long,
+    /** Absolute source in/out points in microseconds. */
+    val sourceInUs: Long,
+    val sourceOutUs: Long,
+    /** Source-time to output-time multiplier. */
+    val speed: Float,
     val volume: Float,
     val fadeInUs: Long,
     val fadeOutUs: Long

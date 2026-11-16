@@ -83,6 +83,7 @@ fun EditorScreen(
     val selectedClipIds by viewModel.selectedClipIds.collectAsState()
     val overlayClipboard by viewModel.overlayClipboard.collectAsState()
     val selectedTextId by viewModel.selectedTextId.collectAsState()
+    val selectedAudioId by viewModel.selectedAudioId.collectAsState()
     val activeSheet by viewModel.activeSheet.collectAsState()
     val timelineZoom by viewModel.timelineZoom.collectAsState()
     val exportState by viewModel.exportState.collectAsState()
@@ -389,6 +390,7 @@ fun EditorScreen(
                     isPlaying = isPlaying,
                     selectedClipId = selectedClipId,
                     selectedTextId = selectedTextId,
+                    selectedAudioId = selectedAudioId,
                     selectedClipIds = selectedClipIds,
                     hasOverlayClipboard = overlayClipboard.isNotEmpty(),
                     timelineZoom = timelineZoom,
@@ -431,6 +433,7 @@ fun EditorScreen(
             currentText = currentText,
             captionExportCount = captionExportCount,
             selectedClipId = selectedClipId,
+            selectedAudioId = selectedAudioId,
             isEyedropperActive = isEyedropperActive,
             isMultiSelect = isMultiSelect,
             onMultiSelectChange = { isMultiSelect = it },

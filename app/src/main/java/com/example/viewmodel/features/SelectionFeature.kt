@@ -11,6 +11,7 @@ internal object SelectionFeature {
     fun selectClip(vm: EditorViewModel, clipId: String?) {
         vm._selectedClipId.value = clipId
         vm._selectedClipIds.value = if (clipId == null) emptySet() else setOf(clipId)
+        vm._selectedAudioId.value = null
         if (clipId != null) {
             vm._selectedTextId.value = null
         }
@@ -22,6 +23,7 @@ internal object SelectionFeature {
         if (!next.add(clipId)) next.remove(clipId)
         vm._selectedClipIds.value = next
         vm._selectedClipId.value = next.firstOrNull()
+        vm._selectedAudioId.value = null
         if (next.isNotEmpty()) vm._selectedTextId.value = null
     }
 
@@ -32,12 +34,14 @@ internal object SelectionFeature {
         vm._selectedClipId.value = null
         vm._selectedClipIds.value = emptySet()
         vm._selectedTextId.value = null
+        vm._selectedAudioId.value = null
     }
 
     fun selectAllClips(vm: EditorViewModel) {
         val project = vm._currentProject.value ?: return
         vm._selectedClipIds.value = project.allVideoClips.map { it.id }.toSet()
         vm._selectedClipId.value = vm._selectedClipIds.value.firstOrNull()
+        vm._selectedAudioId.value = null
     }
 
     /** True when a group operation should apply instead of the single-clip one. */
@@ -164,8 +168,19 @@ internal object SelectionFeature {
 
     fun selectText(vm: EditorViewModel, textId: String?) {
         vm._selectedTextId.value = textId
+        vm._selectedAudioId.value = null
         if (textId != null) {
             vm._selectedClipId.value = null
+        }
+    }
+
+    /** Selects an independent audio clip and clears video/text selection. */
+    fun selectAudioClip(vm: EditorViewModel, audioId: String?) {
+        vm._selectedAudioId.value = audioId
+        if (audioId != null) {
+            vm._selectedClipId.value = null
+            vm._selectedClipIds.value = emptySet()
+            vm._selectedTextId.value = null
         }
     }
 

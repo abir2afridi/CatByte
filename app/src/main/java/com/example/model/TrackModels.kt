@@ -22,9 +22,13 @@ data class AudioClip(
     /** Source audio file. Null for the built-in library entries. */
     val uriString: String? = null,
     val startTimelineMs: Long = 0L,
+    /** Duration on the output timeline after trim and speed. */
     val durationMs: Long = 6000L,
-    /** Source trim points. Both zero means "play the whole source". */
+    /** Full untrimmed source duration. Zero means "infer from legacy data". */
+    val originalDurationMs: Long = 0L,
+    /** Absolute source in-point. */
     val trimStartMs: Long = 0L,
+    /** Absolute source out-point. Zero means "until the source ends". */
     val trimEndMs: Long = 0L,
     /** Playback speed multiplier for the source audio. */
     val speed: Float = 1.0f,

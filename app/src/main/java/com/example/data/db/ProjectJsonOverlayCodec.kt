@@ -1,5 +1,6 @@
 package com.example.data.db
 
+import com.example.engine.AudioTiming
 import com.example.model.AudioClip
 import com.example.model.EffectType
 import com.example.model.StickerOverlay
@@ -24,6 +25,7 @@ internal fun audioToJson(audio: AudioClip): JSONObject = JSONObject().apply {
     put("uriString", audio.uriString ?: JSONObject.NULL)
     put("startTimelineMs", audio.startTimelineMs)
     put("durationMs", audio.durationMs)
+    put("originalDurationMs", audio.originalDurationMs)
     put("trimStartMs", audio.trimStartMs)
     put("trimEndMs", audio.trimEndMs)
     put("speed", audio.speed.toDouble())
@@ -35,23 +37,32 @@ internal fun audioToJson(audio: AudioClip): JSONObject = JSONObject().apply {
     put("waveform", JSONArray(audio.waveform))
 }
 
-internal fun audioFromJson(json: JSONObject): AudioClip = AudioClip(
-    id = json.optString("id"),
-    title = json.optString("title", "Audio"),
-    artist = json.optString("artist", ""),
-    uriString = json.optStringOrNull("uriString"),
-    startTimelineMs = json.optLong("startTimelineMs"),
-    durationMs = json.optLong("durationMs", 6000L),
-    trimStartMs = json.optLong("trimStartMs"),
-    trimEndMs = json.optLong("trimEndMs"),
-    speed = json.optDouble("speed", 1.0).toFloat().coerceIn(0.1f, 16f),
-    volume = json.optDouble("volume", 1.0).toFloat(),
-    isVoiceover = json.optBoolean("isVoiceover", false),
-    isMuted = json.optBoolean("isMuted", false),
-    fadeInMs = json.optLong("fadeInMs"),
-    fadeOutMs = json.optLong("fadeOutMs"),
-    waveform = json.optJSONArray("waveform").toFloatList()
-)
+internal fun audioFromJson(json: JSONObject): AudioClip {
+    val durationMs = json.optLong("durationMs", 6000L).coerceAtLeast(AudioTiming.MIN_AUDIO_DURATION_MS)
+    val fades = AudioTiming.clampFades(
+        durationMs = durationMs,
+        requestedFadeInMs = json.optLong("fadeInMs"),
+        requestedFadeOutMs = json.optLong("fadeOutMs")
+    )
+    return AudioClip(
+        id = json.optString("id"),
+        title = json.optString("title", "Audio"),
+        artist = json.optString("artist", ""),
+        uriString = json.optStringOrNull("uriString"),
+        startTimelineMs = json.optLong("startTimelineMs"),
+        durationMs = durationMs,
+        originalDurationMs = json.optLong("originalDurationMs"),
+        trimStartMs = json.optLong("trimStartMs"),
+        trimEndMs = json.optLong("trimEndMs"),
+        speed = AudioTiming.normalizedSpeed(json.optDouble("speed", 1.0).toFloat()),
+        volume = json.optDouble("volume", 1.0).toFloat().coerceIn(0f, 2f),
+        isVoiceover = json.optBoolean("isVoiceover", false),
+        isMuted = json.optBoolean("isMuted", false),
+        fadeInMs = fades.first,
+        fadeOutMs = fades.second,
+        waveform = json.optJSONArray("waveform").toFloatList()
+    )
+}
 
 internal fun textToJson(text: TextOverlay): JSONObject = JSONObject().apply {
     put("id", text.id)

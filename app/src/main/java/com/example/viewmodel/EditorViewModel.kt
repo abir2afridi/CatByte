@@ -68,6 +68,7 @@ import com.example.engine.SubtitleIO
 import com.example.engine.TimelineEdits
 import com.example.engine.UndoJournal
 import com.example.viewmodel.features.AudioFeature
+import com.example.viewmodel.features.AudioMixerFeature
 import com.example.viewmodel.features.TextFeature
 import com.example.viewmodel.features.StickerFeature
 import com.example.viewmodel.features.TimelineEffectFeature
@@ -118,6 +119,7 @@ enum class ActiveToolSheet {
     EDIT_CLIP,
     SPEED,
     AUDIO_LIBRARY,
+    AUDIO_MIXER,
     VOICE_RECORDER,
     TEXT_EDITOR,
     EFFECTS_LIBRARY,
@@ -212,6 +214,10 @@ class EditorViewModel(
 
     internal val _selectedTextId = MutableStateFlow<String?>(null)
     val selectedTextId: StateFlow<String?> = _selectedTextId.asStateFlow()
+
+    /** The independent audio clip currently selected in the timeline/mixer. */
+    internal val _selectedAudioId = MutableStateFlow<String?>(null)
+    val selectedAudioId: StateFlow<String?> = _selectedAudioId.asStateFlow()
 
     internal val _activeSheet = MutableStateFlow(ActiveToolSheet.NONE)
     val activeSheet: StateFlow<ActiveToolSheet> = _activeSheet.asStateFlow()
@@ -907,6 +913,46 @@ class EditorViewModel(
     fun addAudioTrack(audioClip: AudioClip) = AudioFeature.addAudioTrack(this, audioClip)
 
     fun deleteAudioTrack(id: String) = AudioFeature.deleteAudioTrack(this, id)
+
+    /** Selects an independent audio clip and clears video/text selection. */
+    fun selectAudioClip(audioId: String?) = SelectionFeature.selectAudioClip(this, audioId)
+
+    /**
+     * Opens the per-track mixer. When no track is selected the first track is
+     * selected automatically. Returns false when the project has no audio.
+     */
+    fun openAudioMixer(): Boolean {
+        val tracks = _currentProject.value?.audioTracks.orEmpty()
+        if (tracks.isEmpty()) return false
+        val selected = _selectedAudioId.value?.takeIf { id -> tracks.any { it.id == id } }
+            ?: tracks.first().id
+        _selectedAudioId.value = selected
+        _activeSheet.value = ActiveToolSheet.AUDIO_MIXER
+        return true
+    }
+
+    /** Sets one audio track's linear gain (0..2 = 0..200%). */
+    fun setAudioVolume(audioId: String, volume: Float) =
+        AudioMixerFeature.setAudioVolume(this, audioId, volume)
+
+    /** Sets fade-in/out durations on the output timeline. */
+    fun setAudioFades(audioId: String, fadeInMs: Long, fadeOutMs: Long) =
+        AudioMixerFeature.setAudioFades(this, audioId, fadeInMs, fadeOutMs)
+
+    /** Changes an audio clip's speed while preserving its source trim. */
+    fun setAudioSpeed(audioId: String, speed: Float) =
+        AudioMixerFeature.setAudioSpeed(this, audioId, speed)
+
+    /** Changes absolute source in/out points and retimes the clip. */
+    fun setAudioTrim(audioId: String, trimStartMs: Long, trimEndMs: Long) =
+        AudioMixerFeature.setAudioTrim(this, audioId, trimStartMs, trimEndMs)
+
+    /** Moves an audio clip on the project timeline. */
+    fun setAudioTimelineStart(audioId: String, startMs: Long) =
+        AudioMixerFeature.setAudioTimelineStart(this, audioId, startMs)
+
+    /** Restores gain, mute, fades, speed and trim for one audio clip. */
+    fun resetAudioMixer(audioId: String) = AudioMixerFeature.resetAudioMixer(this, audioId)
 
     /** Extracts the selected clip's audio as a real timeline audio track. */
     fun extractAudioFromSelectedClip() = AudioFeature.extractAudioFromSelectedClip(this)

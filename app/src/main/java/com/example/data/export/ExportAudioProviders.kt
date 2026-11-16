@@ -13,11 +13,29 @@ import com.example.engine.AudioMath
  * fixed) without touching the export pipeline.
  */
 
-/** A constant playback speed for a clip. */
+/**
+ * Constant speed normalised to an exact output duration.
+ *
+ * Media3 derives the presentation duration from the clipped source duration
+ * divided by this provider's speed. Normalising here removes the sub-ms
+ * rounding drift between the mixer timeline and the exported file.
+ */
 @UnstableApi
-class ConstantSpeedProvider(private val speed: Float) : SpeedProvider {
-    override fun getSpeed(presentationTimeUs: Long): Float = speed
-    override fun getNextSpeedChangeTimeUs(presentationTimeUs: Long): Long = C.TIME_END_OF_SOURCE
+class ConstantAudioSpeedProvider(
+    requestedSpeed: Float,
+    clippedSourceDurationUs: Long,
+    targetOutputDurationUs: Long
+) : SpeedProvider {
+    private val effectiveSpeed = if (targetOutputDurationUs > 0L) {
+        (clippedSourceDurationUs.toDouble() / targetOutputDurationUs.toDouble())
+            .toFloat()
+            .coerceIn(0.01f, 64f)
+    } else {
+        requestedSpeed.coerceIn(0.01f, 64f)
+    }
+
+    override fun getSpeed(presentationTimeUs: Long): Float = effectiveSpeed
+    override fun getNextSpeedChangeTimeUs(presentationTimeUs: Long): Long = C.TIME_UNSET
 }
 
 /** Applies a constant volume with optional fade in / fade out. */

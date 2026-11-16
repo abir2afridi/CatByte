@@ -211,6 +211,11 @@ internal fun EditorBottomActionStage(
             }
 
             EditorMainTab.AUDIO -> when (subFeature.id) {
+                "mixer" -> {
+                    if (!viewModel.openAudioMixer()) {
+                        notify("Import or record an audio track first")
+                    }
+                }
                 "extract" -> withClip { viewModel.extractAudioFromSelectedClip() }
                 "sounds" -> onOpenAudioSheet(EditorAudioTabs.MUSIC)
                 "sound_fx" -> onOpenAudioSheet(EditorAudioTabs.SFX)

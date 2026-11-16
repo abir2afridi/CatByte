@@ -34,18 +34,21 @@ internal object AudioFeature {
             val waveform = MediaMetadata.waveform(ctx, uri, 48) ?: emptyList()
             val realTitle = title.takeIf { it.isNotBlank() }
                 ?: MediaMetadata.displayName(ctx, uri)
+            val sourceDurationMs = if (durationMs > 0) durationMs else 6000L
             val audio = AudioClip(
                 id = UUID.randomUUID().toString(),
                 title = realTitle,
                 artist = artist,
                 uriString = uriString,
                 startTimelineMs = vm._currentPositionMs.value,
-                durationMs = if (durationMs > 0) durationMs else 6000L,
+                durationMs = sourceDurationMs,
+                originalDurationMs = sourceDurationMs,
                 waveform = waveform.ifEmpty { emptyList() }
             )
             vm.updateProject { proj ->
                 proj.copy(audioTracks = proj.audioTracks + audio)
             }
+            vm._selectedAudioId.value = audio.id
         }
     }
 
@@ -53,7 +56,9 @@ internal object AudioFeature {
         vm.updateProject { proj ->
             val track = audioClip.copy(
                 id = UUID.randomUUID().toString(),
-                startTimelineMs = vm._currentPositionMs.value
+                startTimelineMs = vm._currentPositionMs.value,
+                originalDurationMs = audioClip.originalDurationMs.takeIf { it > 0L }
+                    ?: audioClip.durationMs
             )
             proj.copy(audioTracks = proj.audioTracks + track)
         }
@@ -62,6 +67,9 @@ internal object AudioFeature {
     fun deleteAudioTrack(vm: EditorViewModel, id: String) {
         vm.updateProject { proj ->
             proj.copy(audioTracks = proj.audioTracks.filterNot { it.id == id })
+        }
+        if (vm._selectedAudioId.value == id) {
+            vm._selectedAudioId.value = null
         }
     }
 
@@ -126,6 +134,7 @@ internal object AudioFeature {
                 uriString = uriString,
                 startTimelineMs = startMs,
                 durationMs = clip.durationMs.coerceAtLeast(300L),
+                originalDurationMs = clip.originalDurationMs.takeIf { it > 0L } ?: sourceLength,
                 trimStartMs = trimStart,
                 trimEndMs = trimEnd,
                 speed = effectiveSpeed,
@@ -188,6 +197,7 @@ internal object AudioFeature {
             uriString = uriString,
             startTimelineMs = startMs,
             durationMs = clip.durationMs.coerceAtLeast(300L),
+            originalDurationMs = clip.originalDurationMs.takeIf { it > 0L } ?: sourceLength,
             trimStartMs = trimStart,
             trimEndMs = trimEnd,
             speed = effectiveSpeed,
@@ -262,6 +272,7 @@ internal object AudioFeature {
                 uriString = file.absolutePath,
                 startTimelineMs = vm._currentPositionMs.value,
                 durationMs = duration.coerceAtLeast(500L),
+                originalDurationMs = duration.coerceAtLeast(500L),
                 isVoiceover = true,
                 waveform = emptyList() // could compute later
             )
@@ -285,13 +296,16 @@ internal object AudioFeature {
         vm._activeSheet.value = ActiveToolSheet.TTS_VOICEOVER
         tts.synthesize(text) { file, error ->
             if (file != null) {
+                val durationMs = MediaDurationFallback.durationMs(vm.context!!, Uri.fromFile(file))
+                    .coerceAtLeast(500L)
                 val audio = AudioClip(
                     id = UUID.randomUUID().toString(),
                     title = "AI Voiceover",
                     artist = "CatByte TTS",
                     uriString = file.absolutePath,
                     startTimelineMs = vm._currentPositionMs.value,
-                    durationMs = MediaDurationFallback.durationMs(vm.context!!, Uri.fromFile(file)),
+                    durationMs = durationMs,
+                    originalDurationMs = durationMs,
                     isVoiceover = true,
                     waveform = emptyList()
                 )

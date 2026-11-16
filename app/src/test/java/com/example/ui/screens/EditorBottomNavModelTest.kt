@@ -56,7 +56,7 @@ class EditorBottomNavModelTest {
     fun `audio row opens the foley studio tabs`() {
         val features = EditorMainTab.AUDIO.subFeatures()
         assertEquals(
-            listOf("Extract", "Sounds", "Sound FX", "Record", "Text to audio", "AI music", "Brand music", "Copyright"),
+            listOf("Mixer", "Extract", "Sounds", "Sound FX", "Record", "Text to audio", "AI music", "Brand music", "Copyright"),
             features.map { it.label }
         )
         assertEquals(EditorAudioTabs.MUSIC, features.first { it.id == "sounds" }.audioTab)

@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.AudioClip
 import com.example.ui.screens.EditorTimecodeText
 import com.example.ui.theme.PencilTheme
 
@@ -65,7 +66,8 @@ fun CapCutTimelineLeftGutter(
     onToggleMainMute: () -> Unit,
     onOpenCover: () -> Unit,
     overlayTrackCount: Int = 0,
-    hasAudioTrack: Boolean = true,
+    audioTracks: List<AudioClip> = emptyList(),
+    onToggleAudioMute: (String, Boolean) -> Unit = { _, _ -> },
     hasTextTrack: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -196,8 +198,10 @@ fun CapCutTimelineLeftGutter(
             Spacer(modifier = Modifier.height(5.dp))
         }
 
-        // 4. Audio track icon ♪ (aligned under Cover card)
-        if (hasAudioTrack) {
+        // 4. One audio row per independent clip. The rows deliberately have
+        // no gap between them; the single spacer below matches the timeline.
+        val audioRows = if (audioTracks.isEmpty()) listOf(null) else audioTracks
+        audioRows.forEach { audio ->
             Box(
                 modifier = Modifier
                     .height(34.dp)
@@ -208,19 +212,42 @@ fun CapCutTimelineLeftGutter(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF1E2026)),
+                        .background(Color(0xFF1E2026))
+                        .then(
+                            if (audio != null) {
+                                Modifier.clickable {
+                                    onToggleAudioMute(audio.id, !audio.isMuted)
+                                }
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .testTag(
+                            audio?.let { "timeline_audio_header_${it.id}" }
+                                ?: "timeline_audio_header_empty"
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.MusicNote,
-                        contentDescription = "Audio track",
-                        tint = Color(0xFFA5A8B2),
+                        imageVector = when {
+                            audio == null -> Icons.Default.MusicNote
+                            audio.isMuted -> Icons.AutoMirrored.Filled.VolumeOff
+                            else -> Icons.AutoMirrored.Filled.VolumeUp
+                        },
+                        contentDescription = if (audio == null) {
+                            "Audio track"
+                        } else if (audio.isMuted) {
+                            "Unmute ${audio.title}"
+                        } else {
+                            "Mute ${audio.title}"
+                        },
+                        tint = if (audio?.isMuted == true) Color(0xFFFF6B6B) else Color(0xFFA5A8B2),
                         modifier = Modifier.size(18.dp)
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(5.dp))
         }
+        Spacer(modifier = Modifier.height(5.dp))
 
         // 5. Text track icon T (aligned under Cover card)
         if (hasTextTrack) {
