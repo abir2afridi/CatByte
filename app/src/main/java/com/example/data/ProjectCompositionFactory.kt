@@ -1,38 +1,14 @@
 package com.example.data
 
-import android.graphics.Matrix
-import android.net.Uri
-import androidx.media3.common.C
 import androidx.media3.common.Effect
-import androidx.media3.common.MediaItem
-import androidx.media3.common.OverlaySettings
-import androidx.media3.common.SpeedParameters
-import androidx.media3.common.VideoCompositorSettings
-import androidx.media3.common.audio.AudioProcessor
-import androidx.media3.common.audio.GainProcessor
-import androidx.media3.common.util.Size
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.effect.AlphaScale
-import androidx.media3.effect.MatrixTransformation
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.Presentation
-import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.transformer.Composition
-import androidx.media3.transformer.EditedMediaItem
-import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
-import com.example.data.composition.ClipTransformEffect
-import com.example.data.composition.MirrorAndRotationEffect
 import com.example.data.composition.ProjectCompositorSettings
-import com.example.data.export.ColorGradeEffect
-import com.example.data.export.ConstantGainProvider
-import com.example.data.export.ConstantSpeedProvider
 import com.example.data.export.ExportResolution
-import com.example.data.export.FilterMapper
-import com.example.engine.ClipAnimationMath
-import com.example.data.export.HslColorEffect
 import com.example.data.export.TimelineCanvasOverlay
-import com.example.data.export.TransitionMapper
 import com.example.engine.AudioSpec
 import com.example.engine.LayerSpec
 import com.example.engine.RenderGraph
@@ -42,14 +18,16 @@ import com.example.model.BlendMode
 import com.example.model.MaskType
 import com.example.model.MediaClip
 import com.example.model.VideoProject
-import kotlin.math.abs
-import kotlin.math.max
 
 /**
  * Builds one Media3 [Composition] for both the live preview and the exported
  * file. Preview and export therefore cannot drift apart: both consume exactly
  * the same sequences, trim points, speed providers, keyframes, text overlays and
  * audio processors.
+ *
+ * Feature code lives next to this host as extension functions:
+ * `ProjectCompositionSequences.kt`, `ProjectCompositionVideoItems.kt`,
+ * `ProjectCompositionAudioSequence.kt`, `ProjectCompositionColorEffect.kt`.
  */
 @UnstableApi
 object ProjectCompositionFactory {
@@ -180,60 +158,7 @@ object ProjectCompositionFactory {
 
         val renderPlan = plan(project, width, height, fps)
         val warnings = linkedSetOf<String>().apply { addAll(renderPlan.warnings) }
-        val sequences = mutableListOf<EditedMediaItemSequence>()
-        val overlayInputs = linkedMapOf<Int, MediaClip>()
-
-        // 1. Primary video sequence. Placeholder clips become real timeline gaps
-        // so the main track always occupies the same absolute time as the editor.
-        val mainBuilder = EditedMediaItemSequence.Builder(
-            setOf(C.TRACK_TYPE_VIDEO, C.TRACK_TYPE_AUDIO)
-        )
-        var cursorUs = 0L
-        renderPlan.main.forEach { planned ->
-            val gapUs = planned.layer.timelineInUs - cursorUs
-            if (gapUs > 0L) {
-                mainBuilder.addGap(gapUs)
-            }
-            if (planned.clip.uriString.isNullOrBlank()) {
-                if (planned.layer.durationUs > 0L) {
-                    mainBuilder.addGap(planned.layer.durationUs)
-                }
-            } else {
-                mainBuilder.addItem(buildVideoItem(project, planned, fps, warnings))
-            }
-            cursorUs = planned.layer.timelineOutUs
-        }
-        val totalDurationUs = renderPlan.totalDurationUs.coerceAtLeast(1_000_000L)
-        if (cursorUs < totalDurationUs) {
-            // Pad the primary sequence so overlays/audio near the end are not cut
-            // off by a shorter primary track.
-            mainBuilder.addGap(totalDurationUs - cursorUs)
-        }
-        sequences += mainBuilder.build()
-
-        // 2. Every PIP / overlay clip gets its own sequence. Sequence index is
-        // exactly the video compositor input index; the graph supplies its start.
-        renderPlan.overlays.forEach { planned ->
-            if (planned.clip.uriString.isNullOrBlank()) {
-                return@forEach
-            }
-            val builder = EditedMediaItemSequence.Builder(
-                setOf(C.TRACK_TYPE_VIDEO, C.TRACK_TYPE_AUDIO)
-            )
-            if (planned.layer.timelineInUs > 0L) {
-                builder.addGap(planned.layer.timelineInUs)
-            }
-            builder.addItem(buildVideoItem(project, planned, fps, warnings))
-            val inputIndex = sequences.size
-            sequences += builder.build()
-            overlayInputs[inputIndex] = planned.clip
-        }
-
-        // 3. Independent audio tracks are mixed by CompositionPlayer during
-        // preview and by Transformer during export.
-        renderPlan.audio.forEach { (audio, spec) ->
-            sequences += buildAudioSequence(audio, spec.timelineInUs)
-        }
+        val (sequences, overlayInputs) = buildSequences(project, renderPlan, fps, warnings)
 
         val compositionEffects = mutableListOf<Effect>()
         compositionEffects += Presentation.createForWidthAndHeight(
@@ -266,171 +191,6 @@ object ProjectCompositionFactory {
             durationMs = renderPlan.totalDurationUs / 1000L,
             overlayInputs = overlayInputs,
             warnings = warnings.toList()
-        )
-    }
-
-    // ------------------------------------------------------------------
-    // Video items
-    // ------------------------------------------------------------------
-
-    // Video items
-    // ------------------------------------------------------------------
-
-    /**
-     * Audio gain of a video clip, honouring clip mute, track mute and video
-     * track solo. Music clips (separate `AudioClip`s) own their own mute flag;
-     * this only covers the audio that comes out of picture tracks.
-     */
-    private fun videoVoiceGain(project: VideoProject, clip: MediaClip, isOverlay: Boolean): Float {
-        if (clip.isMuted) return 0f
-        val anyVideoSolo = project.isMainTrackSolo || project.overlayTracks.any { it.isSolo }
-        val gain = if (isOverlay) {
-            val track = project.overlayTracks.firstOrNull { it.clips.any { c -> c.id == clip.id } }
-            val muted = track?.isMuted ?: false
-            val solo = track?.isSolo ?: false
-            if (muted || (anyVideoSolo && !solo)) 0f else clip.volume
-        } else {
-            if (project.isMainTrackMuted || (anyVideoSolo && !project.isMainTrackSolo)) {
-                0f
-            } else {
-                clip.volume
-            }
-        }
-        return gain.coerceIn(0f, 10f)
-    }
-
-    private fun buildVideoItem(
-        project: VideoProject,
-        planned: PlannedClip,
-        fps: Int,
-        warnings: MutableSet<String>
-    ): EditedMediaItem {
-        val clip = planned.clip
-        val layer = planned.layer
-        val isOverlay = planned.isOverlay
-        val uri = clip.uriString ?: error("Clip ${clip.title} has no media URI")
-        val sourceLengthMs = ClipTiming.sourceLengthMs(clip)
-        val originalDurationMs = max(clip.originalDurationMs, sourceLengthMs).coerceAtLeast(1L)
-
-        val clippingBuilder = MediaItem.ClippingConfiguration.Builder()
-            .setStartPositionMs(clip.trimStartMs.coerceAtLeast(0L))
-        if (clip.trimEndMs > clip.trimStartMs) {
-            clippingBuilder.setEndPositionMs(clip.trimEndMs)
-        }
-
-        val mediaItem = MediaItem.Builder()
-            .setUri(Uri.parse(uri))
-            .setClippingConfiguration(clippingBuilder.build())
-            .build()
-
-        val videoEffects = mutableListOf<Effect>()
-        videoEffects += buildColorEffect(clip)
-        if (isOverlay) {
-            if (clip.rotation != 0f || clip.isMirrored) {
-                videoEffects += MirrorAndRotationEffect(clip)
-            }
-        } else {
-            videoEffects += ClipTransformEffect(clip)
-            videoEffects += TransitionMapper.effectsFor(
-                transition = clip.transition,
-                clipDurationUs = layer.durationUs.coerceAtLeast(1L),
-                // The graph already clamped the duration to half of the shorter
-                // neighbour, so preview and export share one decision.
-                transitionDurationMs = (layer.transitionIn?.durationUs ?: 0L) / 1000L
-            )
-            // CapCut's Opacity control blends the whole clip over the canvas.
-            // Applied after the transition so the slider's value survives.
-            if (clip.opacity < 0.999f) {
-                videoEffects += AlphaScale(clip.opacity.coerceIn(0f, 1f))
-            }
-        }
-
-        val audioProcessors = mutableListOf<AudioProcessor>()
-        val gain = videoVoiceGain(project, clip, isOverlay)
-        if (!isOverlay || gain != 1f) {
-            if (abs(gain - 1f) > 0.001f) {
-                audioProcessors += GainProcessor(
-                    ConstantGainProvider(gain, 0L, 0L, layer.durationUs / 1000L)
-                )
-            }
-        }
-
-        val builder = EditedMediaItem.Builder(mediaItem)
-            .setDurationUs(originalDurationMs * 1000L)
-            .setFrameRate(fps)
-            .setEffects(Effects(audioProcessors, videoEffects))
-
-        if (ClipTiming.hasSpeedCurve(clip) || abs(clip.speed - 1f) > 0.001f) {
-            builder.setSpeed(
-                SpeedParameters(
-                    ClipSpeedProvider(clip, sourceLengthMs * 1000L),
-                    /* shouldMaintainPitch= */ clip.maintainPitch
-                )
-            )
-        }
-
-        if (isOverlay && clip.durationMs <= 0L) {
-            warnings += "Overlay '${clip.title}' has no duration."
-        }
-        return builder.build()
-    }
-
-    private fun buildAudioSequence(audio: AudioClip, startTimelineUs: Long): EditedMediaItemSequence {
-        val clippingBuilder = MediaItem.ClippingConfiguration.Builder()
-        if (audio.trimStartMs > 0L || audio.trimEndMs > audio.trimStartMs) {
-            clippingBuilder.setStartPositionMs(audio.trimStartMs.coerceAtLeast(0L))
-            if (audio.trimEndMs > audio.trimStartMs) {
-                clippingBuilder.setEndPositionMs(audio.trimEndMs)
-            }
-        }
-        val mediaItem = MediaItem.Builder()
-            .setUri(Uri.parse(audio.uriString))
-            .setClippingConfiguration(clippingBuilder.build())
-            .build()
-        val gain = if (audio.isMuted) 0f else audio.volume.coerceIn(0f, 2f)
-        val processor = GainProcessor(
-            ConstantGainProvider(
-                gain = gain,
-                fadeInMs = audio.fadeInMs,
-                fadeOutMs = audio.fadeOutMs,
-                durationMs = audio.durationMs
-            )
-        )
-        val itemBuilder = EditedMediaItem.Builder(mediaItem)
-            .setDurationUs(audio.durationMs.coerceAtLeast(1L) * 1000L)
-            .setRemoveVideo(true)
-            .setEffects(Effects(listOf(processor), emptyList()))
-        if (abs(audio.speed - 1f) > 0.001f && audio.speed > 0.01f) {
-            itemBuilder.setSpeed(
-                SpeedParameters(ConstantSpeedProvider(audio.speed.coerceIn(0.1f, 16f)), true)
-            )
-        }
-        val item = itemBuilder.build()
-
-        val builder = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_AUDIO))
-        if (startTimelineUs > 0L) {
-            builder.addGap(startTimelineUs)
-        }
-        builder.addItem(item)
-        return builder.build()
-    }
-
-    // ------------------------------------------------------------------
-    // Effects
-    // ------------------------------------------------------------------
-
-    private fun buildColorEffect(clip: MediaClip): ColorGradeEffect {
-        val grade = FilterMapper.gradeFor(clip.filter)
-        val contrast = (clip.contrast - 1f).coerceIn(-1f, 1f)
-        val saturation = (clip.saturation * grade.saturation).coerceIn(0f, 2f)
-        val hsl = HslColorEffect(clip.hslAdjustments)
-        return ColorGradeEffect(
-            brightness = (clip.brightness + grade.brightness + hsl.brightnessOffset()).coerceIn(-1f, 1f),
-            contrast = (contrast + grade.contrast).coerceIn(-1f, 1f),
-            saturation = (saturation * hsl.saturationMultiplier()).coerceIn(0f, 2f),
-            redGain = grade.redGain * hsl.redMultiplier(),
-            greenGain = grade.greenGain * hsl.greenMultiplier(),
-            blueGain = grade.blueGain * hsl.blueMultiplier()
         )
     }
 }
