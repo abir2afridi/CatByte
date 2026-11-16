@@ -107,6 +107,13 @@ internal object AiFeature {
         return "AI cover generated and saved to the project"
     }
 
+    /** Generates an image and inserts it as a picture-in-picture overlay clip. */
+    suspend fun generateOverlayImage(vm: EditorViewModel, prompt: String): String {
+        val saved = generateImageFile(vm, prompt) ?: return lastImageError
+        vm.addOverlayClipFromUri(Uri.fromFile(saved).toString(), "AI image")
+        return "AI image added as an overlay at the playhead"
+    }
+
     /** Last failure from [generateImageFile], so callers can return the reason. */
     private var lastImageError: String = "Could not generate the image"
 
@@ -123,7 +130,7 @@ internal object AiFeature {
             return null
         }
 
-        return when (val result = AiClient.generateImage(config, prompt)) {
+        return when (val result = AiClient.generateImage(config, prompt, size = requestedSize(vm))) {
             is AiResult.Failure -> {
                 lastImageError = result.message
                 null
@@ -139,6 +146,14 @@ internal object AiFeature {
                 file
             }
         }
+    }
+
+    /** Image size that matches the project canvas (portrait/landscape/square). */
+    private fun requestedSize(vm: EditorViewModel): String {
+        val ratio = vm._currentProject.value
+            ?.let { it.aspectRatio.ratioWidth / it.aspectRatio.ratioHeight }
+            ?: 1f
+        return com.example.data.ai.AiImageSize.forAspect(ratio)
     }
 
     /** Pings the endpoint so Settings can show a real "Connected" state. */

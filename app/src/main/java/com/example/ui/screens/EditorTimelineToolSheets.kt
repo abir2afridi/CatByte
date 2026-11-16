@@ -125,6 +125,7 @@ internal fun AiToolsToolSheet(
                 "packaging" -> scope.launch { notify(AiFeature.packagingTitles(viewModel)) }
                 "captions" -> scope.launch { notify(viewModel.addAutoCaptions()) }
                 "image" -> imageAction = "background"
+                "overlay" -> imageAction = "overlay"
                 "cover" -> imageAction = "cover"
                 else -> notify("This tool needs a specialised model that the configured endpoint does not provide")
             }
@@ -136,24 +137,34 @@ internal fun AiToolsToolSheet(
     val action = imageAction
     if (action != null) {
         val isCover = action == "cover"
+        val isOverlay = action == "overlay"
+        val isPortrait = (project?.aspectRatio?.let {
+            it.ratioWidth / it.ratioHeight
+        } ?: (9f / 16f)) < 1f
+        val shape = if (isPortrait) "vertical 9:16" else "horizontal 16:9"
         AiImagePromptDialog(
-            title = if (isCover) "AI cover" else "AI image",
-            defaultPrompt = if (isCover) {
-                (project?.title?.ifBlank { "my video" } ?: "my video") +
-                    ", vertical 9:16 video cover, bold composition, space for a title, no text"
-            } else {
-                (project?.title?.ifBlank { "cinematic background" } ?: "cinematic background") +
-                    ", vertical 9:16 background, no text"
+            title = when {
+                isCover -> "AI cover"
+                isOverlay -> "AI overlay"
+                else -> "AI image"
+            },
+            defaultPrompt = when {
+                isCover -> (project?.title?.ifBlank { "my video" } ?: "my video") +
+                    ", $shape video cover, bold composition, space for a title, no text"
+                isOverlay -> (project?.title?.ifBlank { "my subject" } ?: "my subject") +
+                    ", centred subject, clean simple background, no text"
+                else -> (project?.title?.ifBlank { "cinematic background" } ?: "cinematic background") +
+                    ", $shape background, no text"
             },
             onGenerate = { prompt ->
                 imageAction = null
                 scope.launch {
                     notify("Generating with ${aiConfig.imageModel}…")
                     notify(
-                        if (isCover) {
-                            AiFeature.generateCoverImage(viewModel, prompt)
-                        } else {
-                            AiFeature.generateBackgroundImage(viewModel, prompt)
+                        when {
+                            isCover -> AiFeature.generateCoverImage(viewModel, prompt)
+                            isOverlay -> AiFeature.generateOverlayImage(viewModel, prompt)
+                            else -> AiFeature.generateBackgroundImage(viewModel, prompt)
                         }
                     )
                 }

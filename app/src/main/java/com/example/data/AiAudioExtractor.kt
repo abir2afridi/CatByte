@@ -24,7 +24,8 @@ object AiAudioExtractor {
 
     sealed interface Result {
         data class Ok(val file: File, val sourceStartMs: Long, val durationMs: Long) : Result
-        data class Failure(val message: String) : Result
+        /** [noAudio] lets a multi-clip caption run skip silent clips instead of aborting. */
+        data class Failure(val message: String, val noAudio: Boolean = false) : Result
     }
 
     suspend fun extract(
@@ -51,7 +52,7 @@ object AiAudioExtractor {
             val audioTrack = (0 until extractor.trackCount).firstOrNull { index ->
                 extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
                     ?.startsWith("audio/") == true
-            } ?: return@withContext Result.Failure("This clip has no audio track to transcribe")
+            } ?: return@withContext Result.Failure("This clip has no audio track to transcribe", noAudio = true)
 
             val format = extractor.getTrackFormat(audioTrack)
             extractor.selectTrack(audioTrack)
@@ -94,7 +95,7 @@ object AiAudioExtractor {
             }
 
             if (written == 0) {
-                Result.Failure("No audio in the selected range")
+                Result.Failure("No audio in the selected range", noAudio = true)
             } else {
                 Result.Ok(
                     file = output,

@@ -59,10 +59,13 @@ internal object TextFeature {
     }
 
     /**
-     * AI auto captions: extracts the selected clip's audio, sends it to the
-     * speech-to-text endpoint configured in Settings → AI, and places the timed
-     * result as subtitle overlays. Nothing is inserted when no endpoint is
-     * configured (the old demo phrases were misleading).
+     * AI auto captions for the whole timeline.
+     *
+     * Every main-track clip with media is transcribed in order (or just the
+     * selected overlay clip), and each result is shifted onto the timeline using
+     * the clip's start, trim and speed. Clips without an audio track are skipped,
+     * and a real endpoint failure stops the run with the failing clip's name
+     * instead of leaving half the timeline captioned silently.
      */
     suspend fun addAutoCaptions(vm: EditorViewModel): String {
         val project = vm._currentProject.value ?: return "Open a project first"
@@ -73,65 +76,103 @@ internal object TextFeature {
         }
 
         val selectedId = vm._selectedClipId.value
-        val clip = project.allVideoClips.firstOrNull { it.id == selectedId }
-            ?: project.allVideoClips.firstOrNull { !it.uriString.isNullOrBlank() }
-            ?: return "Add a video clip with audio first"
-        val uriString = clip.uriString
-        if (uriString.isNullOrBlank()) return "This clip has no media file to transcribe"
-
-        val sourceSpanMs = (clip.durationMs * clip.speed.coerceAtLeast(0.01f)).toLong()
-            .takeIf { it > 0L }
-            ?: ClipTiming.sourceLengthMs(clip)
-        val extracted = AiAudioExtractor.extract(
-            context = context,
-            uriString = uriString,
-            startMs = clip.trimStartMs,
-            durationMs = sourceSpanMs.coerceAtMost(ClipTiming.sourceLengthMs(clip))
-        )
-        val audio = when (extracted) {
-            is AiAudioExtractor.Result.Failure -> return extracted.message
-            is AiAudioExtractor.Result.Ok -> extracted
+        val selected = project.allVideoClips.firstOrNull { it.id == selectedId }
+        val isOverlaySelected = selected != null && project.clips.none { it.id == selected.id }
+        val targets = if (isOverlaySelected && selected != null) {
+            listOf(selected)
+        } else {
+            project.clips.filter { !it.uriString.isNullOrBlank() }
         }
+        if (targets.isEmpty()) return "Add a video clip with audio first"
 
-        val bytes = runCatching { audio.file.readBytes() }.getOrElse {
-            return "Could not read the extracted audio: ${it.message}"
-        }
+        val capped = targets.take(MAX_AI_CLIPS)
         val bengali = vm._appLanguage.value.tag?.startsWith("bn") == true
-        val result = try {
-            AiClient.transcribe(
-                config = config,
-                audio = bytes,
-                fileName = audio.file.name,
-                language = if (bengali) "bn" else null,
-                fallbackDurationMs = audio.durationMs
+        val created = mutableListOf<TextOverlay>()
+        var silentClips = 0
+        var captionedClips = 0
+
+        for (clip in capped) {
+            if (created.size >= MAX_AI_CAPTIONS) break
+            val uriString = clip.uriString ?: continue
+            val sourceSpanMs = (clip.durationMs * clip.speed.coerceAtLeast(0.01f)).toLong()
+                .takeIf { it > 0L }
+                ?: ClipTiming.sourceLengthMs(clip)
+
+            val extracted = AiAudioExtractor.extract(
+                context = context,
+                uriString = uriString,
+                startMs = clip.trimStartMs,
+                durationMs = sourceSpanMs.coerceAtMost(ClipTiming.sourceLengthMs(clip))
             )
-        } finally {
-            runCatching { audio.file.delete() }
+            val audio = when (extracted) {
+                is AiAudioExtractor.Result.Failure -> {
+                    if (extracted.noAudio) {
+                        silentClips++
+                        continue
+                    }
+                    return "Captioning stopped at '${clip.title}': ${extracted.message}"
+                }
+                is AiAudioExtractor.Result.Ok -> extracted
+            }
+
+            val transcript = try {
+                val bytes = audio.file.readBytes()
+                when (
+                    val result = AiClient.transcribe(
+                        config = config,
+                        audio = bytes,
+                        fileName = audio.file.name,
+                        language = if (bengali) "bn" else null,
+                        fallbackDurationMs = audio.durationMs
+                    )
+                ) {
+                    is AiResult.Failure -> return "Captioning stopped at '${clip.title}': ${result.message}"
+                    is AiResult.Ok -> result.value
+                }
+            } catch (error: Throwable) {
+                return "Could not read '${clip.title}' audio: ${error.message ?: "unknown error"}"
+            } finally {
+                runCatching { audio.file.delete() }
+            }
+
+            val overlays = AutoCaptionManager.overlaysFromTranscript(
+                segments = transcript.segments,
+                sourceOffsetMs = audio.sourceStartMs,
+                clipStartMs = timelineStartOf(project, clip.id),
+                trimStartMs = clip.trimStartMs,
+                speed = clip.speed,
+                clipDurationMs = clip.durationMs
+            ).take(MAX_AI_CAPTIONS - created.size)
+            if (overlays.isNotEmpty()) {
+                created += overlays
+                captionedClips++
+            } else {
+                silentClips++
+            }
         }
 
-        val transcript = when (result) {
-            is AiResult.Failure -> return result.message
-            is AiResult.Ok -> result.value
-        }
-
-        val overlays = AutoCaptionManager.overlaysFromTranscript(
-            segments = transcript.segments,
-            sourceOffsetMs = audio.sourceStartMs,
-            clipStartMs = timelineStartOf(project, clip.id),
-            trimStartMs = clip.trimStartMs,
-            speed = clip.speed,
-            clipDurationMs = clip.durationMs
-        ).take(MAX_AI_CAPTIONS)
-
-        if (overlays.isEmpty()) {
-            return "The AI endpoint heard no speech in this clip"
+        if (created.isEmpty()) {
+            return "The AI endpoint heard no speech in ${capped.size} clip(s)"
         }
         vm.updateProject { proj ->
-            proj.copy(textOverlays = proj.textOverlays + overlays)
+            proj.copy(textOverlays = proj.textOverlays + created)
         }
-        vm._selectedTextId.value = overlays.first().id
-        AppLog.info("EditorViewModel", "Added ${overlays.size} AI captions from ${config.speechModel}")
-        return "Added ${overlays.size} AI caption${if (overlays.size == 1) "" else "s"} from the configured endpoint"
+        vm._selectedTextId.value = created.first().id
+        AppLog.info(
+            "EditorViewModel",
+            "Added ${created.size} AI captions from $captionedClips/${capped.size} clip(s) via ${config.speechModel}"
+        )
+        val skipped = when {
+            silentClips > 0 -> ", $silentClips silent clip(s) skipped"
+            else -> ""
+        }
+        val truncated = if (targets.size > capped.size) {
+            " (first ${capped.size} clips)"
+        } else {
+            ""
+        }
+        return "Added ${created.size} AI caption${if (created.size == 1) "" else "s"}" +
+            " from $captionedClips clip${if (captionedClips == 1) "" else "s"}$skipped$truncated"
     }
 
     /** Position of a clip on the timeline (main clips are cumulative). */
@@ -149,7 +190,10 @@ internal object TextFeature {
     }
 
     /** Upper bound so a long monologue cannot flood the timeline in one tap. */
-    private const val MAX_AI_CAPTIONS = 400
+    private const val MAX_AI_CAPTIONS = 500
+
+    /** Upper bound on API calls per tap (each clip is one upload). */
+    private const val MAX_AI_CLIPS = 20
 
     fun addTextOverlay(
         vm: EditorViewModel,
