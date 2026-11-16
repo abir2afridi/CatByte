@@ -3,6 +3,7 @@ package com.example.viewmodel.features
 import android.content.Context
 import androidx.lifecycle.viewModelScope
 import com.example.data.ExportServiceScheduler
+import com.example.data.GifExporter
 import com.example.export.ExportSettings
 import com.example.export.ExportUiState
 import com.example.viewmodel.ActiveToolSheet
@@ -26,18 +27,104 @@ internal object ExportFeature {
     fun startSelectedExport(vm: EditorViewModel) {
         val settings = vm._exportSettings.value
         if (settings.tab == "gif") {
+            // Real GIF: render the timeline, then encode the frames into a
+            // GIF89a file (the quality chip picks the render resolution).
             val resolution = when (settings.gifQuality) {
                 "320P" -> "720P"
                 "640P" -> "1080P"
                 else -> "480P"
             }
-            startExport(vm, resolution = resolution, fps = 30, bitrateMbps = 8)
+            startGifExport(vm, resolution = resolution)
         } else {
             startExport(
                 vm,
                 resolution = settings.resolution,
                 fps = settings.fps,
                 bitrateMbps = settings.bitrateMbps
+            )
+        }
+    }
+
+    /**
+     * GIF export: renders the timeline at [resolution] (so filters, text,
+     * stickers and the watermark are included), then encodes the frames into a
+     * real animated GIF and publishes it to Pictures/CatByte.
+     */
+    fun startGifExport(vm: EditorViewModel, resolution: String = "480P") {
+        val project = vm._currentProject.value ?: return
+        val manager = vm.exportManager
+        if (manager == null) {
+            vm._exportState.value = ExportUiState(error = "Export is not available")
+            return
+        }
+        vm.pausePlayback()
+        vm.exportJob?.cancel()
+        vm._exportState.value = ExportUiState(
+            isExporting = true,
+            progress = 0f,
+            stage = "Rendering frames for GIF...",
+            resolution = resolution,
+            fps = GifExporter.DEFAULT_FPS
+        )
+
+        vm.exportJob = vm.viewModelScope.launch {
+            val progressJob = launch {
+                manager.progress.collect { renderProgress ->
+                    if (vm._exportState.value.isExporting) {
+                        vm._exportState.value = vm._exportState.value.copy(
+                            // Rendering is the first 80% of a GIF export.
+                            progress = (renderProgress.progress * 0.8f).coerceIn(0f, 0.8f),
+                            stage = renderProgress.stage.ifBlank { vm._exportState.value.stage }
+                        )
+                    }
+                }
+            }
+            val rendered = manager.export(
+                project = project,
+                resolution = resolution,
+                fps = 30,
+                watermarkEnabled = vm._watermarkEnabled.value,
+                videoBitrateBps = 8_000_000
+            )
+            progressJob.cancel()
+            if (rendered == null) {
+                val message = manager.progress.value.error ?: "GIF export failed"
+                vm._exportState.value = ExportUiState(error = message)
+                return@launch
+            }
+
+            vm._exportState.value = vm._exportState.value.copy(
+                progress = 0.85f,
+                stage = "Encoding GIF..."
+            )
+            val context = vm.context
+            val gif = if (context != null) {
+                GifExporter.convert(context, rendered.file)
+            } else {
+                null
+            }
+            if (gif == null) {
+                vm._exportState.value = ExportUiState(error = "Could not encode the GIF")
+                return@launch
+            }
+            val galleryUri = context?.let {
+                GifExporter.saveToGallery(
+                    it,
+                    gif,
+                    "CatByte_${project.title.take(20).replace("/", "-")}"
+                )
+            }
+            // The rendered MP4 was only an intermediate: drop it so the user
+            // does not end up with a stray video next to the GIF.
+            runCatching { rendered.file.delete() }
+
+            vm._exportState.value = vm._exportState.value.copy(
+                isExporting = false,
+                isCompleted = true,
+                progress = 1f,
+                stage = "GIF exported!",
+                videoPath = gif.absolutePath,
+                galleryUri = galleryUri?.toString() ?: ""
             )
         }
     }
