@@ -135,6 +135,7 @@ internal fun MarkerToolSheet(
         markers = project.markers,
         onAddAtPlayhead = { viewModel.addMarker() },
         onJump = { viewModel.seekToMarker(it) },
+        onMoveToPlayhead = { viewModel.moveMarkerToPlayhead(it) },
         onRename = { id, label -> viewModel.renameMarker(id, label) },
         onColor = { id, color -> viewModel.setMarkerColor(id, color) },
         onDelete = { viewModel.removeMarker(it) },

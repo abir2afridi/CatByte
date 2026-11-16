@@ -57,6 +57,20 @@ class MarkerFeatureTest {
     }
 
     @Test
+    fun `marker can move to the current playhead and undo restores its position`() {
+        val viewModel = viewModelWithClip()
+        viewModel.addMarker("Hook")
+        val id = viewModel.currentProject.value!!.markers.single().id
+        viewModel.seekTo(2_250L)
+
+        viewModel.moveMarkerToPlayhead(id)
+        assertEquals(2_250L, viewModel.currentProject.value!!.markers.single().atMs)
+
+        viewModel.undo()
+        assertEquals(0L, viewModel.currentProject.value!!.markers.single().atMs)
+    }
+
+    @Test
     fun `rename is capped so the ruler label stays readable`() {
         val viewModel = viewModelWithClip()
         viewModel.addMarker()

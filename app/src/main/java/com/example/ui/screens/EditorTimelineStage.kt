@@ -49,7 +49,7 @@ internal fun EditorTimelineStage(
         project.clips.filter { it.id in selectedClipIds }
     }
     val canMoveMainBlock = selectedMainClips.size > 1
-    if (selectedClipIds.size > 1) {
+    if (selectedClipIds.isNotEmpty()) {
         SelectionControlsBar(
             selectedCount = selectedClipIds.size,
             isMultiSelect = isMultiSelect,
@@ -61,8 +61,9 @@ internal fun EditorTimelineStage(
             onMoveBlockLeft = { viewModel.moveSelectedMainClips(-1) },
             onMoveBlockRight = { viewModel.moveSelectedMainClips(1) },
             onDelete = { viewModel.deleteSelectedClips() },
-            onCopy = { viewModel.copySelectedOverlays() },
-            onPaste = { viewModel.pasteOverlays() },
+            onCopy = { viewModel.copySelectedClips() },
+            onCut = { viewModel.cutSelectedClips() },
+            onPaste = { viewModel.pasteClips() },
             onCopyAttributes = { viewModel.copySelectedClipAttributes() },
             onPasteAttributes = { viewModel.pasteClipAttributes() },
             onClear = {

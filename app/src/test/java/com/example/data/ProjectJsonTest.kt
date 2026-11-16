@@ -21,6 +21,7 @@ import com.example.model.TimelineMarker
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -294,6 +295,28 @@ class ProjectJsonTest {
         )
         val restored = ProjectJson.fromJson(ProjectJson.toJson(project))
         assertEquals(project, restored)
+    }
+
+    @Test
+    fun `malformed marker ids are normalized so the marker sheet stays usable`() {
+        val json = JSONObject()
+            .put("id", "malformed_markers")
+            .put("title", "Markers")
+            .put(
+                "markers",
+                JSONArray()
+                    .put(JSONObject().put("id", "same").put("atMs", 100).put("label", "One"))
+                    .put(JSONObject().put("id", "same").put("atMs", 200).put("label", "Two"))
+                    .put(JSONObject().put("id", " ").put("atMs", -50).put("label", "x".repeat(40)))
+            )
+
+        val markers = ProjectJson.fromJson(json.toString())!!.markers
+
+        assertEquals(3, markers.size)
+        assertEquals(3, markers.map { it.id }.distinct().size)
+        assertTrue(markers.all { it.id.isNotBlank() })
+        assertTrue(markers.all { it.atMs >= 0L })
+        assertTrue(markers.all { it.label.length <= 24 })
     }
 
     @Test

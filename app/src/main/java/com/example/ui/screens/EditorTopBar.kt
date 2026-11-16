@@ -45,13 +45,9 @@ import com.example.model.VideoProject
 @Composable
 internal fun EditorTopBar(
     project: VideoProject,
-    canUndo: Boolean,
-    canRedo: Boolean,
     exportOpen: Boolean,
     exportTab: String,
     onBack: () -> Unit,
-    onUndo: () -> Unit,
-    onRedo: () -> Unit,
     onToggleExportDropdown: () -> Unit,
     onExportTabSelected: (String) -> Unit,
     onStartExport: () -> Unit,

@@ -82,6 +82,7 @@ fun EditorScreen(
     val selectedClipId by viewModel.selectedClipId.collectAsState()
     val selectedClipIds by viewModel.selectedClipIds.collectAsState()
     val overlayClipboard by viewModel.overlayClipboard.collectAsState()
+    val clipboardCount by viewModel.clipboardCount.collectAsState()
     val selectedTextId by viewModel.selectedTextId.collectAsState()
     val activeSheet by viewModel.activeSheet.collectAsState()
     val timelineZoom by viewModel.timelineZoom.collectAsState()
@@ -299,13 +300,9 @@ fun EditorScreen(
             if (!isPreviewFullscreen) {
                 EditorTopBar(
                     project = project!!,
-                    canUndo = canUndo,
-                    canRedo = canRedo,
                     exportOpen = showExportDropdown,
                     exportTab = exportSettings.tab,
                     onBack = onBackToHome,
-                    onUndo = { viewModel.undo() },
-                    onRedo = { viewModel.redo() },
                     onToggleExportDropdown = {
                         val opening = !showExportDropdown
                         showExportDropdown = opening
@@ -390,7 +387,7 @@ fun EditorScreen(
                     selectedClipId = selectedClipId,
                     selectedTextId = selectedTextId,
                     selectedClipIds = selectedClipIds,
-                    hasOverlayClipboard = overlayClipboard.isNotEmpty(),
+                    hasOverlayClipboard = clipboardCount > 0 || overlayClipboard.isNotEmpty(),
                     timelineZoom = timelineZoom,
                     magneticSnap = magneticSnap,
                     snapBeats = snapBeats,
