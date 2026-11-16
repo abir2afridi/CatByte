@@ -118,6 +118,34 @@ internal object TextFeature {
         }
     }
 
+    /**
+     * Bold / italic / letter and line spacing for the selected text overlay.
+     * The preview and the exported file both read these fields.
+     */
+    fun setSelectedTextStyle(
+        vm: EditorViewModel,
+        bold: Boolean,
+        italic: Boolean,
+        letterSpacingEm: Float,
+        lineSpacingMultiplier: Float
+    ) {
+        val id = vm._selectedTextId.value ?: return
+        vm.updateProject { proj ->
+            proj.copy(
+                textOverlays = proj.textOverlays.map { item ->
+                    if (item.id == id) {
+                        item.copy(
+                            isBold = bold,
+                            isItalic = italic,
+                            letterSpacingEm = letterSpacingEm.coerceIn(0f, 0.4f),
+                            lineSpacingMultiplier = lineSpacingMultiplier.coerceIn(0.7f, 2.5f)
+                        )
+                    } else item
+                }
+            )
+        }
+    }
+
     fun deleteSelectedText(vm: EditorViewModel) {
         val id = vm._selectedTextId.value ?: return
         vm.updateProject { proj ->

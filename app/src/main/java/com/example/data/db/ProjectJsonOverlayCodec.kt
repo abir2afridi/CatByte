@@ -65,6 +65,10 @@ internal fun textToJson(text: TextOverlay): JSONObject = JSONObject().apply {
     put("posX", text.posX.toDouble())
     put("posY", text.posY.toDouble())
     put("scale", text.scale.toDouble())
+    put("isBold", text.isBold)
+    put("isItalic", text.isItalic)
+    put("letterSpacingEm", text.letterSpacingEm.toDouble())
+    put("lineSpacingMultiplier", text.lineSpacingMultiplier.toDouble())
     put("keyframes", JSONArray().also { array -> text.keyframes.forEach { array.put(keyframeToJson(it)) } })
 }
 
@@ -80,6 +84,10 @@ internal fun textFromJson(json: JSONObject): TextOverlay = TextOverlay(
     posX = json.optDouble("posX", 0.5).toFloat(),
     posY = json.optDouble("posY", 0.5).toFloat(),
     scale = json.optDouble("scale", 1.0).toFloat(),
+    isBold = json.optBoolean("isBold", false),
+    isItalic = json.optBoolean("isItalic", false),
+    letterSpacingEm = json.optDouble("letterSpacingEm", 0.0).toFloat(),
+    lineSpacingMultiplier = json.optDouble("lineSpacingMultiplier", 1.0).toFloat(),
     keyframes = json.optJSONArray("keyframes").mapObjects { keyframeFromJson(it) }
 )
 

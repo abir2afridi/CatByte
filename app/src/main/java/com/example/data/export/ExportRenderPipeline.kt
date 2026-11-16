@@ -29,7 +29,9 @@ internal suspend fun ExportManager.runExportPipeline(
     fps: Int,
     watermarkEnabled: Boolean = false,
     /** Requested video bitrate in bits per second, 0 = encoder default. */
-    videoBitrateBps: Int = 0
+    videoBitrateBps: Int = 0,
+    /** Render audio only (.m4a): every video track is dropped. */
+    audioOnly: Boolean = false
 ): ExportOutput? = withContext(Dispatchers.Main) {
     val mediaClips = project.allVideoClips.filter { !it.uriString.isNullOrBlank() }
     if (mediaClips.isEmpty()) {
@@ -93,7 +95,11 @@ internal suspend fun ExportManager.runExportPipeline(
     )
 
     val outputDir = File(appContext.getExternalFilesDir(null), "exports").apply { mkdirs() }
-    val outputFile = File(outputDir, "CatByte_${project.id}_${System.currentTimeMillis()}.mp4")
+    val extension = if (audioOnly) "m4a" else "mp4"
+    val outputFile = File(
+        outputDir,
+        "CatByte_${project.id}_${System.currentTimeMillis()}.$extension"
+    )
 
     // Build the exact same render graph the preview uses. A failure here is
     // surfaced to the user instead of silently exporting a plain, effects-
@@ -104,7 +110,8 @@ internal suspend fun ExportManager.runExportPipeline(
             width = outWidth,
             height = outHeight,
             fps = target.fps,
-            watermarkEnabled = watermarkEnabled
+            watermarkEnabled = watermarkEnabled,
+            removeVideo = audioOnly
         )
     } catch (error: Throwable) {
         AppLog.error("ExportManager", "Failed to build the project render graph", error)
@@ -124,10 +131,11 @@ internal suspend fun ExportManager.runExportPipeline(
     }
 
     val composition = built.composition
-    var run = runTransformer(composition, outputFile, target.mime, videoBitrateBps)
+    // Audio-only exports have no video track, so no video mime is pinned.
+    var run = runTransformer(composition, outputFile, if (audioOnly) null else target.mime, videoBitrateBps)
     // If a pinned codec was rejected by the encoder, retry once with the
     // default codec path instead of failing the whole export.
-    if (run.result == null && target.mime != null && isEncoderRelatedFailure(run.failure)) {
+    if (!audioOnly && run.result == null && target.mime != null && isEncoderRelatedFailure(run.failure)) {
         AppLog.warn("ExportManager", "Codec ${target.mime} was rejected; retrying with the default encoder")
         _progress.value = _progress.value.copy(progress = 0f, stage = "Retrying with the default encoder...")
         run = runTransformer(composition, outputFile, null, videoBitrateBps)
@@ -141,16 +149,25 @@ internal suspend fun ExportManager.runExportPipeline(
         return@withContext null
     }
 
+    val displayName = "CatByte_${project.title.take(24).replace("/", "-")}"
     val galleryUri = runCatching {
-        MediaStoreSaver.saveVideo(
-            appContext,
-            outputFile,
-            "CatByte_${project.title.take(24).replace("/", "-")}"
-        )
+        if (audioOnly) {
+            MediaStoreSaver.saveAudio(appContext, outputFile, displayName)
+        } else {
+            MediaStoreSaver.saveVideo(appContext, outputFile, displayName)
+        }
     }.getOrNull()
 
-    // Validate exported MP4 before reporting success
-    val validation = validateExportFile(outputFile, project)
+    // Validate the rendered file before reporting success. Audio-only files
+    // have no video track, so only the file itself is checked.
+    val validation = if (audioOnly) {
+        ExportManager.ValidationResult(
+            isValid = outputFile.exists() && outputFile.length() > 0L,
+            error = if (outputFile.exists()) null else "The audio file was not written"
+        )
+    } else {
+        validateExportFile(outputFile, project)
+    }
     if (!validation.isValid) {
         _progress.value = _progress.value.copy(
             progress = 0f,
@@ -173,7 +190,7 @@ internal suspend fun ExportManager.runExportPipeline(
     )
     AppLog.info(
         "ExportManager",
-        "Export finished: ${outputFile.name} (${exportResult.width}x${exportResult.height}, " +
+        "Export finished: ${outputFile.name} (${if (audioOnly) "audio only" else "${exportResult.width}x${exportResult.height}"}, " +
             "${exportResult.durationMs}ms, ${exportResult.fileSizeBytes / 1024}KB)"
     )
 

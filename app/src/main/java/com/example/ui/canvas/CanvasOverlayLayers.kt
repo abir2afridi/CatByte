@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -66,21 +67,27 @@ internal fun CanvasTextOverlayLayers(
                 else -> Alignment.Center
             }
         ) {
+            val baseSize = when (textOverlay.fontStyle) {
+                TextFontStyle.CAPCUT_BOLD -> 23.sp
+                TextFontStyle.NEON_GLOW -> 21.sp
+                TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> 20.sp
+                TextFontStyle.SUBTITLE -> 16.sp
+                else -> 17.sp
+            }
+            val baseWeight = when (textOverlay.fontStyle) {
+                TextFontStyle.CAPCUT_BOLD -> FontWeight.Black
+                TextFontStyle.CINEMATIC_SERIF -> FontWeight.SemiBold
+                else -> FontWeight.Bold
+            }
             Text(
                 text = displayText,
                 color = Color(textOverlay.color),
-                fontSize = when (textOverlay.fontStyle) {
-                    TextFontStyle.CAPCUT_BOLD -> 23.sp
-                    TextFontStyle.NEON_GLOW -> 21.sp
-                    TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> 20.sp
-                    TextFontStyle.SUBTITLE -> 16.sp
-                    else -> 17.sp
-                },
-                fontWeight = when (textOverlay.fontStyle) {
-                    TextFontStyle.CAPCUT_BOLD -> FontWeight.Black
-                    TextFontStyle.CINEMATIC_SERIF -> FontWeight.SemiBold
-                    else -> FontWeight.Bold
-                },
+                fontSize = baseSize,
+                // User overrides from the text sheet: bold / italic / spacing.
+                fontWeight = if (textOverlay.isBold) FontWeight.Black else baseWeight,
+                fontStyle = if (textOverlay.isItalic) FontStyle.Italic else FontStyle.Normal,
+                letterSpacing = textOverlay.letterSpacingEm.sp,
+                lineHeight = (baseSize.value * textOverlay.lineSpacingMultiplier).sp,
                 fontFamily = when (textOverlay.fontStyle) {
                     TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> FontFamily.Serif
                     else -> FontFamily.SansSerif

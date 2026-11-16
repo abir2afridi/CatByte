@@ -39,6 +39,7 @@ internal fun TimelineToolsToolSheet(
         onAddMarker = { viewModel.addMarker() },
         onPreviousMarker = { viewModel.jumpToMarker(-1) },
         onNextMarker = { viewModel.jumpToMarker(1) },
+        onOpenMarkers = { viewModel.setActiveSheet(ActiveToolSheet.MARKERS) },
         onToggleMultiSelect = {
             val next = !isMultiSelect
             onMultiSelectChange(next)

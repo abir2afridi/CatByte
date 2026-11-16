@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -63,18 +64,23 @@ fun TextEditorSheet(
     onImportCaptions: (() -> Unit)? = null,
     onExportCaptions: (() -> Unit)? = null,
     captionExportCount: Int = 0,
+    onUpdateTextStyle: ((bold: Boolean, italic: Boolean, letterSpacingEm: Float, lineSpacingMultiplier: Float) -> Unit)? = null,
     onClose: () -> Unit
 ) {
     var textInput by remember { mutableStateOf(textOverlay?.text ?: "Text Overlay") }
     var fontStyle by remember { mutableStateOf(textOverlay?.fontStyle ?: TextFontStyle.CAPCUT_BOLD) }
     var selectedColor by remember { mutableLongStateOf(textOverlay?.color ?: 0xFFFFFFFF) }
     var animation by remember { mutableStateOf(textOverlay?.animation ?: TextAnimationType.POP_UP) }
+    var isBold by remember { mutableStateOf(textOverlay?.isBold ?: false) }
+    var isItalic by remember { mutableStateOf(textOverlay?.isItalic ?: false) }
+    var letterSpacing by remember { mutableStateOf(textOverlay?.letterSpacingEm ?: 0f) }
+    var lineSpacing by remember { mutableStateOf(textOverlay?.lineSpacingMultiplier ?: 1f) }
 
     val colors = PencilTheme.colors
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(230.dp)
+            .height(300.dp)
             .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .background(colors.surface)
             .border(1.dp, colors.borderSubtle.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
@@ -189,6 +195,44 @@ fun TextEditorSheet(
                 onSelectStyle = { fontStyle = it }
             )
 
+            if (onUpdateTextStyle != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StyleToggle("B", isBold) {
+                        isBold = !isBold
+                        onUpdateTextStyle.invoke(isBold, isItalic, letterSpacing, lineSpacing)
+                    }
+                    StyleToggle("I", isItalic) {
+                        isItalic = !isItalic
+                        onUpdateTextStyle.invoke(isBold, isItalic, letterSpacing, lineSpacing)
+                    }
+                    Text("A↔", color = colors.textSecondary, fontSize = 11.sp)
+                    Slider(
+                        value = letterSpacing,
+                        onValueChange = {
+                            letterSpacing = it
+                            onUpdateTextStyle.invoke(isBold, isItalic, letterSpacing, lineSpacing)
+                        },
+                        valueRange = 0f..0.3f,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("↕", color = colors.textSecondary, fontSize = 11.sp)
+                    Slider(
+                        value = lineSpacing,
+                        onValueChange = {
+                            lineSpacing = it
+                            onUpdateTextStyle.invoke(isBold, isItalic, letterSpacing, lineSpacing)
+                        },
+                        valueRange = 0.8f..2.0f,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(6.dp))
 
             Row(
@@ -216,5 +260,28 @@ fun TextEditorSheet(
                 }
             }
         }
+    }
+}
+
+/** Compact "B" / "I" toggle chip used by the text style row. */
+@Composable
+private fun StyleToggle(label: String, active: Boolean, onClick: () -> Unit) {
+    val colors = PencilTheme.colors
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (active) colors.accentCyan else colors.surfaceElevated)
+            .border(1.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (active) Color.Black else colors.textPrimary,
+            fontSize = 13.sp,
+            fontWeight = if (label == "B") FontWeight.Black else FontWeight.Medium,
+            fontStyle = if (label == "I") androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
+        )
     }
 }

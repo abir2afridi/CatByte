@@ -45,7 +45,8 @@ internal fun ProjectCompositionFactory.buildVideoItem(
     project: VideoProject,
     planned: ProjectCompositionFactory.PlannedClip,
     fps: Int,
-    warnings: MutableSet<String>
+    warnings: MutableSet<String>,
+    removeVideo: Boolean = false
 ): EditedMediaItem {
     val clip = planned.clip
     val layer = planned.layer
@@ -100,7 +101,9 @@ internal fun ProjectCompositionFactory.buildVideoItem(
     val builder = EditedMediaItem.Builder(mediaItem)
         .setDurationUs(originalDurationMs * 1000L)
         .setFrameRate(fps)
-        .setEffects(Effects(audioProcessors, videoEffects))
+        // Audio-only export: keep the audio graph, drop every video track.
+        .setRemoveVideo(removeVideo)
+        .setEffects(Effects(audioProcessors, if (removeVideo) emptyList() else videoEffects))
 
     if (ClipTiming.hasSpeedCurve(clip) || abs(clip.speed - 1f) > 0.001f) {
         builder.setSpeed(

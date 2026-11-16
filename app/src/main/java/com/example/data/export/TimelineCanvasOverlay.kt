@@ -139,7 +139,13 @@ class TimelineCanvasOverlay(
         textPaint.apply {
             color = withAlpha(overlay.color.toInt(), alpha)
             textSize = width * 0.085f * keyScale * animationScale
-            typeface = typefaceFor(overlay.fontStyle)
+            // Font style + the user's bold/italic/letter-spacing overrides.
+            typeface = Typeface.create(
+                typefaceFor(overlay.fontStyle),
+                (if (overlay.isBold) Typeface.BOLD else Typeface.NORMAL) or
+                    (if (overlay.isItalic) Typeface.ITALIC else 0)
+            )
+            letterSpacing = overlay.letterSpacingEm
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
             clearShadowLayer()
@@ -153,7 +159,7 @@ class TimelineCanvasOverlay(
             .obtain(displayText, 0, displayText.length, textPaint, maxTextWidth)
             .setAlignment(Layout.Alignment.ALIGN_CENTER)
             .setIncludePad(false)
-            .setLineSpacing(0f, 1.0f)
+            .setLineSpacing(0f, overlay.lineSpacingMultiplier.coerceIn(0.7f, 2.5f))
             .build()
 
         val textWidth = (0 until layout.lineCount).maxOfOrNull { layout.getLineWidth(it) } ?: 0f

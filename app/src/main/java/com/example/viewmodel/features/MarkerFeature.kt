@@ -20,6 +20,28 @@ internal object MarkerFeature {
         }
     }
 
+    /** Renames a marker (the label is drawn next to the pin on the ruler). */
+    fun renameMarker(vm: EditorViewModel, markerId: String, label: String) {
+        vm.updateProject { proj ->
+            proj.copy(
+                markers = proj.markers.map { marker ->
+                    if (marker.id == markerId) marker.copy(label = label.take(24)) else marker
+                }
+            )
+        }
+    }
+
+    /** Recolours a marker pin. */
+    fun setMarkerColor(vm: EditorViewModel, markerId: String, colorArgb: Long) {
+        vm.updateProject { proj ->
+            proj.copy(
+                markers = proj.markers.map { marker ->
+                    if (marker.id == markerId) marker.copy(colorArgb = colorArgb) else marker
+                }
+            )
+        }
+    }
+
     fun moveMarkerToPlayhead(vm: EditorViewModel, markerId: String) {
         vm.updateProject { proj ->
             val at = vm._currentPositionMs.value.coerceAtLeast(0L)

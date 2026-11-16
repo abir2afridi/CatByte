@@ -20,7 +20,8 @@ internal fun ProjectCompositionFactory.buildSequences(
     project: VideoProject,
     renderPlan: ProjectCompositionFactory.RenderPlan,
     fps: Int,
-    warnings: MutableSet<String>
+    warnings: MutableSet<String>,
+    removeVideo: Boolean = false
 ): CompositionSequences {
     val sequences = mutableListOf<EditedMediaItemSequence>()
     val overlayInputs = linkedMapOf<Int, MediaClip>()
@@ -41,7 +42,7 @@ internal fun ProjectCompositionFactory.buildSequences(
                 mainBuilder.addGap(planned.layer.durationUs)
             }
         } else {
-            mainBuilder.addItem(buildVideoItem(project, planned, fps, warnings))
+            mainBuilder.addItem(buildVideoItem(project, planned, fps, warnings, removeVideo))
         }
         cursorUs = planned.layer.timelineOutUs
     }
@@ -65,7 +66,7 @@ internal fun ProjectCompositionFactory.buildSequences(
         if (planned.layer.timelineInUs > 0L) {
             builder.addGap(planned.layer.timelineInUs)
         }
-        builder.addItem(buildVideoItem(project, planned, fps, warnings))
+        builder.addItem(buildVideoItem(project, planned, fps, warnings, removeVideo))
         val inputIndex = sequences.size
         sequences += builder.build()
         overlayInputs[inputIndex] = planned.clip

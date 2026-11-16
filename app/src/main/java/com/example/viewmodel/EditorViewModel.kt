@@ -139,7 +139,9 @@ enum class ActiveToolSheet {
     TIMELINE_TOOLS,
     BACKGROUND,
     COVER_EDITOR,
-    TEMPLATES
+    TEMPLATES,
+    /** Timeline marker management (rename / recolour / delete). */
+    MARKERS
 }
 
 /**
@@ -698,6 +700,14 @@ class EditorViewModel(
 
     fun removeMarker(markerId: String) = MarkerFeature.removeMarker(this, markerId)
 
+    /** Renames a timeline marker. */
+    fun renameMarker(markerId: String, label: String) =
+        MarkerFeature.renameMarker(this, markerId, label)
+
+    /** Recolours a timeline marker pin. */
+    fun setMarkerColor(markerId: String, colorArgb: Long) =
+        MarkerFeature.setMarkerColor(this, markerId, colorArgb)
+
     fun moveMarkerToPlayhead(markerId: String) =
         MarkerFeature.moveMarkerToPlayhead(this, markerId)
 
@@ -911,6 +921,14 @@ class EditorViewModel(
         animation: TextAnimationType
     ) = TextFeature.updateSelectedText(this, text, fontStyle, color, animation)
 
+    /** Bold / italic / letter + line spacing for the selected text overlay. */
+    fun setSelectedTextStyle(
+        bold: Boolean,
+        italic: Boolean,
+        letterSpacingEm: Float,
+        lineSpacingMultiplier: Float
+    ) = TextFeature.setSelectedTextStyle(this, bold, italic, letterSpacingEm, lineSpacingMultiplier)
+
     fun deleteSelectedText() = TextFeature.deleteSelectedText(this)
 
     // ==========================================
@@ -976,6 +994,9 @@ class EditorViewModel(
         fps: Int = _defaultFps.value,
         bitrateMbps: Int = 10
     ) = ExportFeature.startExport(this, resolution, fps, bitrateMbps)
+
+    /** Renders the audio only (.m4a) with the current mix. */
+    fun startAudioOnlyExport() = ExportFeature.startAudioOnlyExport(this)
 
     fun dismissExport() = ExportFeature.dismissExport(this)
 

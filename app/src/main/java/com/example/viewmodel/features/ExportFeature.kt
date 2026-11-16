@@ -140,6 +140,64 @@ internal object ExportFeature {
         }
     }
 
+    /**
+     * Audio-only export (.m4a): the same mix as the video export, encoded
+     * without a video track. Useful for podcasting / music hand-off.
+     */
+    fun startAudioOnlyExport(vm: EditorViewModel) {
+        val project = vm._currentProject.value ?: return
+        vm.pausePlayback()
+        vm.exportJob?.cancel()
+        vm._exportState.value = ExportUiState(
+            isExporting = true,
+            progress = 0f,
+            stage = "Preparing audio export...",
+            resolution = vm._defaultResolution.value,
+            fps = vm._defaultFps.value
+        )
+
+        val exportManager = vm.exportManager
+        vm.exportJob = vm.viewModelScope.launch {
+            if (exportManager == null) {
+                vm._exportState.value = ExportUiState(error = "Export is not available")
+                return@launch
+            }
+            val progressJob = launch {
+                exportManager.progress.collect { renderProgress ->
+                    if (vm._exportState.value.isExporting) {
+                        vm._exportState.value = vm._exportState.value.copy(
+                            progress = renderProgress.progress.coerceIn(0f, 1f),
+                            stage = renderProgress.stage.ifBlank { vm._exportState.value.stage }
+                        )
+                    }
+                }
+            }
+            val result = exportManager.exportAudioOnly(
+                project = project,
+                resolution = vm._defaultResolution.value,
+                fps = vm._defaultFps.value
+            )
+            progressJob.cancel()
+            if (result != null) {
+                vm._exportState.value = vm._exportState.value.copy(
+                    isExporting = false,
+                    isCompleted = true,
+                    progress = 1.0f,
+                    stage = "Audio exported!",
+                    videoPath = result.file.absolutePath,
+                    galleryUri = result.galleryUri?.toString() ?: ""
+                )
+            } else {
+                val message = exportManager.progress.value.error ?: "Audio export failed"
+                vm._exportState.value = vm._exportState.value.copy(
+                    isExporting = false,
+                    stage = message,
+                    error = message
+                )
+            }
+        }
+    }
+
     fun dismissExport(vm: EditorViewModel) {
         vm.exportJob?.cancel()
         vm.exportJob = null

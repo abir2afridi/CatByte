@@ -63,6 +63,24 @@ class ExportManager(context: Context) {
         videoBitrateBps = videoBitrateBps
     )
 
+    /**
+     * Renders the project's audio only (.m4a) - every video track is dropped,
+     * the mix (clip audio + music + voice-over) is encoded with AAC.
+     */
+    suspend fun exportAudioOnly(
+        project: VideoProject,
+        resolution: String = "1080P",
+        fps: Int = 30,
+        watermarkEnabled: Boolean = false
+    ): ExportOutput? = runExportPipeline(
+        project = project,
+        resolution = resolution,
+        fps = fps,
+        watermarkEnabled = watermarkEnabled,
+        videoBitrateBps = 0,
+        audioOnly = true
+    )
+
     /** Cancels an in-flight render. */
     fun cancel() {
         transformer?.cancel()

@@ -47,6 +47,7 @@ fun ExportOptionsBottomSheet(
     watermarkEnabled: Boolean,
     onToggleWatermark: (Boolean) -> Unit,
     onSaveToDevice: () -> Unit,
+    onSaveAudioOnly: () -> Unit = {},
     onShareTikTok: () -> Unit,
     onShareInstagram: () -> Unit,
     onDismiss: () -> Unit,
@@ -165,6 +166,41 @@ fun ExportOptionsBottomSheet(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
                 )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 4. Audio-only export (AAC .m4a) - the same mix without video.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF1E2026))
+                    .clickable { onSaveAudioOnly() }
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                    .testTag("export_save_audio_only"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MusicNote,
+                    contentDescription = "Audio only",
+                    tint = Color(0xFF26E5D7),
+                    modifier = Modifier.size(22.dp)
+                )
+                Column {
+                    Text(
+                        text = "Save audio only (.m4a)",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Clip audio + music + voice-over, no video",
+                        color = Color(0xFFA5A8B2),
+                        fontSize = 11.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(18.dp))

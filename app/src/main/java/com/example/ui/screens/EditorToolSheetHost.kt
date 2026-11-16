@@ -175,6 +175,9 @@ internal fun BoxScope.EditorToolSheetHost(
                     onMultiSelectChange = onMultiSelectChange
                 )
             }
+            ActiveToolSheet.MARKERS -> {
+                MarkerToolSheet(viewModel = viewModel, project = project)
+            }
             ActiveToolSheet.BACKGROUND -> {
                 BackgroundToolSheet(viewModel = viewModel, project = project)
             }

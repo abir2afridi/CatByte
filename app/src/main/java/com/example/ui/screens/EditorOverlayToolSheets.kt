@@ -52,6 +52,9 @@ internal fun TextEditorToolSheet(
             }
         },
         captionExportCount = captionExportCount,
+        onUpdateTextStyle = { bold, italic, letterSpacing, lineSpacing ->
+            viewModel.setSelectedTextStyle(bold, italic, letterSpacing, lineSpacing)
+        },
         onAutoCaptions = { viewModel.addAutoCaptions() },
         onClose = { viewModel.closeToolSheet() }
     )

@@ -31,6 +31,39 @@ object MediaStoreSaver {
         }
     }
 
+    /**
+     * Copies an audio-only export (.m4a) into the Music/CatByte folder.
+     * Returns the gallery Uri, or null when the copy failed.
+     */
+    fun saveAudio(context: Context, source: File, displayName: String): Uri? {
+        if (!source.exists()) return null
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        val name = if (displayName.endsWith(".m4a")) displayName else "$displayName.m4a"
+        val resolver = context.contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.Audio.Media.DISPLAY_NAME, name)
+            put(MediaStore.Audio.Media.MIME_TYPE, "audio/mp4")
+            put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/CatByte")
+            put(MediaStore.Audio.Media.IS_PENDING, 1)
+        }
+        val uri = runCatching {
+            resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
+        }.getOrNull() ?: return null
+        return runCatching {
+            resolver.openOutputStream(uri)?.use { output ->
+                source.inputStream().use { input -> input.copyTo(output) }
+            } ?: error("Could not open the music output stream")
+            values.clear()
+            values.put(MediaStore.Audio.Media.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+            uri
+        }.getOrElse {
+            runCatching { resolver.delete(uri, null, null) }
+            AppLog.error("MediaStoreSaver", "Could not save the audio export to the gallery", it)
+            null
+        }
+    }
+
     private fun saveWithMediaStore(context: Context, source: File, displayName: String): Uri? {
         val resolver = context.contentResolver
         val values = ContentValues().apply {

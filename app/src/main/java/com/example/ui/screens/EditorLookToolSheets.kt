@@ -10,6 +10,7 @@ import com.example.ui.components.BackgroundSheet
 import com.example.ui.components.BlendModeSheet
 import com.example.ui.components.CanvasRatioSheet
 import com.example.ui.components.ChromaKeySheet
+import com.example.ui.components.MarkerSheet
 import com.example.ui.components.KeyframeSheet
 import com.example.ui.components.MaskSheet
 import com.example.viewmodel.ActiveToolSheet
@@ -119,5 +120,21 @@ internal fun ChromaKeyToolSheet(
             }
         },
         onClose = { viewModel.closeToolSheet() }
+    )
+}
+
+@Composable
+internal fun MarkerToolSheet(
+    viewModel: EditorViewModel,
+    project: VideoProject
+) {
+    MarkerSheet(
+        markers = project.markers,
+        onAddAtPlayhead = { viewModel.addMarker() },
+        onJump = { viewModel.seekToMarker(it) },
+        onRename = { id, label -> viewModel.renameMarker(id, label) },
+        onColor = { id, color -> viewModel.setMarkerColor(id, color) },
+        onDelete = { viewModel.removeMarker(it) },
+        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
     )
 }

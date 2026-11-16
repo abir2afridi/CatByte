@@ -37,5 +37,12 @@ data class TextOverlay(
     val posX: Float = 0.5f,
     val posY: Float = 0.5f,
     val scale: Float = 1.0f,
+    /** Extra weight on top of the font style's own weight. */
+    val isBold: Boolean = false,
+    val isItalic: Boolean = false,
+    /** Letter spacing in em (0 = normal, 0.1 = wide). */
+    val letterSpacingEm: Float = 0f,
+    /** Line height multiplier (1 = normal, 1.5 = airy). */
+    val lineSpacingMultiplier: Float = 1f,
     val keyframes: List<Keyframe> = emptyList()
 )

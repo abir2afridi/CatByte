@@ -82,10 +82,11 @@ object ProjectCompositionFactory {
         project: VideoProject,
         resolution: String,
         fps: Int,
-        watermarkEnabled: Boolean
+        watermarkEnabled: Boolean,
+        removeVideo: Boolean = false
     ): Result {
         val (width, height) = ExportResolution.outputSize(project.aspectRatio, resolution)
-        return build(project, width, height, fps.coerceIn(15, 60), watermarkEnabled)
+        return build(project, width, height, fps.coerceIn(15, 60), watermarkEnabled, removeVideo)
     }
 
     /**
@@ -152,23 +153,30 @@ object ProjectCompositionFactory {
         width: Int,
         height: Int,
         fps: Int,
-        watermarkEnabled: Boolean
+        watermarkEnabled: Boolean,
+        /** Drops every video track so Transformer renders an audio-only file. */
+        removeVideo: Boolean = false
     ): Result {
         require(width > 0 && height > 0) { "Invalid output size ${width}x$height" }
 
         val renderPlan = plan(project, width, height, fps)
         val warnings = linkedSetOf<String>().apply { addAll(renderPlan.warnings) }
-        val (sequences, overlayInputs) = buildSequences(project, renderPlan, fps, warnings)
+        val (sequences, overlayInputs) =
+            buildSequences(project, renderPlan, fps, warnings, removeVideo)
 
         val compositionEffects = mutableListOf<Effect>()
-        compositionEffects += Presentation.createForWidthAndHeight(
-            width,
-            height,
-            Presentation.LAYOUT_SCALE_TO_FIT
-        )
+        if (!removeVideo) {
+            compositionEffects += Presentation.createForWidthAndHeight(
+                width,
+                height,
+                Presentation.LAYOUT_SCALE_TO_FIT
+            )
+        }
         // A single full-frame canvas keeps all 2D layers in one texture and is
         // also where timeline effects and the watermark are burned in.
-        compositionEffects += OverlayEffect(listOf(TimelineCanvasOverlay(project, watermarkEnabled)))
+        if (!removeVideo) {
+            compositionEffects += OverlayEffect(listOf(TimelineCanvasOverlay(project, watermarkEnabled)))
+        }
 
         val compositorSettings = ProjectCompositorSettings(width, height, overlayInputs)
         val compositionBuilder = Composition.Builder(sequences)
@@ -179,7 +187,7 @@ object ProjectCompositionFactory {
         // ("SingleInputVideoGraph does not use VideoCompositor...") and the
         // export dies before it starts. The custom settings only describe the
         // overlay (PIP) inputs, so they are only needed when overlays exist.
-        if (overlayInputs.isNotEmpty()) {
+        if (!removeVideo && overlayInputs.isNotEmpty()) {
             compositionBuilder.setVideoCompositorSettings(compositorSettings)
         }
         val composition = compositionBuilder.build()

@@ -49,6 +49,7 @@ fun TimelineToolsSheet(
     onAddMarker: () -> Unit,
     onPreviousMarker: () -> Unit,
     onNextMarker: () -> Unit,
+    onOpenMarkers: () -> Unit = {},
     onToggleMultiSelect: () -> Unit,
     onToggleMagneticSnap: () -> Unit,
     onZoomChanged: (Float) -> Unit,
@@ -113,7 +114,7 @@ fun TimelineToolsSheet(
             ToolChip("+ Marker", false, "marker_add") { onAddMarker() }
             ToolChip("◀ Marker", false, "marker_prev") { onPreviousMarker() }
             ToolChip("Marker ▶", false, "marker_next") { onNextMarker() }
-            ToolChip("Markers: $markerCount", markerCount > 0) { }
+            ToolChip("Markers: $markerCount", markerCount > 0) { onOpenMarkers() }
             ToolChip("Multi-select", isMultiSelect, "multiselect") { onToggleMultiSelect() }
             ToolChip("Snap", magneticSnap, "snap") { onToggleMagneticSnap() }
             ToolChip("Keyframe", false, "keyframe") {

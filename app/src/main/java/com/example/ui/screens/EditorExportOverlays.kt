@@ -226,6 +226,10 @@ internal fun BoxScope.EditorExportOverlays(
                         onDismissExportOptions()
                         viewModel.startSelectedExport()
                     },
+                    onSaveAudioOnly = {
+                        onDismissExportOptions()
+                        viewModel.startAudioOnlyExport()
+                    },
                     onDismiss = { onDismissExportOptions() }
                 )
             }
