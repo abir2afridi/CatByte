@@ -248,6 +248,14 @@ class EditorViewModel(
     internal val _appLanguage = MutableStateFlow(AppLanguage.SYSTEM)
     val appLanguage: StateFlow<AppLanguage> = _appLanguage.asStateFlow()
 
+    /**
+     * OpenAI-compatible endpoint configured in Settings → AI. Empty config
+     * means the editor AI chips explain that no endpoint is set instead of
+     * pretending to work.
+     */
+    internal val _aiConfig = MutableStateFlow(com.example.data.ai.AiConfig())
+    val aiConfig: StateFlow<com.example.data.ai.AiConfig> = _aiConfig.asStateFlow()
+
     internal val _cacheSizeMb = MutableStateFlow(0)
     val cacheSizeMb: StateFlow<Int> = _cacheSizeMb.asStateFlow()
 
@@ -268,6 +276,10 @@ class EditorViewModel(
     fun closeSettings() = SettingsFeature.closeSettings(this)
 
     fun setDefaultResolution(res: String) = SettingsFeature.setDefaultResolution(this, res)
+
+    /** Stores the AI endpoint used by the editor AI features (Settings → AI). */
+    fun saveAiConfig(baseUrl: String, apiKey: String, model: String, imageModel: String) =
+        SettingsFeature.saveAiConfig(this, baseUrl, apiKey, model, imageModel)
 
     fun setDefaultFps(fps: Int) = SettingsFeature.setDefaultFps(this, fps)
 
@@ -408,6 +420,12 @@ class EditorViewModel(
                     _showPaperGrid.value = settings.showPaperGrid
                     _watermarkEnabled.value = settings.watermarkEnabled
                     _appLanguage.value = settings.language
+                    _aiConfig.value = com.example.data.ai.AiConfig(
+                        baseUrl = settings.aiBaseUrl,
+                        apiKey = settings.aiApiKey,
+                        model = settings.aiModel,
+                        imageModel = settings.aiImageModel
+                    )
                 }
             }
         }

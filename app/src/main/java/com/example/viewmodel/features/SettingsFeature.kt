@@ -22,6 +22,29 @@ internal object SettingsFeature {
         vm.viewModelScope.launch { vm.settingsRepository?.setLanguage(language) }
     }
 
+    /**
+     * Saves the OpenAI-compatible endpoint the editor AI features use. The
+     * in-memory config updates immediately so the next AI tap uses the new
+     * endpoint without restarting the editor.
+     */
+    fun saveAiConfig(
+        vm: EditorViewModel,
+        baseUrl: String,
+        apiKey: String,
+        model: String,
+        imageModel: String
+    ) {
+        vm._aiConfig.value = com.example.data.ai.AiConfig(
+            baseUrl = baseUrl.trim(),
+            apiKey = apiKey.trim(),
+            model = model.trim().ifBlank { "gpt-4o-mini" },
+            imageModel = imageModel.trim().ifBlank { "dall-e-3" }
+        )
+        vm.viewModelScope.launch {
+            vm.settingsRepository?.setAiConfig(baseUrl, apiKey, model, imageModel)
+        }
+    }
+
     fun openSettings(vm: EditorViewModel) {
         vm._isSettingsOpen.value = true
         refreshCacheSize(vm)

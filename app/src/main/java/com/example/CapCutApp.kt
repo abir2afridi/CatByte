@@ -49,6 +49,7 @@ fun CapCutApp(
     val watermarkEnabled by viewModel.watermarkEnabled.collectAsStateWithLifecycle()
     val cacheSizeMb by viewModel.cacheSizeMb.collectAsStateWithLifecycle()
     val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
+    val aiConfig by viewModel.aiConfig.collectAsStateWithLifecycle()
 
     val navigateToSettings: () -> Unit = {
         settingsReturnScreen = currentScreen
@@ -214,12 +215,19 @@ fun CapCutApp(
                     watermarkEnabled = watermarkEnabled,
                     cacheSizeMb = cacheSizeMb,
                     appLanguage = appLanguage,
+                    aiBaseUrl = aiConfig.baseUrl,
+                    aiApiKey = aiConfig.apiKey,
+                    aiModel = aiConfig.model,
+                    aiImageModel = aiConfig.imageModel,
                     onSelectTheme = { viewModel.setAppThemeMode(it) },
                     onSelectResolution = { viewModel.setDefaultResolution(it) },
                     onSelectFps = { viewModel.setDefaultFps(it) },
                     onTogglePaperGrid = { viewModel.togglePaperGrid(it) },
                     onToggleWatermark = { viewModel.toggleWatermark(it) },
                     onSelectLanguage = { viewModel.setAppLanguage(it) },
+                    onSaveAiConfig = { url, key, model, imageModel ->
+                        viewModel.saveAiConfig(url, key, model, imageModel)
+                    },
                     onClearCache = { viewModel.clearCache() },
                     onClearAllProjects = { viewModel.clearAllProjects() },
                     onOpenSystemLogs = { navigateToSystemLogs() },

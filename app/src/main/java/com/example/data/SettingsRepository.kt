@@ -21,8 +21,22 @@ data class AppSettings(
     val defaultFps: Int = 30,
     val showPaperGrid: Boolean = true,
     val watermarkEnabled: Boolean = false,
-    val language: AppLanguage = AppLanguage.SYSTEM
-)
+    val language: AppLanguage = AppLanguage.SYSTEM,
+    /**
+     * OpenAI-compatible AI endpoint. Empty means "no AI configured" and the
+     * editor shows the AI tools as unavailable instead of pretending.
+     * Example: https://api.openai.com  or  http://192.168.0.10:1234
+     */
+    val aiBaseUrl: String = "",
+    val aiApiKey: String = "",
+    /** Chat/completions model used by text features (remix, lyrics, translate). */
+    val aiModel: String = "gpt-4o-mini",
+    /** Images model used by the AI image feature. */
+    val aiImageModel: String = "dall-e-3"
+) {
+    /** True when the user has pointed the app at an AI endpoint. */
+    val hasAiEndpoint: Boolean get() = aiBaseUrl.isNotBlank()
+}
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "catbyte_settings"
@@ -41,6 +55,10 @@ class SettingsRepository(private val context: Context) {
         val PAPER_GRID = booleanPreferencesKey("show_paper_grid")
         val WATERMARK = booleanPreferencesKey("watermark_enabled")
         val LANGUAGE = stringPreferencesKey("app_language")
+        val AI_BASE_URL = stringPreferencesKey("ai_base_url")
+        val AI_API_KEY = stringPreferencesKey("ai_api_key")
+        val AI_MODEL = stringPreferencesKey("ai_model")
+        val AI_IMAGE_MODEL = stringPreferencesKey("ai_image_model")
     }
 
     val settings: Flow<AppSettings> = context.settingsDataStore.data
@@ -62,7 +80,11 @@ class SettingsRepository(private val context: Context) {
                 watermarkEnabled = prefs[Keys.WATERMARK] ?: false,
                 language = prefs[Keys.LANGUAGE]
                     ?.let { value -> AppLanguage.entries.firstOrNull { it.name == value } }
-                    ?: AppLanguage.SYSTEM
+                    ?: AppLanguage.SYSTEM,
+                aiBaseUrl = prefs[Keys.AI_BASE_URL] ?: "",
+                aiApiKey = prefs[Keys.AI_API_KEY] ?: "",
+                aiModel = prefs[Keys.AI_MODEL] ?: "gpt-4o-mini",
+                aiImageModel = prefs[Keys.AI_IMAGE_MODEL] ?: "dall-e-3"
             )
         }
 
@@ -89,5 +111,19 @@ class SettingsRepository(private val context: Context) {
     suspend fun setLanguage(language: AppLanguage) {
         context.settingsDataStore.edit { it[Keys.LANGUAGE] = language.name }
         LocaleUtils.persistLanguage(context, language)
+    }
+
+    /**
+     * Stores the OpenAI-compatible endpoint used by the editor AI features.
+     * An empty [baseUrl] disables AI again (the editor then explains that no
+     * endpoint is configured instead of failing mid-edit).
+     */
+    suspend fun setAiConfig(baseUrl: String, apiKey: String, model: String, imageModel: String) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[Keys.AI_BASE_URL] = baseUrl.trim()
+            prefs[Keys.AI_API_KEY] = apiKey.trim()
+            prefs[Keys.AI_MODEL] = model.trim().ifBlank { "gpt-4o-mini" }
+            prefs[Keys.AI_IMAGE_MODEL] = imageModel.trim().ifBlank { "dall-e-3" }
+        }
     }
 }

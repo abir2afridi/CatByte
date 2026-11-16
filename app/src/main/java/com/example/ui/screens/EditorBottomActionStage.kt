@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -23,6 +24,8 @@ import com.example.model.MediaClip
 import com.example.model.VideoProject
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
+import com.example.viewmodel.features.AiFeature
+import kotlinx.coroutines.launch
 
 /**
  * The editor's bottom action bar.
@@ -49,6 +52,7 @@ internal fun EditorBottomActionStage(
     onImportCaptions: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // The active main feature of the two-level navigation. It is stored by
     // name so the state survives a configuration change.
@@ -68,11 +72,15 @@ internal fun EditorBottomActionStage(
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
-    /** Cloud-only features are not part of the offline build. */
+    /**
+     * Features that need a specialised AI provider (background removal, lip
+     * sync, avatar generation, ...). Text and image AI DO work when the user
+     * configures an endpoint in Settings → AI.
+     */
     val notAvailable: (String) -> Unit = { name ->
         Toast.makeText(
             context,
-            "$name needs an online AI model - unavailable in this offline build",
+            "$name needs a specialised AI provider. Text and image AI work through Settings → AI.",
             Toast.LENGTH_LONG
         ).show()
     }
@@ -169,8 +177,11 @@ internal fun EditorBottomActionStage(
                 "video_quality" -> viewModel.setActiveSheet(ActiveToolSheet.EXPORT_MODAL)
                 "remove_bg" -> notAvailable("Remove BG")
                 "ai_remove" -> notAvailable("AI remove")
+                "ai_remix" -> scope.launch {
+                    notify("AI remix: thinking…")
+                    notify(AiFeature.remixScript(viewModel))
+                }
                 "ai_expand" -> notAvailable("AI expand")
-                "ai_remix" -> notAvailable("AI remix")
                 "eye_contact" -> notAvailable("Eye contact")
                 "relight" -> notAvailable("Relight")
                 "motion_blur" -> notAvailable("Motion blur")
@@ -182,7 +193,10 @@ internal fun EditorBottomActionStage(
                 "reduce_noise" -> notAvailable("Reduce noise")
                 "audio_effects" -> notAvailable("Audio effects")
                 "enhance_voice" -> notAvailable("Enhance voice")
-                "video_translator" -> notAvailable("Video translator")
+                "video_translator" -> scope.launch {
+                    notify("AI translate: working...")
+                    notify(AiFeature.translateCaptions(viewModel))
+                }
                 "retouch" -> notAvailable("Retouch")
                 "unlink" -> withClip {
                     if (!viewModel.detachAudioFromSelectedClip()) {
@@ -226,15 +240,29 @@ internal fun EditorBottomActionStage(
                 "auto_captions" -> viewModel.addAutoCaptions()
                 "caption_template" -> viewModel.setActiveSheet(ActiveToolSheet.CAPTIONS)
                 "import_captions" -> onImportCaptions()
-                "ai_packaging" -> notAvailable("AI packaging")
-                "auto_lyrics" -> notAvailable("Auto lyrics")
-                "ai_emoji" -> notAvailable("AI emoji")
+                "ai_packaging" -> scope.launch {
+                    notify("AI packaging: thinking...")
+                    notify(AiFeature.packagingTitles(viewModel))
+                }
+                "auto_lyrics" -> scope.launch {
+                    notify("AI lyrics: writing...")
+                    notify(AiFeature.generateLyrics(viewModel))
+                }
+                "ai_emoji" -> scope.launch {
+                    notify("AI emoji: thinking...")
+                    notify(AiFeature.emojiSuggestions(viewModel))
+                }
                 else -> notify("${subFeature.label} is not available yet")
             }
 
             EditorMainTab.GENERATE_MEDIA -> when (subFeature.id) {
                 "generated" -> notify("No generated media yet")
-                "ai_image" -> notAvailable("AI image")
+                "ai_image" -> scope.launch {
+                    notify("AI image: generating...")
+                    val prompt = project.title.ifBlank { "cinematic background" } +
+                        ", vertical 9:16 background, no text"
+                    notify(AiFeature.generateBackgroundImage(viewModel, prompt))
+                }
                 "ai_video" -> notAvailable("AI video")
                 "ai_dialogue_scene" -> notAvailable("AI dialogue scene")
                 else -> notify("${subFeature.label} is not available yet")

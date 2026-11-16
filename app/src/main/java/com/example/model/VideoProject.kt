@@ -16,6 +16,12 @@ data class VideoProject(
     val fps: Int = 30,
     val isFavorite: Boolean = false,
     val paperStyle: String = "Drafting Grid",
+    /**
+     * Canvas background image (uri string). When set it is drawn behind the
+     * clips in both the preview and the exported file, and overrides
+     * [paperStyle]. Empty means "use the paper style".
+     */
+    val backgroundImageUri: String = "",
     /** Main video track controls (the main clips have no `VideoTrack` object). */
     val isMainTrackMuted: Boolean = false,
     val isMainTrackLocked: Boolean = false,

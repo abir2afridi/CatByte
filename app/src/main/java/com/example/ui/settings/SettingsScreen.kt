@@ -47,12 +47,17 @@ fun SettingsScreen(
     watermarkEnabled: Boolean,
     cacheSizeMb: Int,
     appLanguage: AppLanguage = AppLanguage.SYSTEM,
+    aiBaseUrl: String = "",
+    aiApiKey: String = "",
+    aiModel: String = "gpt-4o-mini",
+    aiImageModel: String = "dall-e-3",
     onSelectTheme: (AppThemeMode) -> Unit,
     onSelectResolution: (String) -> Unit,
     onSelectFps: (Int) -> Unit,
     onTogglePaperGrid: (Boolean) -> Unit,
     onToggleWatermark: (Boolean) -> Unit,
     onSelectLanguage: (AppLanguage) -> Unit = {},
+    onSaveAiConfig: (String, String, String, String) -> Unit = { _, _, _, _ -> },
     onClearCache: () -> Unit,
     onClearAllProjects: () -> Unit,
     onOpenSystemLogs: () -> Unit,
@@ -110,6 +115,14 @@ fun SettingsScreen(
             SettingsLanguageSection(
                 appLanguage = appLanguage,
                 onSelectLanguage = onSelectLanguage
+            )
+
+            SettingsAiSection(
+                baseUrl = aiBaseUrl,
+                apiKey = aiApiKey,
+                model = aiModel,
+                imageModel = aiImageModel,
+                onSave = onSaveAiConfig
             )
 
             SettingsWatermarkSection(
