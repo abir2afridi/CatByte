@@ -10,13 +10,16 @@ import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
 import com.example.data.export.ConstantGainProvider
 import com.example.data.export.ConstantSpeedProvider
+import com.example.data.export.DuckGainProvider
 import com.example.model.AudioClip
 import kotlin.math.abs
 
 /** Builds the independent audio-track sequence, including its timeline gap. */
 internal fun ProjectCompositionFactory.buildAudioSequence(
     audio: AudioClip,
-    startTimelineUs: Long
+    startTimelineUs: Long,
+    /** Timeline spans where a voice-over is audible; music ducks underneath. */
+    voiceRanges: List<LongRange> = emptyList()
 ): EditedMediaItemSequence {
     val clippingBuilder = MediaItem.ClippingConfiguration.Builder()
     if (audio.trimStartMs > 0L || audio.trimEndMs > audio.trimStartMs) {
@@ -30,14 +33,23 @@ internal fun ProjectCompositionFactory.buildAudioSequence(
         .setClippingConfiguration(clippingBuilder.build())
         .build()
     val gain = if (audio.isMuted) 0f else audio.volume.coerceIn(0f, 2f)
-    val processor = GainProcessor(
-        ConstantGainProvider(
-            gain = gain,
-            fadeInMs = audio.fadeInMs,
-            fadeOutMs = audio.fadeOutMs,
-            durationMs = audio.durationMs
-        )
+    val baseGain = ConstantGainProvider(
+        gain = gain,
+        fadeInMs = audio.fadeInMs,
+        fadeOutMs = audio.fadeOutMs,
+        durationMs = audio.durationMs
     )
+    // Auto-ducking: only music ducks, a voice-over never ducks itself.
+    val gainProvider = if (!audio.isVoiceover && voiceRanges.isNotEmpty() && gain > 0f) {
+        DuckGainProvider(
+            base = baseGain,
+            startTimelineMs = startTimelineUs / 1000L,
+            voiceRanges = voiceRanges
+        )
+    } else {
+        baseGain
+    }
+    val processor = GainProcessor(gainProvider)
     val itemBuilder = EditedMediaItem.Builder(mediaItem)
         .setDurationUs(audio.durationMs.coerceAtLeast(1L) * 1000L)
         .setRemoveVideo(true)

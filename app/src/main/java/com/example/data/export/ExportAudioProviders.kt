@@ -43,3 +43,33 @@ class ConstantGainProvider(
 
     override fun isUnityUntil(presentationTimeUs: Long, sampleRate: Int): Long = Long.MIN_VALUE
 }
+
+/**
+ * Music gain that automatically dips while a voice-over is audible.
+ *
+ * [startTimelineMs] lifts the item-relative sample position onto the project
+ * timeline, and [voiceRanges] are the timeline spans of audible voice-over
+ * clips. The attack/release curve lives in [AudioMath.duckEnvelope], so the
+ * preview mixer and the export muxer dip by exactly the same amount.
+ */
+@UnstableApi
+class DuckGainProvider(
+    private val base: ConstantGainProvider,
+    private val startTimelineMs: Long,
+    private val voiceRanges: List<LongRange>,
+    private val duckAmount: Float = 0.35f
+) : GainProcessor.GainProvider {
+
+    override fun getGainFactorAtSamplePosition(presentationTimeUs: Long, sampleRate: Int): Float {
+        val baseGain = base.getGainFactorAtSamplePosition(presentationTimeUs, sampleRate)
+        if (voiceRanges.isEmpty()) return baseGain
+        val timelineMs = startTimelineMs + presentationTimeUs / 1000L
+        return baseGain * AudioMath.duckEnvelope(
+            positionMs = timelineMs,
+            voiceRanges = voiceRanges,
+            duckAmount = duckAmount
+        )
+    }
+
+    override fun isUnityUntil(presentationTimeUs: Long, sampleRate: Int): Long = Long.MIN_VALUE
+}

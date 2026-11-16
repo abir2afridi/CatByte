@@ -131,15 +131,16 @@ internal fun AudioVoiceTab(
             Column(modifier = Modifier.weight(1f)) {
                 Text("Auto Audio Ducking", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 Text(
-                    "Needs voice-over detection — unavailable offline",
+                    "Music dips automatically under every voice-over",
                     color = CapCutTextSecondary,
                     fontSize = 9.sp
                 )
             }
-            androidx.compose.material3.Switch(
-                checked = false,
-                onCheckedChange = null,
-                enabled = false
+            Text(
+                "Always on",
+                color = CapCutTextSecondary,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium
             )
         }
         Row(
