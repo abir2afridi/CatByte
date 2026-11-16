@@ -70,6 +70,7 @@ val DefaultAiTools: List<AiToolEntry> = listOf(
     AiToolEntry("packaging", "AI packaging", "Three titles for this video", AiToolKind.TEXT),
     AiToolEntry("captions", "AI auto captions", "Transcribe the clip's audio with timing", AiToolKind.SPEECH),
     AiToolEntry("image", "AI image", "Generate a background image from a prompt", AiToolKind.IMAGE),
+    AiToolEntry("cover", "AI cover", "Generate the project's cover image", AiToolKind.IMAGE),
     AiToolEntry("eye_contact", "Eye contact", "Re-aims the subject's gaze in every frame", AiToolKind.SPECIALISED),
     AiToolEntry("relight", "Relight", "Relights the scene with a virtual light rig", AiToolKind.SPECIALISED),
     AiToolEntry("ai_remove", "AI remove", "Object removal with inpainting", AiToolKind.SPECIALISED),

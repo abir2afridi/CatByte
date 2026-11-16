@@ -26,6 +26,7 @@ import com.example.ui.theme.PencilTheme
 @Composable
 fun AiImagePromptDialog(
     defaultPrompt: String,
+    title: String = "AI image",
     onGenerate: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -36,7 +37,7 @@ fun AiImagePromptDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("AI image", color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         },
         text = {
             OutlinedTextField(

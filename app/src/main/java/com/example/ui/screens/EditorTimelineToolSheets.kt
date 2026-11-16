@@ -109,7 +109,7 @@ internal fun AiToolsToolSheet(
     val scope = rememberCoroutineScope()
     val aiConfig by viewModel.aiConfig.collectAsState()
     val project by viewModel.currentProject.collectAsState()
-    var showImagePrompt by remember { mutableStateOf(false) }
+    var imageAction by remember { mutableStateOf<String?>(null) }
 
     fun notify(message: String) {
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
@@ -124,7 +124,8 @@ internal fun AiToolsToolSheet(
                 "translate" -> scope.launch { notify(AiFeature.translateCaptions(viewModel)) }
                 "packaging" -> scope.launch { notify(AiFeature.packagingTitles(viewModel)) }
                 "captions" -> scope.launch { notify(viewModel.addAutoCaptions()) }
-                "image" -> showImagePrompt = true
+                "image" -> imageAction = "background"
+                "cover" -> imageAction = "cover"
                 else -> notify("This tool needs a specialised model that the configured endpoint does not provide")
             }
         },
@@ -132,19 +133,32 @@ internal fun AiToolsToolSheet(
         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
     )
 
-    if (showImagePrompt) {
+    val action = imageAction
+    if (action != null) {
+        val isCover = action == "cover"
         AiImagePromptDialog(
-            defaultPrompt = project?.title?.ifBlank { "cinematic background" }
-                ?.plus(", vertical 9:16 background, no text")
-                ?: "cinematic 9:16 background, no text",
+            title = if (isCover) "AI cover" else "AI image",
+            defaultPrompt = if (isCover) {
+                (project?.title?.ifBlank { "my video" } ?: "my video") +
+                    ", vertical 9:16 video cover, bold composition, space for a title, no text"
+            } else {
+                (project?.title?.ifBlank { "cinematic background" } ?: "cinematic background") +
+                    ", vertical 9:16 background, no text"
+            },
             onGenerate = { prompt ->
-                showImagePrompt = false
+                imageAction = null
                 scope.launch {
-                    notify("Generating image with ${aiConfig.imageModel}…")
-                    notify(AiFeature.generateBackgroundImage(viewModel, prompt))
+                    notify("Generating with ${aiConfig.imageModel}…")
+                    notify(
+                        if (isCover) {
+                            AiFeature.generateCoverImage(viewModel, prompt)
+                        } else {
+                            AiFeature.generateBackgroundImage(viewModel, prompt)
+                        }
+                    )
                 }
             },
-            onDismiss = { showImagePrompt = false }
+            onDismiss = { imageAction = null }
         )
     }
 }

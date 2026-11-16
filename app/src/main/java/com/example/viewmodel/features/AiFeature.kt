@@ -93,20 +93,50 @@ internal object AiFeature {
      * working offline afterwards.
      */
     suspend fun generateBackgroundImage(vm: EditorViewModel, prompt: String): String {
+        val saved = generateImageFile(vm, prompt) ?: return lastImageError
+        val uri = Uri.fromFile(saved).toString()
+        vm.updateProject { project -> project.copy(backgroundImageUri = uri) }
+        return "AI image generated and set as the canvas background"
+    }
+
+    /** Generates a cover image with the image model and saves it as the project cover. */
+    suspend fun generateCoverImage(vm: EditorViewModel, prompt: String): String {
+        val saved = generateImageFile(vm, prompt) ?: return lastImageError
+        val uri = Uri.fromFile(saved).toString()
+        vm.setProjectCover(frameMs = 0L, imageUri = uri)
+        return "AI cover generated and saved to the project"
+    }
+
+    /** Last failure from [generateImageFile], so callers can return the reason. */
+    private var lastImageError: String = "Could not generate the image"
+
+    /** Calls the image endpoint and writes the bytes to app storage (null on failure). */
+    private suspend fun generateImageFile(vm: EditorViewModel, prompt: String): File? {
         val config = vm.aiConfig.value
-        if (!config.isConfigured) return AiClient.NO_ENDPOINT
-        val context = vm.context ?: return "AI image needs the app context"
+        if (!config.isConfigured) {
+            lastImageError = AiClient.NO_ENDPOINT
+            return null
+        }
+        val context = vm.context
+        if (context == null) {
+            lastImageError = "AI image needs the app context"
+            return null
+        }
 
         return when (val result = AiClient.generateImage(config, prompt)) {
-            is AiResult.Failure -> result.message
+            is AiResult.Failure -> {
+                lastImageError = result.message
+                null
+            }
             is AiResult.Ok -> {
                 val dir = File(context.filesDir, "ai").apply { mkdirs() }
                 val file = File(dir, "ai_${System.currentTimeMillis()}.png")
                 runCatching { file.writeBytes(result.value) }
-                    .getOrElse { return "Could not save the generated image: ${it.message}" }
-                val uri = Uri.fromFile(file).toString()
-                vm.updateProject { project -> project.copy(backgroundImageUri = uri) }
-                "AI image generated and set as the canvas background"
+                    .getOrElse {
+                        lastImageError = "Could not save the generated image: ${it.message}"
+                        return null
+                    }
+                file
             }
         }
     }
