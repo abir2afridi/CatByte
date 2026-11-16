@@ -201,6 +201,11 @@ jobs:
       - name: Run OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
         id: depcheck
+        env:
+          # setup-java points JAVA_HOME at the runner's JDK, which does not
+          # exist inside the dependency-check container. The image ships its
+          # own JDK at /opt/jdk, so reset it for this step.
+          JAVA_HOME: /opt/jdk
         with:
           project: 'CatByte'
           path: '.'
