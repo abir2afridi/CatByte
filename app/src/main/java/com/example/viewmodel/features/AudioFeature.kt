@@ -142,6 +142,92 @@ internal object AudioFeature {
         }
     }
 
+    /**
+     * Detaches (unlinks) the selected clip's audio into its own audio track -
+     * CapCut's "Unlink": the video keeps playing silently and the sound becomes
+     * an independent clip you can move, trim, fade or delete. Both halves are
+     * written in ONE project update, so a single undo restores the original
+     * clip with its sound.
+     *
+     * @return false when there is nothing to detach (no selection, no media
+     *   source, or the audio was already detached) so the UI can explain why
+     *   instead of silently doing nothing.
+     */
+    fun detachAudioFromSelectedClip(vm: EditorViewModel): Boolean {
+        val project = vm._currentProject.value ?: return false
+        val selectedId = vm._selectedClipId.value ?: return false
+        val clip = project.allVideoClips.firstOrNull { it.id == selectedId } ?: return false
+
+        val uriString = clip.uriString
+        if (uriString.isNullOrBlank()) {
+            AppLog.warn(
+                "EditorViewModel",
+                "Cannot detach audio: '${clip.title}' has no media source"
+            )
+            return false
+        }
+        if (clip.isMuted) {
+            AppLog.info("EditorViewModel", "Audio of '${clip.title}' is already detached")
+            return false
+        }
+
+        val startMs = timelineStartMsOf(project, clip)
+        val sourceLength = ClipTiming.sourceLengthMs(clip)
+        val trimStart = clip.trimStartMs.coerceAtLeast(0L)
+        val trimEnd = if (clip.trimEndMs > trimStart) clip.trimEndMs else trimStart + sourceLength
+        val effectiveSpeed = if (ClipTiming.hasSpeedCurve(clip)) {
+            (sourceLength.toFloat() / clip.durationMs.coerceAtLeast(1L)).coerceIn(0.1f, 16f)
+        } else {
+            clip.speed.coerceIn(0.1f, 16f)
+        }
+
+        val detached = AudioClip(
+            id = UUID.randomUUID().toString(),
+            title = "${clip.title} (Audio)",
+            artist = "Detached",
+            uriString = uriString,
+            startTimelineMs = startMs,
+            durationMs = clip.durationMs.coerceAtLeast(300L),
+            trimStartMs = trimStart,
+            trimEndMs = trimEnd,
+            speed = effectiveSpeed,
+            volume = clip.volume.coerceIn(0f, 2f),
+            waveform = clip.waveform
+        )
+
+        vm.updateProject { proj ->
+            proj.copy(
+                audioTracks = proj.audioTracks + detached,
+                clips = proj.clips.map { if (it.id == clip.id) it.copy(isMuted = true) else it },
+                overlayTracks = proj.overlayTracks.map { track ->
+                    track.copy(
+                        clips = track.clips.map {
+                            if (it.id == clip.id) it.copy(isMuted = true) else it
+                        }
+                    )
+                }
+            )
+        }
+        AppLog.info(
+            "EditorViewModel",
+            "Detached audio from '${clip.title}': start=${startMs}ms, duration=${detached.durationMs}ms"
+        )
+        return true
+    }
+
+    /** Absolute timeline start of a clip (main track = sum of the clips before it). */
+    private fun timelineStartMsOf(
+        project: com.example.model.VideoProject,
+        clip: MediaClip
+    ): Long {
+        var cursor = 0L
+        for (main in project.clips) {
+            if (main.id == clip.id) return cursor
+            cursor += main.durationMs
+        }
+        return clip.startTimelineMs
+    }
+
     /** Starts a real microphone recording. */
     fun startVoiceRecording(vm: EditorViewModel) {
         val recorder = vm.voiceRecorder ?: return

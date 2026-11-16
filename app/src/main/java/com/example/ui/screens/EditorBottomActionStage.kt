@@ -166,7 +166,7 @@ internal fun EditorBottomActionStage(
                 "freeze" -> withClip { viewModel.freezeFrameAtPlayhead() }
                 "reverse" -> withClip { viewModel.reverseSelectedClip() }
                 "transcript" -> generateTranscript()
-                "video_quality" -> notAvailable("Video Quality")
+                "video_quality" -> viewModel.setActiveSheet(ActiveToolSheet.EXPORT_MODAL)
                 "remove_bg" -> notAvailable("Remove BG")
                 "ai_remove" -> notAvailable("AI remove")
                 "ai_expand" -> notAvailable("AI expand")
@@ -184,7 +184,13 @@ internal fun EditorBottomActionStage(
                 "enhance_voice" -> notAvailable("Enhance voice")
                 "video_translator" -> notAvailable("Video translator")
                 "retouch" -> notAvailable("Retouch")
-                "unlink" -> notify("Unlinking linked clips is not available yet")
+                "unlink" -> withClip {
+                    if (!viewModel.detachAudioFromSelectedClip()) {
+                        notify("This clip's audio is already detached")
+                    } else {
+                        notify("Audio detached - it now has its own track")
+                    }
+                }
                 else -> notify("${subFeature.label} is not available yet")
             }
 

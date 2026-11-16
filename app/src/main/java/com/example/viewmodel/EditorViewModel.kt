@@ -847,6 +847,12 @@ class EditorViewModel(
     /** Extracts the selected clip's audio as a real timeline audio track. */
     fun extractAudioFromSelectedClip() = AudioFeature.extractAudioFromSelectedClip(this)
 
+    /**
+     * Unlinks the selected clip's audio into its own audio track (CapCut
+     * "Unlink"). Returns false when there is nothing to detach.
+     */
+    fun detachAudioFromSelectedClip(): Boolean = AudioFeature.detachAudioFromSelectedClip(this)
+
     /** Starts a real microphone recording. */
     fun startVoiceRecording() = AudioFeature.startVoiceRecording(this)
 
