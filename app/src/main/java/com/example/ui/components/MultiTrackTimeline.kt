@@ -1,9 +1,6 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -20,15 +17,10 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -40,8 +32,6 @@ import com.example.engine.SnapEngine
 import com.example.engine.TimelineGeometry
 import com.example.model.TimelineTrackIds
 import com.example.model.VideoProject
-import kotlin.math.abs
-import kotlin.math.roundToLong
 
 /**
  * Multi-track timeline coordinator matching the CapCut screenshot.
@@ -116,13 +106,6 @@ fun MultiTrackTimeline(
     // scroll observer below never mistakes that for a user scrub.
     var programmaticScroll by remember { mutableStateOf(false) }
 
-    val latestInteraction by rememberUpdatedState(onUserInteraction)
-    val latestClearSelection by rememberUpdatedState(onClearSelection)
-    val latestOnZoom by rememberUpdatedState(onZoomChange)
-    val latestZoom by rememberUpdatedState(zoom)
-    val latestOnSeek by rememberUpdatedState(onSeek)
-    val latestIsPlaying by rememberUpdatedState(isPlaying)
-
     val fps = project.fps.coerceIn(1, 120)
     val pxPerFrameDp = (msToDp * (1_000f / fps)).coerceAtLeast(0.0001f)
     val pxPerFramePx = pxPerFrameDp * density.density
@@ -156,10 +139,6 @@ fun MultiTrackTimeline(
     val snapThresholdFrames = remember(pxPerFrameDp) {
         SnapEngine.thresholdFrames(TimelineGeometry.SNAP_THRESHOLD_DP, pxPerFrameDp)
     }
-
-    val latestSnap by rememberUpdatedState(magneticSnap)
-    val latestSnapCandidates by rememberUpdatedState(snapCandidates)
-    val latestSnapThreshold by rememberUpdatedState(snapThresholdFrames)
 
     TimelinePositionScrollSync(
         currentPositionMs = currentPositionMs,
@@ -195,7 +174,7 @@ fun MultiTrackTimeline(
                 .fillMaxSize()
                 .padding(top = playheadHeadHeight)
         ) {
-            // CapCut Fixed Left Gutter (Timecode, Mute clip, Cover, ♪, T)
+            // CapCut Fixed Left Gutter (Timecode, Mute clip, Cover, ΓÖ¬, T)
             CapCutTimelineLeftGutter(
                 currentPositionMs = currentPositionMs,
                 totalDurationMs = totalMs,
@@ -217,99 +196,22 @@ fun MultiTrackTimeline(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .pointerInput(Unit) {
-                        awaitEachGesture {
-                            awaitFirstDown(
-                                requireUnconsumed = false,
-                                pass = PointerEventPass.Initial
-                            )
-                            var baselineSpan = 0f
-                            var baselineZoom = 0f
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                val pressed = event.changes.filter { it.pressed }
-                                if (pressed.size >= 2) {
-                                    latestInteraction()
-                                    val span = abs(pressed[0].position.x - pressed[1].position.x)
-                                    if (baselineSpan <= 0f) {
-                                        baselineSpan = span.coerceAtLeast(1f)
-                                        baselineZoom = latestZoom
-                                    } else if (span > 0f) {
-                                        val next = (baselineZoom * (span / baselineSpan))
-                                            .coerceIn(0.5f, 3f)
-                                        if (abs(next - latestZoom) > 0.001f) latestOnZoom(next)
-                                    }
-                                    event.changes.forEach { it.consume() }
-                                }
-                                if (event.changes.all { !it.pressed }) break
-                            }
-                        }
-                    }
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                if (event.type == PointerEventType.Press) {
-                                    latestInteraction()
-                                }
-                            }
-                        }
-                    }
-                    .pointerInput(totalMs, fps, zoom, viewportWidthPx, needleInsetPx) {
-                        // Tap on the ruler -> seek. Deliberately non-consuming:
-                        // a drag must still reach horizontalScroll so the ruler
-                        // slides under the fixed needle. The ruler itself has
-                        // no pointer input for exactly this reason.
-                        val touchSlop = viewConfiguration.touchSlop
-                        val rulerHeightPx = 28.dp.toPx()
-                        val pxPerMsPx = msToDp * density.density
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            if (down.position.y > rulerHeightPx) return@awaitEachGesture
-                            var moved = false
-                            var multiTouch = false
-                            var released = false
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                if (event.changes.count { it.pressed } > 1) multiTouch = true
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                if (change.changedToUpIgnoreConsumed()) {
-                                    released = true
-                                    break
-                                }
-                                if (!change.pressed) break
-                                if (abs(change.position.x - down.position.x) > touchSlop ||
-                                    abs(change.position.y - down.position.y) > touchSlop
-                                ) {
-                                    moved = true
-                                }
-                            }
-                            if (released && !moved && !multiTouch && pxPerMsPx > 0f) {
-                                val contentX = scrollState.value + down.position.x
-                                val padPx = needleInsetPx
-                                val rawMs = ((contentX - padPx) / pxPerMsPx)
-                                    .roundToLong()
-                                    .coerceAtLeast(0L)
-                                latestOnSeek(
-                                    snapTargetMs(
-                                        rawMs = rawMs,
-                                        fps = fps,
-                                        totalMs = totalMs,
-                                        enabled = latestSnap,
-                                        candidates = latestSnapCandidates,
-                                        thresholdFrames = latestSnapThreshold
-                                    )
-                                )
-                            }
-                        }
-                    }
-                    .pointerInput(Unit) {
-                        // A tap that reaches this parent is a tap on EMPTY
-                        // timeline space: clips have their own clickable, which
-                        // consumes the down before it gets here. Deselect the
-                        // clip so the white border / trim handles go away.
-                        detectTapGestures(onTap = { latestClearSelection() })
-                    }
+                    .timelineViewportGestures(
+                        totalMs = totalMs,
+                        fps = fps,
+                        zoom = zoom,
+                        viewportWidthPx = viewportWidthPx,
+                        needleInsetPx = needleInsetPx,
+                        msToDp = msToDp,
+                        scrollState = scrollState,
+                        magneticSnap = magneticSnap,
+                        snapCandidates = snapCandidates,
+                        snapThresholdFrames = snapThresholdFrames,
+                        onUserInteraction = onUserInteraction,
+                        onZoomChange = onZoomChange,
+                        onSeek = onSeek,
+                        onClearSelection = onClearSelection
+                    )
                     .onSizeChanged { viewportWidthPx = it.width }
             ) {
                 TimelineRulerStrip(
@@ -385,7 +287,7 @@ fun MultiTrackTimeline(
         // Fixed centre playhead: a pure visual overlay with no pointer input,
         // so it never steals a drag from the timeline beneath. It is a
         // sibling of the whole Row (gutter + viewport), which pins the needle
-        // to the centre of the panel — exactly under the play button above.
+        // to the centre of the panel ΓÇö exactly under the play button above.
         TimelinePlayhead(
             active = scrollState.isScrollInProgress,
             headHeight = playheadHeadHeight,
