@@ -30,6 +30,7 @@ import com.example.engine.CenterPlayhead
 import com.example.engine.ClipTrimHandle
 import com.example.engine.SnapEngine
 import com.example.engine.TimelineGeometry
+import com.example.model.TimelineEffect
 import com.example.model.TimelineTrackIds
 import com.example.model.VideoProject
 
@@ -93,6 +94,8 @@ fun MultiTrackTimeline(
     onAddAudioClick: () -> Unit = {},
     onAddTextClick: () -> Unit = {},
     onCoverClick: () -> Unit = {},
+    /** Tapping a placed effect opens the duration/intensity editor. */
+    onEditEffect: (TimelineEffect) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val totalMs = project.totalDurationMs.coerceAtLeast(TimelineGeometry.MIN_TIMELINE_MS)
@@ -257,6 +260,7 @@ fun MultiTrackTimeline(
                             ) {
                                 TimelineTracksContent(
                                     project = project,
+                                    onEditEffect = onEditEffect,
                                     selectedClipId = selectedClipId,
                                     selectedTextId = selectedTextId,
                                     selectedAudioId = selectedAudioId,

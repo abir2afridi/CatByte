@@ -42,6 +42,8 @@ data class MediaClip(
     val posX: Float = 0.5f,
     val posY: Float = 0.5f,
     val opacity: Float = 1.0f,
+    /** Real GPU directional motion blur applied to this clip (Edit → Motion blur). */
+    val motionBlur: Boolean = false,
     val isReversed: Boolean = false,
     val chromaKey: ChromaKeyData = ChromaKeyData(),
 

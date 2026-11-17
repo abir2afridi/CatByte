@@ -70,6 +70,7 @@ internal fun clipToJson(clip: MediaClip): JSONObject = JSONObject().apply {
     put("posX", clip.posX.toDouble())
     put("posY", clip.posY.toDouble())
     put("opacity", clip.opacity.toDouble())
+    put("motionBlur", clip.motionBlur)
     put("isReversed", clip.isReversed)
     put("sourceWidth", clip.sourceWidth)
     put("sourceHeight", clip.sourceHeight)
@@ -130,6 +131,7 @@ internal fun clipFromJson(json: JSONObject): MediaClip = MediaClip(
     posX = json.optDouble("posX", 0.5).toFloat(),
     posY = json.optDouble("posY", 0.5).toFloat(),
     opacity = json.optDouble("opacity", 1.0).toFloat(),
+    motionBlur = json.optBoolean("motionBlur", false),
     isReversed = json.optBoolean("isReversed", false),
     sourceWidth = json.optInt("sourceWidth", 0),
     sourceHeight = json.optInt("sourceHeight", 0),

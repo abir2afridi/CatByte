@@ -202,6 +202,37 @@ class ProjectJsonTest {
         assertEquals("neon", legacy!!.backgroundMode)
     }
 
+
+    @Test
+    fun `effect intensity scale and clip motion blur round trip`() {
+        val project = fullProject().copy(
+            effects = listOf(
+                com.example.model.TimelineEffect(
+                    id = "fx_1",
+                    name = "Test",
+                    effectType = EffectType.RGB_SPLIT,
+                    startTimelineMs = 100L,
+                    durationMs = 2_000L,
+                    intensityScale = 1.4f
+                )
+            ),
+            clips = listOf(
+                fullProject().clips.first().copy(motionBlur = true)
+            )
+        )
+        val restored = ProjectJson.fromJson(ProjectJson.toJson(project))
+        assertNotNull(restored)
+        assertEquals(1.4f, restored!!.effects.single().intensityScale, 0.001f)
+        assertTrue(restored.clips.single().motionBlur)
+        // Defaults survive for older projects without the new fields.
+        val legacyJson = JSONObject(ProjectJson.toJson(project))
+        legacyJson.optJSONArray("effects")!!.getJSONObject(0).remove("intensityScale")
+        legacyJson.optJSONArray("clips")!!.getJSONObject(0).remove("motionBlur")
+        val legacy = ProjectJson.fromJson(legacyJson.toString())
+        assertEquals(1f, legacy!!.effects.single().intensityScale, 0.001f)
+        assertTrue(!legacy.clips.single().motionBlur)
+    }
+
     @Test
     fun `corrupt json returns null instead of crashing`() {
         assertNull(ProjectJson.fromJson("this is not json"))

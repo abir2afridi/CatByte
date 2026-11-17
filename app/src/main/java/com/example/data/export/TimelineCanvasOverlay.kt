@@ -524,15 +524,12 @@ class TimelineCanvasOverlay(
             else -> {
                 // Every library preset: one shared op computation feeds both
                 // this export renderer and the Compose preview.
+                val spec = effect.effectType.spec.let {
+                    it.copy(intensity = (it.intensity * effect.intensityScale).coerceIn(0.05f, 1.6f))
+                }
                 EffectOpsRenderer.draw(
                     canvas,
-                    com.example.engine.EffectOps.compute(
-                        effect.effectType,
-                        effect.effectType.spec,
-                        localMs,
-                        width,
-                        height
-                    )
+                    com.example.engine.EffectOps.compute(effect.effectType, spec, localMs, width, height)
                 )
             }
         }

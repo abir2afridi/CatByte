@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,7 +26,8 @@ import com.example.ui.theme.PencilTheme
 @Composable
 fun TimelineEffectsTrack(
     effects: List<TimelineEffect>,
-    msToDp: Float
+    msToDp: Float,
+    onEffectClick: (TimelineEffect) -> Unit = {}
 ) {
     val colors = PencilTheme.colors
 
@@ -48,6 +50,7 @@ fun TimelineEffectsTrack(
                     .clip(RoundedCornerShape(6.dp))
                     .background(colors.accentGreen.copy(alpha = 0.25f))
                     .border(1.2.dp, colors.accentGreen, RoundedCornerShape(6.dp))
+                    .clickable { onEffectClick(effect) }
                     .padding(horizontal = 8.dp),
                 contentAlignment = Alignment.CenterStart
             ) {

@@ -60,6 +60,12 @@ fun SettingsScreen(
     onToggleWatermark: (Boolean) -> Unit,
     onToggleSafeAreaGuides: (Boolean) -> Unit = {},
     onSelectLanguage: (AppLanguage) -> Unit = {},
+    /** Backup & restore (Settings -> Backup). */
+    currentProjectTitle: String = "",
+    currentProjectId: String? = null,
+    onBackupProject: (android.net.Uri, Boolean, (String) -> Unit) -> Unit = { _, _, _ -> },
+    onRestoreBackup: (android.net.Uri, (String) -> Unit) -> Unit = { _, _ -> },
+    onNotifyBackup: (String) -> Unit = {},
     onSaveAiConfig: (String, String, String, String, String) -> Unit = { _, _, _, _, _ -> },
     onClearCache: () -> Unit,
     onClearAllProjects: () -> Unit,
@@ -129,6 +135,14 @@ fun SettingsScreen(
                 imageModel = aiImageModel,
                 speechModel = aiSpeechModel,
                 onSave = onSaveAiConfig
+            )
+
+            SettingsBackupSection(
+                currentProjectTitle = currentProjectTitle,
+                currentProjectId = currentProjectId,
+                onBackup = onBackupProject,
+                onRestore = onRestoreBackup,
+                onNotify = onNotifyBackup
             )
 
             SettingsWatermarkSection(

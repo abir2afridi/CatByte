@@ -253,6 +253,26 @@ fun CapCutApp(
                     onToggleWatermark = { viewModel.toggleWatermark(it) },
                     onToggleSafeAreaGuides = { viewModel.toggleSafeAreaGuides(it) },
                     onSelectLanguage = { viewModel.setAppLanguage(it) },
+                    currentProjectTitle = viewModel.currentProject.value?.title.orEmpty(),
+                    currentProjectId = viewModel.currentProject.value?.id,
+                    onBackupProject = { destination, includeMedia, onDone ->
+                        val projectId = viewModel.currentProject.value?.id
+                        if (projectId == null) {
+                            onDone("Open a project first")
+                        } else {
+                            scope.launch {
+                                onDone(viewModel.backupProject(projectId, destination, includeMedia))
+                            }
+                        }
+                    },
+                    onRestoreBackup = { source, onDone ->
+                        scope.launch {
+                            onDone(viewModel.restoreProjectBackup(source))
+                        }
+                    },
+                    onNotifyBackup = { message ->
+                        Toast.makeText(appContext, message, Toast.LENGTH_LONG).show()
+                    },
                     onSaveAiConfig = { url, key, model, imageModel, speechModel ->
                         viewModel.saveAiConfig(url, key, model, imageModel, speechModel)
                     },

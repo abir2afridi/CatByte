@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -26,6 +27,7 @@ import com.example.viewmodel.EditorViewModel
 internal fun EditorTimelineStage(
     viewModel: EditorViewModel,
     project: VideoProject,
+
     positionState: State<Long>,
     isPlaying: Boolean,
     selectedClipId: String?,
@@ -41,6 +43,25 @@ internal fun EditorTimelineStage(
     addMediaLauncher: ActivityResultLauncher<PickVisualMediaRequest>,
     onTransitionClick: (String) -> Unit
 ) {
+    // Placed-effect editor: tapping an effect chip on the timeline opens it.
+    val editingEffectId = remember { mutableStateOf<String?>(null) }
+    val editingEffect = editingEffectId.value?.let { id ->
+        project.effects.firstOrNull { it.id == id }
+    }
+    if (editingEffect != null) {
+        com.example.ui.components.EffectEditDialog(
+            effect = editingEffect,
+            onEdit = { durationMs, intensityScale ->
+                viewModel.updateTimelineEffect(editingEffect.id, durationMs, intensityScale)
+            },
+            onDelete = {
+                viewModel.deleteTimelineEffect(editingEffect.id)
+                editingEffectId.value = null
+            },
+            onDismiss = { editingEffectId.value = null }
+        )
+    }
+
     // Group actions for multi-selection.
     val selectedOverlayClips = remember(project, selectedClipIds) {
         project.overlayTracks.flatMap { it.clips }
@@ -82,6 +103,7 @@ internal fun EditorTimelineStage(
             .heightIn(min = 150.dp, max = 220.dp)
     ) {
         MultiTrackTimeline(
+            onEditEffect = { editingEffectId.value = it.id },
             project = project,
             currentPositionMs = positionState,
             isPlaying = isPlaying,

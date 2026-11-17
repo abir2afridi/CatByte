@@ -151,6 +151,7 @@ internal fun effectToJson(effect: TimelineEffect): JSONObject = JSONObject().app
     put("effectType", effect.effectType.name)
     put("startTimelineMs", effect.startTimelineMs)
     put("durationMs", effect.durationMs)
+    put("intensityScale", effect.intensityScale.toDouble())
 }
 
 internal fun effectFromJson(json: JSONObject): TimelineEffect = TimelineEffect(
@@ -158,7 +159,8 @@ internal fun effectFromJson(json: JSONObject): TimelineEffect = TimelineEffect(
     name = json.optString("name", "Effect"),
     effectType = parseEnum(json.optString("effectType"), EffectType.RGB_SPLIT),
     startTimelineMs = json.optLong("startTimelineMs"),
-    durationMs = json.optLong("durationMs", 2000L)
+    durationMs = json.optLong("durationMs", 2000L),
+    intensityScale = json.optDouble("intensityScale", 1.0).toFloat()
 )
 
 internal fun markerToJson(marker: TimelineMarker): JSONObject = JSONObject().apply {

@@ -107,6 +107,12 @@ internal fun ProjectCompositionFactory.buildVideoItem(
         if (clip.opacity < 0.999f) {
             videoEffects += AlphaScale(clip.opacity.coerceIn(0f, 1f))
         }
+        // Real GPU directional motion blur ("Edit -> Motion blur").
+        if (clip.motionBlur) {
+            videoEffects += com.example.data.export.MotionBlurEffect(
+                strength = 0.5f
+            )
+        }
     }
 
     val audioProcessors = mutableListOf<AudioProcessor>()

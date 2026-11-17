@@ -29,9 +29,12 @@ internal fun ClipEffectOverlays(
         .filter { it.effectType !in LEGACY_PRESETS }
         .forEach { effect ->
             androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                val spec = effect.effectType.spec.let {
+                    it.copy(intensity = (it.intensity * effect.intensityScale).coerceIn(0.05f, 1.6f))
+                }
                 com.example.engine.EffectOps.compute(
                     effect.effectType,
-                    effect.effectType.spec,
+                    spec,
                     localMs,
                     size.width,
                     size.height

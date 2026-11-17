@@ -225,7 +225,12 @@ internal fun EditorBottomActionStage(
                 "ai_expand" -> notAvailable("AI expand")
                 "eye_contact" -> notAvailable("Eye contact")
                 "relight" -> notAvailable("Relight")
-                "motion_blur" -> notAvailable("Motion blur")
+                "motion_blur" -> withClip {
+                    val clip = project.allVideoClips.firstOrNull { it.id == viewModel.selectedClipId.value }
+                    val enabling = clip?.motionBlur != true
+                    viewModel.toggleMotionBlurOnSelectedClip(enabling)
+                    notify(if (enabling) "Motion blur on for this clip" else "Motion blur off")
+                }
                 "lip_sync" -> notAvailable("Lip sync")
                 "auto_reframe" -> notAvailable("Auto reframe")
                 "stabilize" -> notAvailable("Stabilize")

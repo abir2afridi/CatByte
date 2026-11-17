@@ -896,6 +896,22 @@ class EditorViewModel(
     fun setClipFilter(filter: VideoFilter) = ClipPropertyFeature.setClipFilter(this, filter)
 
     /** Per-clip audio effects (voice preset, enhance voice, noise gate). */
+    /** Applies or removes GPU motion blur on the selected clip ("Motion blur"). */
+    fun toggleMotionBlurOnSelectedClip(enabled: Boolean): Boolean {
+        val clipId = _selectedClipId.value ?: return false
+        val project = _currentProject.value ?: return false
+        val clip = project.allVideoClips.firstOrNull { it.id == clipId } ?: return false
+        if (clip.motionBlur == enabled) return true
+        updateProject { proj ->
+            proj.copy(
+                clips = proj.clips.map { c ->
+                    if (c.id == clipId) c.copy(motionBlur = enabled) else c
+                }
+            )
+        }
+        return true
+    }
+
     /**
      * Applies or removes vocal isolation on the selected video clip. Used by
      * the "Isolate voice" bottom-bar chip; returns false when nothing is selected.
@@ -1206,6 +1222,21 @@ class EditorViewModel(
 
     fun deleteTimelineEffect(id: String) =
         TimelineEffectFeature.deleteTimelineEffect(this, id)
+
+    /** Edits a placed effect: duration and intensity (undoable, one update). */
+    fun updateTimelineEffect(id: String, durationMs: Long, intensityScale: Float) =
+        updateProject { proj ->
+            proj.copy(
+                effects = proj.effects.map { fx ->
+                    if (fx.id == id) {
+                        fx.copy(
+                            durationMs = durationMs.coerceIn(300L, 30_000L),
+                            intensityScale = intensityScale.coerceIn(0.2f, 2f)
+                        )
+                    } else fx
+                }
+            )
+        }
 
     fun setAspectRatio(ratio: AspectRatioType) = CanvasFeature.setAspectRatio(this, ratio)
 

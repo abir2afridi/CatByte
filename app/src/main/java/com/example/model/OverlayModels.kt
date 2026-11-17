@@ -35,7 +35,9 @@ data class TimelineEffect(
     val name: String,
     val effectType: EffectType,
     val startTimelineMs: Long = 0L,
-    val durationMs: Long = 2000L
+    val durationMs: Long = 2000L,
+    /** User multiplier on the preset's intensity (0.2 .. 2.0). */
+    val intensityScale: Float = 1f
 )
 
 /** A timeline marker: labelled magnet and jump target. */

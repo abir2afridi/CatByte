@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.engine.ClipTrimHandle
+import com.example.model.TimelineEffect
 import com.example.model.VideoProject
 
 /** The stacked main / overlay / audio / text / effects track rows. */
@@ -17,6 +18,7 @@ internal fun TimelineTracksContent(
     selectedClipId: String?,
     selectedTextId: String?,
     selectedAudioId: String?,
+    onEditEffect: (TimelineEffect) -> Unit = {},
     msToDp: Float,
     fps: Int,
     isMultiSelect: Boolean,
@@ -123,7 +125,8 @@ internal fun TimelineTracksContent(
             Spacer(modifier = Modifier.height(5.dp))
             TimelineEffectsTrack(
                 effects = project.effects,
-                msToDp = msToDp
+                msToDp = msToDp,
+                onEffectClick = onEditEffect
             )
         }
     }
