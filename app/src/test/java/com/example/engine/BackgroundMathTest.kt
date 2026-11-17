@@ -128,4 +128,22 @@ class BackgroundMathTest {
         assertNear(0.3f, u)
         assertNear(0.8f, v)
     }
+
+    @Test
+    fun `contain fit picks the smaller scale factor`() {
+        // 9:16 source into a square canvas: the height limits (0.375), so the
+        // video becomes 405x720 with pillarbox bars.
+        assertEquals(0.375f, BackgroundMath.containFitScale(1080, 1920, 720, 720), 0.0001f)
+        // 16:9 source into a square canvas: height is the limiting edge.
+        assertEquals(0.5625f, BackgroundMath.containFitScale(1280, 720, 720, 720), 0.0001f)
+        // Upscaling is allowed - the compositor scales up small sources.
+        assertEquals(2f, BackgroundMath.containFitScale(360, 640, 720, 1280), 0.0001f)
+    }
+
+    @Test
+    fun `contain fit degrades to no scaling for unusable sizes`() {
+        assertEquals(1f, BackgroundMath.containFitScale(0, 100, 100, 100))
+        assertEquals(1f, BackgroundMath.containFitScale(100, 100, 0, 100))
+        assertEquals(1f, BackgroundMath.containFitScale(-5, 100, 100, 100))
+    }
 }

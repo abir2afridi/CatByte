@@ -106,7 +106,9 @@ internal object AiFeature {
     suspend fun generateBackgroundImage(vm: EditorViewModel, prompt: String): String {
         val saved = generateImageFile(vm, prompt) ?: return lastImageError
         val uri = Uri.fromFile(saved).toString()
-        vm.updateProject { project -> project.copy(backgroundImageUri = uri) }
+        vm.updateProject { project ->
+            project.copy(backgroundImageUri = uri, backgroundMode = "image")
+        }
         return "AI image generated and set as the canvas background"
     }
 

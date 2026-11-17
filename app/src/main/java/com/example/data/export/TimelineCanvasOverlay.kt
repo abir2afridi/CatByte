@@ -49,7 +49,13 @@ class TimelineCanvasOverlay(
     private val project: VideoProject,
     private val watermarkEnabled: Boolean,
     /** Decoded canvas background image, already downscaled (null = colour only). */
-    private val backgroundImage: Bitmap? = null
+    private val backgroundImage: Bitmap? = null,
+    /**
+     * True when the composition itself supplies the background (blurred video
+     * filling the canvas). The bars are already painted by that input, so the
+     * overlay must not draw the colour/image background on top of it.
+     */
+    private val backgroundSuppliedByComposition: Boolean = false
 ) : CanvasOverlay(true) {
 
     private val overlaySettings: OverlaySettings = StaticOverlaySettings.Builder()
@@ -75,7 +81,9 @@ class TimelineCanvasOverlay(
         val height = canvas.height.toFloat()
         if (width <= 0f || height <= 0f) return
 
-        drawCanvasBackground(canvas, timeMs, width, height)
+        if (!backgroundSuppliedByComposition) {
+            drawCanvasBackground(canvas, timeMs, width, height)
+        }
         drawVignette(canvas, timeMs, width, height)
         drawTimelineEffects(canvas, timeMs, width, height)
         project.textOverlays.forEach { drawText(canvas, it, timeMs, width, height) }

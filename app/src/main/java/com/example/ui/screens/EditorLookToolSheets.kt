@@ -45,7 +45,8 @@ internal fun BackgroundToolSheet(
         currentPaperStyle = project.paperStyle,
         onSelectBackground = { viewModel.setPaperStyle(it) },
         currentBackgroundImageUri = project.backgroundImageUri,
-        onPickBackgroundImage = { viewModel.setBackgroundImage(it) },
+        // Imported into app storage: photo-picker grants do not survive a reboot.
+        onPickBackgroundImage = { picked -> viewModel.importBackgroundImage(picked) },
         onClearBackgroundImage = { viewModel.setBackgroundImage("") },
         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
     )

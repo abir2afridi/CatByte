@@ -36,7 +36,12 @@ data class AppSettings(
     /** Images model used by the AI image feature. */
     val aiImageModel: String = "dall-e-3",
     /** Speech-to-text model used by AI auto captions (Whisper-compatible). */
-    val aiSpeechModel: String = "whisper-1"
+    val aiSpeechModel: String = "whisper-1",
+    /**
+     * Brand background: a locally imported image (app-storage path) the user
+     * picked once and can reapply to any project with one tap. Empty = none.
+     */
+    val brandBackgroundPath: String = ""
 ) {
     /** True when the user has pointed the app at an AI endpoint. */
     val hasAiEndpoint: Boolean get() = aiBaseUrl.isNotBlank()
@@ -65,6 +70,7 @@ class SettingsRepository(private val context: Context) {
         val AI_MODEL = stringPreferencesKey("ai_model")
         val AI_IMAGE_MODEL = stringPreferencesKey("ai_image_model")
         val AI_SPEECH_MODEL = stringPreferencesKey("ai_speech_model")
+        val BRAND_BACKGROUND = stringPreferencesKey("brand_background_path")
     }
 
     val settings: Flow<AppSettings> = context.settingsDataStore.data
@@ -92,7 +98,8 @@ class SettingsRepository(private val context: Context) {
                 aiApiKey = prefs[Keys.AI_API_KEY] ?: "",
                 aiModel = prefs[Keys.AI_MODEL] ?: "gpt-4o-mini",
                 aiImageModel = prefs[Keys.AI_IMAGE_MODEL] ?: "dall-e-3",
-                aiSpeechModel = prefs[Keys.AI_SPEECH_MODEL] ?: "whisper-1"
+                aiSpeechModel = prefs[Keys.AI_SPEECH_MODEL] ?: "whisper-1",
+                brandBackgroundPath = prefs[Keys.BRAND_BACKGROUND] ?: ""
             )
         }
 
@@ -123,6 +130,14 @@ class SettingsRepository(private val context: Context) {
     suspend fun setLanguage(language: AppLanguage) {
         context.settingsDataStore.edit { it[Keys.LANGUAGE] = language.name }
         LocaleUtils.persistLanguage(context, language)
+    }
+
+    /** Stores (or clears, with an empty string) the reusable brand background. */
+    suspend fun setBrandBackground(path: String) {
+        context.settingsDataStore.edit { prefs ->
+            if (path.isBlank()) prefs.remove(Keys.BRAND_BACKGROUND)
+            else prefs[Keys.BRAND_BACKGROUND] = path
+        }
     }
 
     /**

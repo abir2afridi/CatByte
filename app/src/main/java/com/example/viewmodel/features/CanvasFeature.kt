@@ -1,5 +1,6 @@
 package com.example.viewmodel.features
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.viewModelScope
 import com.example.data.MediaMetadata
@@ -24,6 +25,41 @@ internal object CanvasFeature {
         vm.updateProject { proj ->
             proj.copy(paperStyle = style)
         }
+    }
+
+    /**
+     * Sets what fills the letterbox bars: "color" (paper style), "image"
+     * ([VideoProject.backgroundImageUri]) or "blur" (a blurred copy of the
+     * video filling the canvas). Anything else falls back to "color".
+     */
+    fun setBackgroundMode(vm: EditorViewModel, mode: String) {
+        val safe = when (mode) {
+            "image", "blur" -> mode
+            else -> "color"
+        }
+        vm.updateProject { proj -> proj.copy(backgroundMode = safe) }
+    }
+
+    /**
+     * Copies a picked gallery image into app storage (photo-picker permissions
+     * do not survive a reboot) and applies it as the background image with the
+     * "image" mode. Returns the stored path, or null when the copy failed.
+     */
+    fun importBackgroundImage(vm: EditorViewModel, context: Context, picked: Uri): String? {
+        val stored = runCatching {
+            val dir = java.io.File(context.filesDir, "backgrounds").apply { mkdirs() }
+            val dest = java.io.File(dir, "bg_${System.currentTimeMillis()}.jpg")
+            context.contentResolver.openInputStream(picked)?.use { input ->
+                dest.outputStream().use { output -> input.copyTo(output) }
+            } ?: error("Could not read the picked image")
+            dest.absolutePath
+        }.getOrElse {
+            com.example.data.AppLog.error("CanvasFeature", "Could not import the background image", it)
+            return null
+        }
+        setBackgroundImage(vm, stored)
+        setBackgroundMode(vm, "image")
+        return stored
     }
 
     /**

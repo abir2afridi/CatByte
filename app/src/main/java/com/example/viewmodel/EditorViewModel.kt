@@ -278,6 +278,10 @@ class EditorViewModel(
     internal val _aiConfig = MutableStateFlow(com.example.data.ai.AiConfig())
     val aiConfig: StateFlow<com.example.data.ai.AiConfig> = _aiConfig.asStateFlow()
 
+    /** Reusable brand background (app-storage path, empty = none). */
+    private val _brandBackgroundPath = MutableStateFlow("")
+    val brandBackgroundPath: StateFlow<String> = _brandBackgroundPath.asStateFlow()
+
     internal val _cacheSizeMb = MutableStateFlow(0)
     val cacheSizeMb: StateFlow<Int> = _cacheSizeMb.asStateFlow()
 
@@ -458,6 +462,7 @@ class EditorViewModel(
                         imageModel = settings.aiImageModel,
                         speechModel = settings.aiSpeechModel
                     )
+                    _brandBackgroundPath.value = settings.brandBackgroundPath
                 }
             }
         }
@@ -1105,6 +1110,26 @@ class EditorViewModel(
     /** Sets (or, with an empty string, clears) the canvas background image. */
     fun setBackgroundImage(uriString: String) =
         CanvasFeature.setBackgroundImage(this, uriString)
+
+    /** Sets what fills the letterbox bars: "color", "image" or "blur". */
+    fun setBackgroundMode(mode: String) = CanvasFeature.setBackgroundMode(this, mode)
+
+    /** Copies a picked gallery image into app storage and applies it. */
+    fun importBackgroundImage(picked: Uri): String? =
+        context?.let { CanvasFeature.importBackgroundImage(this, it, picked) }
+
+    /**
+     * Brand background: stores [path] as the reusable brand image and applies
+     * it to the current project. An empty path clears the brand only.
+     */
+    fun saveBrandBackground(path: String) {
+        _brandBackgroundPath.value = path
+        viewModelScope.launch { settingsRepository?.setBrandBackground(path) }
+        if (path.isNotBlank()) {
+            setBackgroundImage(path)
+            setBackgroundMode("image")
+        }
+    }
 
     /**
      * Stores the project cover: a timeline frame and/or a custom image. Both the

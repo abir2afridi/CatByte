@@ -62,7 +62,8 @@ fun BackgroundSheet(
     onSelectBackground: (String) -> Unit,
     /** Current background image (uri string); empty means colour only. */
     currentBackgroundImageUri: String = "",
-    onPickBackgroundImage: ((String) -> Unit)? = null,
+    /** Receives the picked gallery [android.net.Uri] for import. */
+    onPickBackgroundImage: ((android.net.Uri) -> Unit)? = null,
     onClearBackgroundImage: (() -> Unit)? = null,
     onClose: () -> Unit
 ) {
@@ -70,7 +71,7 @@ fun BackgroundSheet(
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        if (uri != null) onPickBackgroundImage?.invoke(uri.toString())
+        if (uri != null) onPickBackgroundImage?.invoke(uri)
     }
 
     Column(

@@ -170,6 +170,23 @@ class ProjectJsonTest {
     }
 
     @Test
+    fun `background mode and image round trip`() {
+        val project = fullProject().copy(
+            backgroundImageUri = "/data/bg.jpg",
+            backgroundMode = "blur"
+        )
+        val restored = ProjectJson.fromJson(ProjectJson.toJson(project))
+        assertNotNull(restored)
+        assertEquals("blur", restored!!.backgroundMode)
+        assertEquals("/data/bg.jpg", restored.backgroundImageUri)
+        // Unknown mode strings survive as written (no crash on future modes).
+        val mutated = JSONObject(ProjectJson.toJson(project))
+        mutated.put("backgroundMode", "neon")
+        val legacy = ProjectJson.fromJson(mutated.toString())
+        assertEquals("neon", legacy!!.backgroundMode)
+    }
+
+    @Test
     fun `corrupt json returns null instead of crashing`() {
         assertNull(ProjectJson.fromJson("this is not json"))
         assertNull(ProjectJson.fromJson("{\"clips\": 42"))

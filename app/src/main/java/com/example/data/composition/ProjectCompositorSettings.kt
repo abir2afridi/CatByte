@@ -17,7 +17,14 @@ import com.example.model.MediaClip
 internal class ProjectCompositorSettings(
     private val width: Int,
     private val height: Int,
-    private val overlayInputs: Map<Int, MediaClip>
+    private val overlayInputs: Map<Int, MediaClip>,
+    /**
+     * When a blurred background copy occupies input 0, the sharp main video
+     * becomes [mainInputId] and must be contain-fitted instead of stretched
+     * over the background. `null` keeps the default full-frame mapping.
+     */
+    private val mainInputId: Int = 0,
+    private val mainScale: Float? = null
 ) : VideoCompositorSettings {
 
     private val defaultSettings: OverlaySettings = StaticOverlaySettings.Builder()
@@ -27,6 +34,14 @@ internal class ProjectCompositorSettings(
     override fun getOutputSize(inputSizes: List<Size>): Size = Size(width, height)
 
     override fun getOverlaySettings(inputId: Int, presentationTimeUs: Long): OverlaySettings {
+        // Main video sitting above a blurred background input: contain-fit it
+        // so the blur shows in the bars (CapCut "Background -> Blur").
+        if (mainScale != null && inputId == mainInputId) {
+            return StaticOverlaySettings.Builder()
+                .setScale(mainScale, mainScale)
+                .setAlphaScale(1f)
+                .build()
+        }
         val clip = overlayInputs[inputId] ?: return defaultSettings
         val timeMs = presentationTimeUs / 1000L
         val localMs = timeMs - clip.startTimelineMs

@@ -28,6 +28,13 @@ data class VideoProject(
      * [paperStyle]. Empty means "use the paper style".
      */
     val backgroundImageUri: String = "",
+    /**
+     * What fills the bars around a non-fitting video: "color" (the paper
+     * style), "image" ([backgroundImageUri]) or "blur" (a blurred copy of the
+     * video filling the whole canvas behind the sharp video). Preview and
+     * export share the composition, so both show the same thing.
+     */
+    val backgroundMode: String = "color",
     /** Main video track controls (the main clips have no `VideoTrack` object). */
     val isMainTrackMuted: Boolean = false,
     val isMainTrackLocked: Boolean = false,

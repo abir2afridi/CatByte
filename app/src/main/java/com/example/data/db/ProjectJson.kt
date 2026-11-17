@@ -35,6 +35,7 @@ object ProjectJson {
         put("fps", project.fps)
         put("paperStyle", project.paperStyle)
         put("backgroundImageUri", project.backgroundImageUri)
+        put("backgroundMode", project.backgroundMode)
         put("isFavorite", project.isFavorite)
         put("lastModified", project.lastModified)
         put("isMainTrackMuted", project.isMainTrackMuted)
@@ -122,6 +123,7 @@ object ProjectJson {
         isFavorite = json.optBoolean("isFavorite", false),
         paperStyle = json.optString("paperStyle", "Drafting Grid"),
         backgroundImageUri = json.optString("backgroundImageUri", ""),
+        backgroundMode = json.optString("backgroundMode", "color"),
         isMainTrackMuted = json.optBoolean("isMainTrackMuted", false),
         isMainTrackLocked = json.optBoolean("isMainTrackLocked", false),
         isMainTrackSolo = json.optBoolean("isMainTrackSolo", false)

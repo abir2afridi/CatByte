@@ -184,12 +184,22 @@ object ProjectCompositionFactory {
 
         val renderPlan = plan(project, width, height, fps)
         val warnings = linkedSetOf<String>().apply { addAll(renderPlan.warnings) }
+        // Background mode "blur": a blurred fill copy of the main track sits
+        // behind the sharp video. Image/color modes are painted by the canvas
+        // overlay into the bars and need no extra input.
+        val blurBackground = !removeVideo &&
+            project.backgroundMode == "blur" &&
+            renderPlan.main.any { !it.clip.uriString.isNullOrBlank() }
+
         val (sequences, overlayInputs) = buildSequences(
             project = project,
             renderPlan = renderPlan,
             fps = fps,
             warnings = warnings,
-            removeVideo = removeVideo
+            removeVideo = removeVideo,
+            blurBackground = blurBackground,
+            canvasWidth = width,
+            canvasHeight = height
         )
 
         val compositionEffects = mutableListOf<Effect>()
@@ -204,11 +214,40 @@ object ProjectCompositionFactory {
         // also where timeline effects and the watermark are burned in.
         if (!removeVideo) {
             compositionEffects += OverlayEffect(
-                listOf(TimelineCanvasOverlay(project, watermarkEnabled, backgroundImage))
+                listOf(
+                    TimelineCanvasOverlay(
+                        project,
+                        watermarkEnabled,
+                        backgroundImage,
+                        backgroundSuppliedByComposition = blurBackground
+                    )
+                )
             )
         }
 
-        val compositorSettings = ProjectCompositorSettings(width, height, overlayInputs)
+        // With a blurred background input the main video is input 1 and must
+        // be contain-fitted so the blur shows in the bars.
+        val compositorSettings = if (blurBackground) {
+            val source = project.allVideoClips.firstOrNull {
+                it.sourceWidth > 0 && it.sourceHeight > 0
+            }
+            ProjectCompositorSettings(
+                width = width,
+                height = height,
+                overlayInputs = overlayInputs,
+                mainInputId = 1,
+                mainScale = source?.let {
+                    com.example.engine.BackgroundMath.containFitScale(
+                        it.sourceWidth,
+                        it.sourceHeight,
+                        width,
+                        height
+                    )
+                }
+            )
+        } else {
+            ProjectCompositorSettings(width, height, overlayInputs)
+        }
         val compositionBuilder = Composition.Builder(sequences)
             .setEffects(Effects(emptyList(), compositionEffects))
         // Media3 only builds a VideoCompositor when MORE THAN ONE sequence
@@ -217,7 +256,7 @@ object ProjectCompositionFactory {
         // ("SingleInputVideoGraph does not use VideoCompositor...") and the
         // export dies before it starts. The custom settings only describe the
         // overlay (PIP) inputs, so they are only needed when overlays exist.
-        if (!removeVideo && overlayInputs.isNotEmpty()) {
+        if (!removeVideo && (overlayInputs.isNotEmpty() || blurBackground)) {
             compositionBuilder.setVideoCompositorSettings(compositorSettings)
         }
         val composition = compositionBuilder.build()

@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -53,6 +55,7 @@ internal fun EditorBottomActionStage(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val brandBackgroundPath by viewModel.brandBackgroundPath.collectAsState()
 
     // The active main feature of the two-level navigation. It is stored by
     // name so the state survives a configuration change.
@@ -71,6 +74,23 @@ internal fun EditorBottomActionStage(
     val notify: (String) -> Unit = { message ->
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
+
+    // Brand background: first pick imports + saves it as the reusable brand
+    // image; afterwards the chip reapplies the saved one with a single tap.
+    val brandBackgroundPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { picked ->
+        if (picked != null) {
+            val stored = viewModel.importBackgroundImage(picked)
+            if (stored != null) {
+                viewModel.saveBrandBackground(stored)
+                notify("Brand background saved - tap again on any project to reuse it")
+            } else {
+                notify("Could not import the brand image")
+            }
+        }
+    }
+
 
     /**
      * Features that need a specialised AI provider (background removal, lip
@@ -338,10 +358,28 @@ internal fun EditorBottomActionStage(
             }
 
             EditorMainTab.BACKGROUND -> when (subFeature.id) {
-                "color" -> viewModel.setActiveSheet(ActiveToolSheet.BACKGROUND)
-                "image" -> notify("Image backgrounds are not available yet")
-                "blur" -> notify("Blurred backgrounds are not available yet")
-                "brand_background" -> notAvailable("Brand Background")
+                "color" -> {
+                    viewModel.setBackgroundMode("color")
+                    viewModel.setActiveSheet(ActiveToolSheet.BACKGROUND)
+                }
+                "image" -> {
+                    viewModel.setBackgroundMode("image")
+                    viewModel.setActiveSheet(ActiveToolSheet.BACKGROUND)
+                }
+                "blur" -> {
+                    viewModel.setBackgroundMode("blur")
+                    notify("Blur on - the video fills and blurs behind the frame")
+                }
+                "brand_background" -> {
+                    if (brandBackgroundPath.isNotBlank()) {
+                        viewModel.saveBrandBackground(brandBackgroundPath)
+                        notify("Brand background applied")
+                    } else {
+                        brandBackgroundPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    }
+                }
                 else -> notify("${subFeature.label} is not available yet")
             }
 

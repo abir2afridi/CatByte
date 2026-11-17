@@ -60,6 +60,26 @@ object BackgroundMath {
         }
     }
 
+    /**
+     * The uniform scale that contain-fits a source of [sourceWidth]x[sourceHeight]
+     * into a canvas of [canvasWidth]x[canvasHeight]. This is what the video
+     * compositor needs to letterbox the main video above a blurred background
+     * input. Unusable sizes degrade to 1 (no scaling).
+     */
+    fun containFitScale(
+        sourceWidth: Int,
+        sourceHeight: Int,
+        canvasWidth: Int,
+        canvasHeight: Int
+    ): Float {
+        if (sourceWidth <= 0 || sourceHeight <= 0 || canvasWidth <= 0 || canvasHeight <= 0) {
+            return 1f
+        }
+        val scaleX = canvasWidth.toFloat() / sourceWidth.toFloat()
+        val scaleY = canvasHeight.toFloat() / sourceHeight.toFloat()
+        return minOf(scaleX, scaleY)
+    }
+
     /** "Cover" mapping of normalised canvas coordinates into image coordinates. */
     fun coverMappedUv(u: Float, v: Float, canvasAspect: Float, imageAspect: Float): Pair<Float, Float> {
         if (!isUsableAspect(canvasAspect) || !isUsableAspect(imageAspect)) {

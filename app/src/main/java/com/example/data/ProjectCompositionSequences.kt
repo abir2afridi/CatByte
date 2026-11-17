@@ -21,10 +21,47 @@ internal fun ProjectCompositionFactory.buildSequences(
     renderPlan: ProjectCompositionFactory.RenderPlan,
     fps: Int,
     warnings: MutableSet<String>,
-    removeVideo: Boolean = false
+    removeVideo: Boolean = false,
+    /** Prepend a blurred fill copy of the main track (background mode "blur"). */
+    blurBackground: Boolean = false,
+    canvasWidth: Int = 0,
+    canvasHeight: Int = 0
 ): CompositionSequences {
     val sequences = mutableListOf<EditedMediaItemSequence>()
     val overlayInputs = linkedMapOf<Int, MediaClip>()
+
+    // 0. Blurred background (background mode "blur"): a video-only copy of the
+    // main track scaled to FILL the canvas and blurred. It occupies compositor
+    // input 0, so the sharp main video becomes input 1 and the overlays shift.
+    // Gaps mirror the main track so the blur stays time-aligned.
+    if (blurBackground && !removeVideo &&
+        renderPlan.main.any { !it.clip.uriString.isNullOrBlank() }
+    ) {
+        val blurBuilder = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_VIDEO))
+        var blurCursorUs = 0L
+        renderPlan.main.forEach { planned ->
+            val gapUs = planned.layer.timelineInUs - blurCursorUs
+            if (gapUs > 0L) {
+                blurBuilder.addGap(gapUs)
+            }
+            if (!planned.clip.uriString.isNullOrBlank()) {
+                blurBuilder.addItem(
+                    buildVideoItem(
+                        project,
+                        planned,
+                        fps,
+                        warnings,
+                        removeVideo,
+                        backgroundFill = true,
+                        canvasWidth = canvasWidth,
+                        canvasHeight = canvasHeight
+                    )
+                )
+            }
+            blurCursorUs = planned.layer.timelineOutUs
+        }
+        sequences += blurBuilder.build()
+    }
 
     // 1. Primary video sequence. Placeholder clips become real timeline gaps
     // so the main track always occupies the same absolute time as the editor.

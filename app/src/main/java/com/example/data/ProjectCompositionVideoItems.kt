@@ -46,7 +46,15 @@ internal fun ProjectCompositionFactory.buildVideoItem(
     planned: ProjectCompositionFactory.PlannedClip,
     fps: Int,
     warnings: MutableSet<String>,
-    removeVideo: Boolean = false
+    removeVideo: Boolean = false,
+    /**
+     * Builds the blurred-background copy of a main-track clip: the same edits,
+     * scaled to FILL the canvas and blurred, with its audio removed so the mix
+     * is not doubled. Only used when the project background mode is "blur".
+     */
+    backgroundFill: Boolean = false,
+    canvasWidth: Int = 0,
+    canvasHeight: Int = 0
 ): EditedMediaItem {
     val clip = planned.clip
     val layer = planned.layer
@@ -81,6 +89,18 @@ internal fun ProjectCompositionFactory.buildVideoItem(
             // neighbour, so preview and export share one decision.
             transitionDurationMs = (layer.transitionIn?.durationUs ?: 0L) / 1000L
         )
+        if (backgroundFill) {
+            // Fill the whole canvas with this clip (cropping the overflow),
+            // then blur it: that blurred picture is the letterbox background.
+            videoEffects += androidx.media3.effect.Presentation.createForWidthAndHeight(
+                canvasWidth,
+                canvasHeight,
+                androidx.media3.effect.Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP
+            )
+            videoEffects += androidx.media3.effect.GaussianBlur(
+                minOf(canvasWidth, canvasHeight) * 0.03f
+            )
+        }
         // CapCut's Opacity control blends the whole clip over the canvas.
         // Applied after the transition so the slider's value survives.
         if (clip.opacity < 0.999f) {
@@ -103,6 +123,9 @@ internal fun ProjectCompositionFactory.buildVideoItem(
         .setFrameRate(fps)
         // Audio-only export: keep the audio graph, drop every video track.
         .setRemoveVideo(removeVideo)
+        // The blurred background copy carries no audio: the sharp main video
+        // already contributes the clip sound exactly once.
+        .setRemoveAudio(backgroundFill)
         .setEffects(Effects(audioProcessors, if (removeVideo) emptyList() else videoEffects))
 
     if (ClipTiming.hasSpeedCurve(clip) || abs(clip.speed - 1f) > 0.001f) {
