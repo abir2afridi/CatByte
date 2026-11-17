@@ -51,7 +51,7 @@ internal object ClipPropertyFeature {
         vm.updateProject(coalesceKey = "speed:$clipId") { proj ->
             proj.withUpdatedClip(clipId) { clip ->
                 val updatedClip = clip.copy(
-                    speed = speed.coerceIn(0.1f, 100f),
+                    speed = speed.coerceIn(0.1f, ClipTiming.MAX_SPEED),
                     speedCurve = SpeedCurve()
                 )
                 updatedClip.copy(durationMs = ClipTiming.presentationDurationMs(updatedClip))

@@ -235,7 +235,15 @@ internal fun PlayerManager.loadFallback(project: VideoProject, startMs: Long, wa
     fallbackSlots = slots
     _activePlayer.value = player
     _usesCompositionPreview.value = false
-    _previewWarnings.value = emptyList()
+    val hasIndependentAudio = project.audioTracks.any { !it.uriString.isNullOrBlank() }
+    _previewWarnings.value = if (hasIndependentAudio) {
+        listOf(
+            "Independent audio is unavailable in the device fallback preview; " +
+                "the exported file still uses the full mixer."
+        )
+    } else {
+        emptyList()
+    }
     if (mediaItems.isNotEmpty()) {
         // The composition path failed, but the fallback preview is a
         // working substitute: a red "Preview error" pill over it would be

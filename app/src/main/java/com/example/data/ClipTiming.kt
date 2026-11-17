@@ -25,7 +25,8 @@ object ClipTiming {
     const val MIN_CLIP_MS = 300L
     private const val CURVE_STEP_US = 40_000L
     private const val MIN_SPEED = 0.05f
-    private const val MAX_SPEED = 32f
+    /** Highest speed the preview/export renderer can actually produce. */
+    const val MAX_SPEED = 32f
 
     /** Length of the source media selected by the trim handles, in milliseconds. */
     fun sourceLengthMs(clip: MediaClip): Long {

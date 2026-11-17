@@ -115,6 +115,7 @@ internal fun EditorMainTab.subFeatures(): List<EditorSubFeature> = when (this) {
     )
 
     EditorMainTab.AUDIO -> listOf(
+        EditorSubFeature("mixer", "Mixer"),
         EditorSubFeature("extract", "Extract"),
         EditorSubFeature("sounds", "Sounds", audioTab = EditorAudioTabs.MUSIC),
         EditorSubFeature("sound_fx", "Sound FX", audioTab = EditorAudioTabs.SFX),

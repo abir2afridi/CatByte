@@ -79,7 +79,7 @@ internal fun ProjectCompositionFactory.buildSequences(
         .filter { it.isVoiceover && !it.isMuted && it.volume > 0.001f && it.durationMs > 0L }
         .map { it.startTimelineMs until (it.startTimelineMs + it.durationMs) }
     renderPlan.audio.forEach { (audio, spec) ->
-        sequences += buildAudioSequence(audio, spec.timelineInUs, voiceRanges)
+        sequences += buildAudioSequence(audio, spec, voiceRanges)
     }
 
     return CompositionSequences(sequences = sequences, overlayInputs = overlayInputs)

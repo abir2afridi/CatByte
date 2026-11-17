@@ -33,6 +33,7 @@ internal fun BoxScope.EditorToolSheetHost(
     currentText: TextOverlay?,
     captionExportCount: Int,
     selectedClipId: String?,
+    selectedAudioId: String?,
     isEyedropperActive: Boolean,
     isMultiSelect: Boolean,
     onMultiSelectChange: (Boolean) -> Unit,
@@ -87,6 +88,13 @@ internal fun BoxScope.EditorToolSheetHost(
                     voiceRecordingDurationMs = voiceRecordingDurationMs,
                     initialTab = audioSheetTab,
                     onShowTts = onShowTts
+                )
+            }
+            ActiveToolSheet.AUDIO_MIXER -> {
+                AudioMixerToolSheet(
+                    viewModel = viewModel,
+                    project = project,
+                    selectedAudioId = selectedAudioId
                 )
             }
             ActiveToolSheet.TEXT_EDITOR -> {

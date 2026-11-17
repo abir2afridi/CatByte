@@ -68,6 +68,7 @@ import com.example.engine.SubtitleIO
 import com.example.engine.TimelineEdits
 import com.example.engine.UndoJournal
 import com.example.viewmodel.features.AudioFeature
+import com.example.viewmodel.features.AudioMixerFeature
 import com.example.viewmodel.features.TextFeature
 import com.example.viewmodel.features.StickerFeature
 import com.example.viewmodel.features.StrokeFeature
@@ -119,6 +120,7 @@ enum class ActiveToolSheet {
     EDIT_CLIP,
     SPEED,
     AUDIO_LIBRARY,
+    AUDIO_MIXER,
     VOICE_RECORDER,
     TEXT_EDITOR,
     EFFECTS_LIBRARY,
@@ -215,6 +217,10 @@ class EditorViewModel(
 
     internal val _selectedTextId = MutableStateFlow<String?>(null)
     val selectedTextId: StateFlow<String?> = _selectedTextId.asStateFlow()
+
+    /** The independent audio clip currently selected in the timeline/mixer. */
+    internal val _selectedAudioId = MutableStateFlow<String?>(null)
+    val selectedAudioId: StateFlow<String?> = _selectedAudioId.asStateFlow()
 
     internal val _activeSheet = MutableStateFlow(ActiveToolSheet.NONE)
     val activeSheet: StateFlow<ActiveToolSheet> = _activeSheet.asStateFlow()
@@ -910,13 +916,87 @@ class EditorViewModel(
     // Audio Tracks
     // ==========================================
 
-    /** Adds an audio track from a URI (real duration + waveform). */
-    fun addAudioTrackFromUri(uriString: String, title: String, artist: String = "Unknown") =
-        AudioFeature.addAudioTrackFromUri(this, uriString, title, artist)
+    /**
+     * Adds an audio track from a URI (real duration + waveform).
+     *
+     * [onComplete] receives true only after a durable source was stored and the
+     * track was added to the project.
+     */
+    fun addAudioTrackFromUri(
+        uriString: String,
+        title: String,
+        artist: String = "Unknown",
+        onComplete: (Boolean) -> Unit = {}
+    ) = AudioFeature.addAudioTrackFromUri(
+        this,
+        uriString,
+        title,
+        artist,
+        onComplete
+    )
+
+    /**
+     * Generates a built-in library sample as a durable WAV before adding it.
+     * [onComplete] is true only when a renderable track was actually added.
+     */
+    fun addSampleAudioTrack(
+        sample: AudioClip,
+        onComplete: (Boolean) -> Unit = {}
+    ) = AudioFeature.addSampleAudioTrack(this, sample, onComplete)
 
     fun addAudioTrack(audioClip: AudioClip) = AudioFeature.addAudioTrack(this, audioClip)
 
     fun deleteAudioTrack(id: String) = AudioFeature.deleteAudioTrack(this, id)
+
+    /** Selects an independent audio clip and clears video/text selection. */
+    fun selectAudioClip(audioId: String?) = SelectionFeature.selectAudioClip(this, audioId)
+
+    /**
+     * Opens the per-track mixer. When no track is selected the first track is
+     * selected automatically. Returns false when the project has no audio.
+     */
+    fun openAudioMixer(): Boolean {
+        val tracks = _currentProject.value?.audioTracks.orEmpty()
+        if (tracks.isEmpty()) return false
+        val selected = _selectedAudioId.value?.takeIf { id -> tracks.any { it.id == id } }
+            ?: tracks.first().id
+        // Audio, video and text are mutually exclusive. Route through the
+        // selection feature so opening the mixer cannot leave a stale text or
+        // video selection behind.
+        SelectionFeature.selectAudioClip(this, selected)
+        _activeSheet.value = ActiveToolSheet.AUDIO_MIXER
+        return true
+    }
+
+    /** Sets one audio track's linear gain (0..2 = 0..200%). */
+    fun setAudioVolume(audioId: String, volume: Float) =
+        AudioMixerFeature.setAudioVolume(this, audioId, volume)
+
+    /**
+     * Normalises one audio track's gain to the target loudness from its decoded
+     * waveform. False means the track has no analysable waveform yet.
+     */
+    fun normaliseAudioVolume(audioId: String): Boolean =
+        AudioMixerFeature.normaliseAudioVolume(this, audioId)
+
+    /** Sets fade-in/out durations on the output timeline. */
+    fun setAudioFades(audioId: String, fadeInMs: Long, fadeOutMs: Long) =
+        AudioMixerFeature.setAudioFades(this, audioId, fadeInMs, fadeOutMs)
+
+    /** Changes an audio clip's speed while preserving its source trim. */
+    fun setAudioSpeed(audioId: String, speed: Float) =
+        AudioMixerFeature.setAudioSpeed(this, audioId, speed)
+
+    /** Changes absolute source in/out points and retimes the clip. */
+    fun setAudioTrim(audioId: String, trimStartMs: Long, trimEndMs: Long) =
+        AudioMixerFeature.setAudioTrim(this, audioId, trimStartMs, trimEndMs)
+
+    /** Moves an audio clip on the project timeline. */
+    fun setAudioTimelineStart(audioId: String, startMs: Long) =
+        AudioMixerFeature.setAudioTimelineStart(this, audioId, startMs)
+
+    /** Restores gain, mute, fades, speed and trim for one audio clip. */
+    fun resetAudioMixer(audioId: String) = AudioMixerFeature.resetAudioMixer(this, audioId)
 
     /** Extracts the selected clip's audio as a real timeline audio track. */
     fun extractAudioFromSelectedClip() = AudioFeature.extractAudioFromSelectedClip(this)

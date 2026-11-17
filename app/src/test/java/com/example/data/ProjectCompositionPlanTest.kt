@@ -131,6 +131,33 @@ class ProjectCompositionPlanTest {
     }
 
     @Test
+    fun `audio composition uses source duration trim and speed`() {
+        val audio = AudioClip(
+            id = "music",
+            title = "Music",
+            artist = "Artist",
+            uriString = "content://music",
+            startTimelineMs = 1_500L,
+            durationMs = 2_000L,
+            originalDurationMs = 10_000L,
+            trimStartMs = 2_000L,
+            trimEndMs = 6_000L,
+            speed = 2f
+        )
+        val source = project(listOf(clip("a")), audioTracks = listOf(audio))
+        val result = ProjectCompositionFactory.buildPreview(source, watermarkEnabled = false)
+        val audioSequence = result.composition.sequences.last { sequence ->
+            sequence.trackTypes == setOf(androidx.media3.common.C.TRACK_TYPE_AUDIO)
+        }
+        val item = audioSequence.editedMediaItems.last()
+
+        // Media3 requires the full source duration; clipping/speed produce the
+        // two-second output window.
+        assertEquals(10_000_000L, item.durationUs)
+        assertEquals(2f, item.speedProvider.getSpeed(0L), 0.0001f)
+    }
+
+    @Test
     fun `placeholder clips become gaps with a warning`() {
         val plan = ProjectCompositionFactory.plan(
             project(listOf(clip("a"), clip("empty", uri = null))),

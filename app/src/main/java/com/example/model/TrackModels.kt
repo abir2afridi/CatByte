@@ -19,12 +19,16 @@ data class AudioClip(
     val id: String,
     val title: String,
     val artist: String,
-    /** Source audio file. Null for the built-in library entries. */
+    /** Source audio file. Null only for built-in library metadata before generation. */
     val uriString: String? = null,
     val startTimelineMs: Long = 0L,
+    /** Duration on the output timeline after trim and speed. */
     val durationMs: Long = 6000L,
-    /** Source trim points. Both zero means "play the whole source". */
+    /** Full untrimmed source duration. Zero means "infer from legacy data". */
+    val originalDurationMs: Long = 0L,
+    /** Absolute source in-point. */
     val trimStartMs: Long = 0L,
+    /** Absolute source out-point. Zero means "until the source ends". */
     val trimEndMs: Long = 0L,
     /** Playback speed multiplier for the source audio. */
     val speed: Float = 1.0f,
@@ -33,7 +37,12 @@ data class AudioClip(
     val isMuted: Boolean = false,
     val fadeInMs: Long = 0L,
     val fadeOutMs: Long = 0L,
-    val waveform: List<Float> = listOf(0.2f, 0.5f, 0.8f, 0.9f, 0.6f, 0.4f, 0.7f, 0.9f, 0.8f, 0.5f, 0.3f, 0.6f)
+    /**
+     * Decoded peak envelope of the source file (0..1 per bar). Empty until the
+     * real file has been analysed - the UI renders "no data" instead of a
+     * decorative fake pattern.
+     */
+    val waveform: List<Float> = emptyList()
 )
 
 /** Stable ids for the two tracks that exist without a `VideoTrack` object. */

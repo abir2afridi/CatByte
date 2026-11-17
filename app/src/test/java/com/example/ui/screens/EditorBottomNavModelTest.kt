@@ -56,7 +56,7 @@ class EditorBottomNavModelTest {
     fun `audio row opens the foley studio tabs`() {
         val features = EditorMainTab.AUDIO.subFeatures()
         assertEquals(
-            listOf("Extract", "Sounds", "Sound FX", "Record", "Text to audio", "AI music", "Brand music", "Copyright"),
+            listOf("Mixer", "Extract", "Sounds", "Sound FX", "Record", "Text to audio", "AI music", "Brand music", "Copyright"),
             features.map { it.label }
         )
         assertEquals(EditorAudioTabs.MUSIC, features.first { it.id == "sounds" }.audioTab)
@@ -148,7 +148,7 @@ class EditorBottomNavModelTest {
         // chip fails here instead of shipping an empty row.
         val expected = mapOf(
             EditorMainTab.EDIT to 39,
-            EditorMainTab.AUDIO to 8,
+            EditorMainTab.AUDIO to 9,
             EditorMainTab.TEXT to 9,
             EditorMainTab.EFFECT to 4,
             EditorMainTab.OVERLAY to 1,

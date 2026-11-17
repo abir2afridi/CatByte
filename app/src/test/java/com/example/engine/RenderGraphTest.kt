@@ -129,19 +129,45 @@ class RenderGraphTest {
     }
 
     @Test
-    fun `audio fades are clamped to the clip length`() {
+    fun `audio fades are clamped without overlapping`() {
         val audio = com.example.model.AudioClip(
             id = "music",
             title = "Music",
             artist = "Artist",
             durationMs = 2_000L,
+            originalDurationMs = 2_000L,
             fadeInMs = 4_000L,
             fadeOutMs = 4_000L
         )
         val graph = RenderGraphBuilder.build(project(listOf(clip("a"))).copy(audioTracks = listOf(audio)))
         val spec = graph.audio.single()
-        assertEquals(2_000_000L, spec.fadeInUs)
-        assertEquals(2_000_000L, spec.fadeOutUs)
+        assertEquals(1_000_000L, spec.fadeInUs)
+        assertEquals(1_000_000L, spec.fadeOutUs)
+    }
+
+    @Test
+    fun `audio spec carries source trim speed and effective mute gain`() {
+        val audio = com.example.model.AudioClip(
+            id = "music",
+            title = "Music",
+            artist = "Artist",
+            uriString = "content://audio/music",
+            durationMs = 2_000L,
+            originalDurationMs = 10_000L,
+            trimStartMs = 2_000L,
+            trimEndMs = 6_000L,
+            speed = 2f,
+            volume = 0.8f,
+            isMuted = true
+        )
+        val graph = RenderGraphBuilder.build(project(listOf(clip("a"))).copy(audioTracks = listOf(audio)))
+        val spec = graph.audio.single()
+        assertEquals(10_000_000L, spec.sourceDurationUs)
+        assertEquals(2_000_000L, spec.sourceInUs)
+        assertEquals(6_000_000L, spec.sourceOutUs)
+        assertEquals(2f, spec.speed, 0.0001f)
+        assertEquals(0f, spec.volume, 0.0001f)
+        assertEquals(2_000_000L, spec.timelineOutUs - spec.timelineInUs)
     }
 
     @Test

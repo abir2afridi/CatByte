@@ -16,6 +16,7 @@ internal fun TimelineTracksContent(
     project: VideoProject,
     selectedClipId: String?,
     selectedTextId: String?,
+    selectedAudioId: String?,
     msToDp: Float,
     fps: Int,
     isMultiSelect: Boolean,
@@ -30,6 +31,8 @@ internal fun TimelineTracksContent(
     onTrimPreview: (clipId: String, edge: ClipTrimHandle.Edge, deltaMs: Long) -> Unit,
     onTrimEnd: (clipId: String, edge: ClipTrimHandle.Edge) -> Unit,
     onMoveAudioClip: (audioId: String, newStartMs: Long) -> Unit,
+    onSelectAudio: (String) -> Unit,
+    onToggleAudioMute: (String, Boolean) -> Unit,
     onToggleClipSelection: (String) -> Unit,
     onSelectText: (String) -> Unit,
     onAddAudioClick: () -> Unit,
@@ -97,8 +100,11 @@ internal fun TimelineTracksContent(
         TimelineAudioTrack(
             tracks = project.audioTracks,
             msToDp = msToDp,
+            timelineDurationMs = project.totalDurationMs,
             onMoveClip = onMoveAudioClip,
-            selectedAudioId = null,
+            selectedAudioId = selectedAudioId,
+            onSelectAudio = onSelectAudio,
+            onToggleMute = onToggleAudioMute,
             onAddAudioClick = onAddAudioClick
         )
 

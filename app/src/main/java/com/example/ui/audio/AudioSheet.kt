@@ -57,6 +57,7 @@ fun AudioSheet(
     isRecordingVoice: Boolean,
     voiceDurationMs: Long,
     onAddAudio: (AudioClip) -> Unit,
+    onImportAudio: (() -> Unit)? = null,
     onExtractAudio: (() -> Unit)? = null,
     onStartVoiceRecord: () -> Unit,
     onStopVoiceRecord: () -> Unit,
@@ -106,6 +107,19 @@ fun AudioSheet(
                     Text("Audio & Foley Studio", color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
                 Row {
+                    if (onImportAudio != null) {
+                        Button(
+                            onClick = { onImportAudio.invoke() },
+                            colors = ButtonDefaults.buttonColors(containerColor = colors.accentCyan),
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .height(30.dp)
+                                .testTag("audio_import_local")
+                        ) {
+                            Text("Import", fontSize = 10.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     if (onExtractAudio != null) {
                         Button(
                             onClick = { onExtractAudio.invoke() },
