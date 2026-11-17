@@ -23,7 +23,9 @@ internal fun ProjectCompositionFactory.buildAudioSequence(
     audio: AudioClip,
     spec: AudioSpec,
     /** Timeline spans where a voice-over is audible; music ducks underneath. */
-    voiceRanges: List<LongRange> = emptyList()
+    voiceRanges: List<LongRange> = emptyList(),
+    /** How deep the music dips under the voice-over (0 = no dip, 1 = silent). */
+    duckStrength: Float = 0.35f
 ): EditedMediaItemSequence {
     val clippingBuilder = MediaItem.ClippingConfiguration.Builder()
     val sourceInMs = spec.sourceInUs / 1_000L
@@ -85,7 +87,8 @@ internal fun ProjectCompositionFactory.buildAudioSequence(
             DuckGainProvider(
                 base = baseGain,
                 startTimelineMs = (spec.timelineInUs / 1_000L) + repeat * unitDurationMs,
-                voiceRanges = voiceRanges
+                voiceRanges = voiceRanges,
+                duckAmount = duckStrength.coerceIn(0f, 1f)
             )
         } else {
             baseGain

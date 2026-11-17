@@ -38,7 +38,14 @@ class ConstantAudioSpeedProvider(
     override fun getNextSpeedChangeTimeUs(presentationTimeUs: Long): Long = C.TIME_UNSET
 }
 
-/** Applies a constant volume with optional fade in / fade out. */
+/**
+ * Applies a constant volume with optional fade in / fade out.
+ *
+ * Media3 addresses the provider in SAMPLE FRAMES, so the millisecond maths
+ * runs through [AudioMath.samplePositionToMs]. Treating the frame counter as
+ * microseconds would stretch every fade by the sample rate (48x at 48 kHz),
+ * which is why the position is converted explicitly.
+ */
 @UnstableApi
 class ConstantGainProvider(
     private val gain: Float,
@@ -47,19 +54,31 @@ class ConstantGainProvider(
     private val durationMs: Long
 ) : GainProcessor.GainProvider {
 
-    override fun getGainFactorAtSamplePosition(presentationTimeUs: Long, sampleRate: Int): Float {
+    override fun getGainFactorAtSamplePosition(samplePosition: Long, sampleRate: Int): Float {
         val base = gain.coerceIn(0f, 2f)
         if (durationMs <= 0L) return base
         // Shared with the preview mixer (AudioMath) so fades match exactly.
         return base * AudioMath.fadeGain(
-            positionMs = presentationTimeUs / 1000L,
+            positionMs = AudioMath.samplePositionToMs(samplePosition, sampleRate),
             durationMs = durationMs,
             fadeInMs = fadeInMs,
             fadeOutMs = fadeOutMs
         )
     }
 
-    override fun isUnityUntil(presentationTimeUs: Long, sampleRate: Int): Long = Long.MIN_VALUE
+    /**
+     * The gain is unity from the end of the fade-in to the start of the
+     * fade-out. Media3 uses this to copy unity samples in bulk, so the answer
+     * has to be the exact frame where the fade-out begins.
+     */
+    override fun isUnityUntil(samplePosition: Long, sampleRate: Int): Long {
+        if (fadeOutMs <= 0L) return C.TIME_END_OF_SOURCE
+        val unityEndMs = (durationMs - fadeOutMs).coerceAtLeast(0L)
+        val unityEnd = AudioMath.msToSamplePosition(unityEndMs, sampleRate)
+        // Never report an end before the current position: Media3 would try to
+        // shrink the input buffer below its position.
+        return maxOf(unityEnd, samplePosition)
+    }
 }
 
 /**
@@ -74,14 +93,16 @@ class ConstantGainProvider(
 class DuckGainProvider(
     private val base: ConstantGainProvider,
     private val startTimelineMs: Long,
-    private val voiceRanges: List<LongRange>,
-    private val duckAmount: Float = 0.35f
+    /** Timeline spans where the voice-over is audible. */
+    val voiceRanges: List<LongRange>,
+    /** How deep the music dips (0 = full level, 1 = silent). */
+    val duckAmount: Float = 0.35f
 ) : GainProcessor.GainProvider {
 
-    override fun getGainFactorAtSamplePosition(presentationTimeUs: Long, sampleRate: Int): Float {
-        val baseGain = base.getGainFactorAtSamplePosition(presentationTimeUs, sampleRate)
+    override fun getGainFactorAtSamplePosition(samplePosition: Long, sampleRate: Int): Float {
+        val baseGain = base.getGainFactorAtSamplePosition(samplePosition, sampleRate)
         if (voiceRanges.isEmpty()) return baseGain
-        val timelineMs = startTimelineMs + presentationTimeUs / 1000L
+        val timelineMs = startTimelineMs + AudioMath.samplePositionToMs(samplePosition, sampleRate)
         return baseGain * AudioMath.duckEnvelope(
             positionMs = timelineMs,
             voiceRanges = voiceRanges,
@@ -89,5 +110,39 @@ class DuckGainProvider(
         )
     }
 
-    override fun isUnityUntil(presentationTimeUs: Long, sampleRate: Int): Long = Long.MIN_VALUE
+    /**
+     * Unity lasts until the duck attack starts or the base fade-out begins.
+     * Both bounds are reported in sample frames, and an unbounded end is
+     * Media3's TIME_END_OF_SOURCE.
+     */
+    override fun isUnityUntil(samplePosition: Long, sampleRate: Int): Long {
+        val timelineMs = startTimelineMs + AudioMath.samplePositionToMs(samplePosition, sampleRate)
+        // The duck starts ramping up ATTACK_MS before the voice-over begins.
+        val nextAttackMs = voiceRanges
+            .map { it.first - AudioMath.DUCK_ATTACK_MS }
+            .firstOrNull { it > timelineMs }
+        val duckEnd = if (nextAttackMs == null) {
+            C.TIME_END_OF_SOURCE
+        } else {
+            AudioMath.msToSamplePosition(nextAttackMs - startTimelineMs, sampleRate)
+        }
+        val baseEnd = base.isUnityUntil(samplePosition, sampleRate)
+        return earlierUnityEnd(duckEnd, baseEnd)
+    }
+}
+
+/**
+ * Picks the earlier of two unity-region ends. Media3 marks "unity until the
+ * end of the stream" with TIME_END_OF_SOURCE, which is numerically smaller
+ * than every real position, so it has to be handled separately.
+ */
+internal fun earlierUnityEnd(first: Long, second: Long): Long {
+    val firstUnbounded = first == C.TIME_END_OF_SOURCE
+    val secondUnbounded = second == C.TIME_END_OF_SOURCE
+    return when {
+        firstUnbounded && secondUnbounded -> C.TIME_END_OF_SOURCE
+        firstUnbounded -> second
+        secondUnbounded -> first
+        else -> minOf(first, second)
+    }
 }

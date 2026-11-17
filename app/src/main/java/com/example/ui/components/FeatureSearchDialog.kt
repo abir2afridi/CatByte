@@ -179,7 +179,14 @@ fun FeatureSearchDialog(
                                         maxLines = 1
                                     )
                                 }
-                                Text("›", color = colors.textTertiary, fontSize = 18.sp)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(colors.accentCyan.copy(alpha = 0.15f))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Open", color = colors.accentCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }

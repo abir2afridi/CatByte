@@ -15,6 +15,28 @@ import kotlin.math.sqrt
  */
 object AudioMath {
 
+    /** How long the music takes to reach the ducked level before a voice. */
+    const val DUCK_ATTACK_MS = 120L
+
+    /** How long the music takes to come back up after a voice ends. */
+    const val DUCK_RELEASE_MS = 300L
+
+    /**
+     * Media3's gain providers are addressed in SAMPLE FRAMES, not in
+     * microseconds. Everything in the editor is planned in milliseconds, so
+     * every provider converts through these two helpers.
+     */
+    fun samplePositionToMs(samplePosition: Long, sampleRate: Int): Long {
+        if (sampleRate <= 0) return 0L
+        return samplePosition * 1_000L / sampleRate.toLong()
+    }
+
+    /** Milliseconds to the matching Media3 sample-frame position. */
+    fun msToSamplePosition(ms: Long, sampleRate: Int): Long {
+        if (sampleRate <= 0) return 0L
+        return ms * sampleRate.toLong() / 1_000L
+    }
+
     /** Linear gain for a track position, applying fade-in and fade-out. */
     fun fadeGain(
         positionMs: Long,
@@ -48,8 +70,8 @@ object AudioMath {
     fun duckEnvelope(
         positionMs: Long,
         voiceRanges: List<LongRange>,
-        attackMs: Long = 120L,
-        releaseMs: Long = 300L,
+        attackMs: Long = DUCK_ATTACK_MS,
+        releaseMs: Long = DUCK_RELEASE_MS,
         duckAmount: Float = 0.35f
     ): Float {
         if (voiceRanges.isEmpty()) return 1f

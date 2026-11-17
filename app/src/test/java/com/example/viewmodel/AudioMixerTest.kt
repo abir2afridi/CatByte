@@ -374,4 +374,31 @@ class AudioMixerTest {
 
         assertEquals(16, viewModel.currentProject.value!!.audioTracks.single().loopCount)
     }
+
+    @Test
+    fun `auto ducking can be turned off and undone`() {
+        val (viewModel, _) = viewModel()
+        assertTrue(viewModel.currentProject.value!!.autoDuckEnabled)
+
+        viewModel.setAutoDuckEnabled(false)
+
+        assertFalse(viewModel.currentProject.value!!.autoDuckEnabled)
+
+        viewModel.undo()
+        assertTrue(viewModel.currentProject.value!!.autoDuckEnabled)
+    }
+
+    @Test
+    fun `duck strength is clamped to the supported range`() {
+        val (viewModel, _) = viewModel()
+
+        viewModel.setAutoDuckStrength(2f)
+        assertEquals(1f, viewModel.currentProject.value!!.autoDuckStrength, 0.0001f)
+
+        viewModel.setAutoDuckStrength(-1f)
+        assertEquals(0f, viewModel.currentProject.value!!.autoDuckStrength, 0.0001f)
+
+        viewModel.setAutoDuckStrength(0.5f)
+        assertEquals(0.5f, viewModel.currentProject.value!!.autoDuckStrength, 0.0001f)
+    }
 }

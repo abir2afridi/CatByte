@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -62,6 +63,12 @@ fun AudioSheet(
     onStartVoiceRecord: () -> Unit,
     onStopVoiceRecord: () -> Unit,
     onTtsVoiceover: (() -> Unit)? = null,
+    /** Whether music dips automatically under a voice-over. */
+    autoDuckEnabled: Boolean = true,
+    /** How deep the music dips (0 = full level, 1 = silent). */
+    autoDuckStrength: Float = 0.35f,
+    onAutoDuckEnabledChange: (Boolean) -> Unit = {},
+    onAutoDuckStrengthChange: (Float) -> Unit = {},
     initialTab: Int = 0,
     onClose: () -> Unit
 ) {
@@ -74,7 +81,7 @@ fun AudioSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(220.dp)
+            .heightIn(min = 220.dp, max = 460.dp)
             .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .background(colors.surface)
             .border(1.dp, colors.borderSubtle.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
@@ -168,7 +175,11 @@ fun AudioSheet(
                     voiceDurationMs = voiceDurationMs,
                     onStartVoiceRecord = onStartVoiceRecord,
                     onStopVoiceRecord = onStopVoiceRecord,
-                    onTtsVoiceover = onTtsVoiceover
+                    onTtsVoiceover = onTtsVoiceover,
+                    autoDuckEnabled = autoDuckEnabled,
+                    autoDuckStrength = autoDuckStrength,
+                    onAutoDuckEnabledChange = onAutoDuckEnabledChange,
+                    onAutoDuckStrengthChange = onAutoDuckStrengthChange
                 )
             }
         }

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,6 +49,7 @@ import com.example.ui.theme.CapCutTextPrimary
 import com.example.ui.theme.CapCutTextSecondary
 import com.example.ui.theme.PencilTheme
 import java.util.Locale
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -57,7 +60,13 @@ internal fun AudioVoiceTab(
     voiceDurationMs: Long,
     onStartVoiceRecord: () -> Unit,
     onStopVoiceRecord: () -> Unit,
-    onTtsVoiceover: (() -> Unit)? = null
+    onTtsVoiceover: (() -> Unit)? = null,
+    /** Whether music dips automatically under a voice-over. */
+    autoDuckEnabled: Boolean = true,
+    /** How deep the music dips (0 = full level, 1 = silent). */
+    autoDuckStrength: Float = 0.35f,
+    onAutoDuckEnabledChange: (Boolean) -> Unit = {},
+    onAutoDuckStrengthChange: (Float) -> Unit = {}
 ) {
     val colors = PencilTheme.colors
     Column(
@@ -173,12 +182,40 @@ internal fun AudioVoiceTab(
                     fontSize = 9.sp
                 )
             }
-            Text(
-                "Always on",
-                color = CapCutTextSecondary,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Medium
+            androidx.compose.material3.Switch(
+                checked = autoDuckEnabled,
+                onCheckedChange = onAutoDuckEnabledChange,
+                modifier = Modifier.testTag("audio_auto_duck_switch")
             )
+        }
+        if (autoDuckEnabled) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Duck strength",
+                    color = CapCutTextSecondary,
+                    fontSize = 9.sp,
+                    modifier = Modifier.width(74.dp)
+                )
+                Slider(
+                    value = autoDuckStrength.coerceIn(0f, 1f),
+                    onValueChange = onAutoDuckStrengthChange,
+                    valueRange = 0f..1f,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("audio_auto_duck_strength")
+                )
+                Text(
+                    text = "${(autoDuckStrength.coerceIn(0f, 1f) * 100f).roundToInt()}%",
+                    color = CapCutTextSecondary,
+                    fontSize = 9.sp,
+                    modifier = Modifier.width(38.dp)
+                )
+            }
         }
         Row(
             modifier = Modifier

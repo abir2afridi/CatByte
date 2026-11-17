@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -156,7 +157,7 @@ internal fun ColumnScope.EditorPreviewStage(
             }
 
             // Bottom Floating Fullscreen Player Controls
-            androidx.compose.foundation.layout.Box(
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 16.dp)
@@ -164,7 +165,7 @@ internal fun ColumnScope.EditorPreviewStage(
                     .background(Color.Black.copy(alpha = 0.75f))
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             ) {
-                androidx.compose.foundation.layout.Row(
+                Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -173,7 +174,7 @@ internal fun ColumnScope.EditorPreviewStage(
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            imageVector = if (isPlaying) androidx.compose.material.icons.Icons.Default.Pause else androidx.compose.material.icons.Icons.Default.PlayArrow,
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (isPlaying) "Pause" else "Play",
                             tint = Color(0xFF26E5D7),
                             modifier = Modifier.size(20.dp)
@@ -182,14 +183,32 @@ internal fun ColumnScope.EditorPreviewStage(
 
                     val curSec = positionState.value / 1000
                     val totSec = project.totalDurationMs / 1000
-                    androidx.compose.material3.Text(
+                    Text(
                         text = String.format(java.util.Locale.US, "%02d:%02d / %02d:%02d", curSec / 60, curSec % 60, totSec / 60, totSec % 60),
                         color = Color.White,
                         fontSize = 11.sp,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
+        }
+
+        // Floating Quick Grid / Safe Area Toggle on preview canvas
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable { viewModel.toggleSafeAreaGuides(!showSafeAreaGuides) }
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = if (showSafeAreaGuides) "Grid: ON" else "Grid",
+                color = if (showSafeAreaGuides) Color(0xFF26E5D7) else Color.White,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

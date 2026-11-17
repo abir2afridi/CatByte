@@ -111,12 +111,19 @@ internal fun ProjectCompositionFactory.buildSequences(
 
     // 3. Independent audio tracks are mixed by CompositionPlayer during
     // preview and by Transformer during export.
-    // Voice-over spans drive auto-ducking for every music clip below.
-    val voiceRanges = project.audioTracks
-        .filter { it.isVoiceover && !it.isMuted && it.volume > 0.001f && it.durationMs > 0L }
-        .map { it.startTimelineMs until (it.startTimelineMs + it.durationMs) }
+    // Voice-over spans drive auto-ducking for every music clip below. When
+    // the project turns auto-ducking off, no span is collected and the music
+    // keeps its level under the voice-over.
+    val voiceRanges = if (project.autoDuckEnabled) {
+        project.audioTracks
+            .filter { it.isVoiceover && !it.isMuted && it.volume > 0.001f && it.durationMs > 0L }
+            .map { it.startTimelineMs until (it.startTimelineMs + it.durationMs) }
+    } else {
+        emptyList()
+    }
+    val duckStrength = project.autoDuckStrength.coerceIn(0f, 1f)
     renderPlan.audio.forEach { (audio, spec) ->
-        sequences += buildAudioSequence(audio, spec, voiceRanges)
+        sequences += buildAudioSequence(audio, spec, voiceRanges, duckStrength)
     }
 
     return CompositionSequences(sequences = sequences, overlayInputs = overlayInputs)

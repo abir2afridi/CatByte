@@ -344,7 +344,9 @@ class ProjectJsonTest {
             ),
             isMainTrackMuted = true,
             isMainTrackLocked = true,
-            isMainTrackSolo = false
+            isMainTrackSolo = false,
+            autoDuckEnabled = false,
+            autoDuckStrength = 0.6f
         )
         val restored = ProjectJson.fromJson(ProjectJson.toJson(project))
         assertEquals(project, restored)

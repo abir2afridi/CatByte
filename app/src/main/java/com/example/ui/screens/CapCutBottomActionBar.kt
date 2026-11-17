@@ -92,6 +92,7 @@ internal fun CapCutBottomActionBar(
             icon = Icons.Default.ContentCut,
             label = EditorMainTab.EDIT.label,
             tag = EditorMainTab.EDIT.tag,
+            isActive = activeTab == EditorMainTab.EDIT,
             onClick = { onMainTabSelected(EditorMainTab.EDIT) }
         )
 
@@ -100,6 +101,7 @@ internal fun CapCutBottomActionBar(
             icon = Icons.Default.MusicNote,
             label = EditorMainTab.AUDIO.label,
             tag = EditorMainTab.AUDIO.tag,
+            isActive = activeTab == EditorMainTab.AUDIO,
             onClick = { onMainTabSelected(EditorMainTab.AUDIO) }
         )
 
@@ -108,6 +110,7 @@ internal fun CapCutBottomActionBar(
             icon = Icons.Default.TextFields,
             label = EditorMainTab.TEXT.label,
             tag = EditorMainTab.TEXT.tag,
+            isActive = activeTab == EditorMainTab.TEXT,
             onClick = { onMainTabSelected(EditorMainTab.TEXT) }
         )
 
@@ -115,36 +118,40 @@ internal fun CapCutBottomActionBar(
         BottomActionItemCustom(
             label = EditorMainTab.EFFECT.label,
             tag = EditorMainTab.EFFECT.tag,
+            isActive = activeTab == EditorMainTab.EFFECT,
             onClick = { onMainTabSelected(EditorMainTab.EFFECT) }
         ) {
-            CapCutIconEffectsStar(tint = Color.White, size = 20.dp)
+            CapCutIconEffectsStar(tint = if (activeTab == EditorMainTab.EFFECT) Color(0xFF26E5D7) else Color.White, size = 20.dp)
         }
 
         // 5. Overlay (Overlapping frames)
         BottomActionItemCustom(
             label = EditorMainTab.OVERLAY.label,
             tag = EditorMainTab.OVERLAY.tag,
+            isActive = activeTab == EditorMainTab.OVERLAY,
             onClick = { onMainTabSelected(EditorMainTab.OVERLAY) }
         ) {
-            CapCutIconOverlay(tint = Color.White, size = 20.dp)
+            CapCutIconOverlay(tint = if (activeTab == EditorMainTab.OVERLAY) Color(0xFF26E5D7) else Color.White, size = 20.dp)
         }
 
         // 6. Captions (Subtitle box)
         BottomActionItemCustom(
             label = EditorMainTab.CAPTIONS.label,
             tag = EditorMainTab.CAPTIONS.tag,
+            isActive = activeTab == EditorMainTab.CAPTIONS,
             onClick = { onMainTabSelected(EditorMainTab.CAPTIONS) }
         ) {
-            CapCutIconCaptions(tint = Color.White, size = 20.dp)
+            CapCutIconCaptions(tint = if (activeTab == EditorMainTab.CAPTIONS) Color(0xFF26E5D7) else Color.White, size = 20.dp)
         }
 
         // 7. Filter (Venn diagram 3 circles)
         BottomActionItemCustom(
             label = EditorMainTab.FILTER.label,
             tag = EditorMainTab.FILTER.tag,
+            isActive = activeTab == EditorMainTab.FILTER,
             onClick = { onMainTabSelected(EditorMainTab.FILTER) }
         ) {
-            CapCutIconFilters(tint = Color.White, size = 20.dp)
+            CapCutIconFilters(tint = if (activeTab == EditorMainTab.FILTER) Color(0xFF26E5D7) else Color.White, size = 20.dp)
         }
 
         // 8. Adjust
@@ -330,17 +337,19 @@ internal fun BottomActionItemVector(
     icon: ImageVector,
     label: String,
     tag: String,
+    isActive: Boolean = false,
     onClick: () -> Unit
 ) {
     BottomActionItemCustom(
         label = label,
         tag = tag,
+        isActive = isActive,
         onClick = onClick
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = Color.White,
+            tint = if (isActive) Color(0xFF26E5D7) else Color.White,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -350,6 +359,7 @@ internal fun BottomActionItemVector(
 internal fun BottomActionItemCustom(
     label: String,
     tag: String,
+    isActive: Boolean = false,
     onClick: () -> Unit,
     iconContent: @Composable () -> Unit
 ) {
@@ -358,8 +368,9 @@ internal fun BottomActionItemCustom(
         verticalArrangement = Arrangement.Center,
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
+            .background(if (isActive) Color(0xFF26E5D7).copy(alpha = 0.15f) else Color.Transparent)
             .clickable { onClick() }
-            .padding(horizontal = 4.dp, vertical = 2.dp)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
             .testTag("bottom_action_$tag")
     ) {
         Box(
@@ -371,9 +382,9 @@ internal fun BottomActionItemCustom(
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
-            color = Color.White.copy(alpha = 0.90f),
+            color = if (isActive) Color(0xFF26E5D7) else Color.White.copy(alpha = 0.90f),
             fontSize = 10.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1
         )
     }

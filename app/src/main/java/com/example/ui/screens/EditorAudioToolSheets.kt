@@ -79,6 +79,10 @@ internal fun AudioToolSheet(
             onShowTts()
             viewModel.setActiveSheet(ActiveToolSheet.NONE)
         },
+        autoDuckEnabled = viewModel.currentProject.value?.autoDuckEnabled ?: true,
+        autoDuckStrength = viewModel.currentProject.value?.autoDuckStrength ?: 0.35f,
+        onAutoDuckEnabledChange = { enabled -> viewModel.setAutoDuckEnabled(enabled) },
+        onAutoDuckStrengthChange = { strength -> viewModel.setAutoDuckStrength(strength) },
         onClose = { viewModel.closeToolSheet() }
     )
 }

@@ -1,6 +1,10 @@
 package com.example.data
 
+import androidx.media3.common.C
+import androidx.media3.common.audio.GainProcessor
 import androidx.media3.common.util.UnstableApi
+import com.example.data.export.ConstantGainProvider
+import com.example.data.export.DuckGainProvider
 import com.example.engine.RenderGraphBuilder
 import com.example.model.AudioClip
 import com.example.model.MediaClip
@@ -44,7 +48,9 @@ class ProjectCompositionPlanTest {
     private fun project(
         clips: List<MediaClip>,
         overlayTracks: List<VideoTrack> = emptyList(),
-        audioTracks: List<AudioClip> = emptyList()
+        audioTracks: List<AudioClip> = emptyList(),
+        autoDuckEnabled: Boolean = true,
+        autoDuckStrength: Float = 0.35f
     ) = VideoProject(
         id = "project",
         title = "Project",
@@ -52,7 +58,9 @@ class ProjectCompositionPlanTest {
         overlayTracks = overlayTracks,
         audioTracks = audioTracks,
         fps = 30,
-        resolution = "1080P"
+        resolution = "1080P",
+        autoDuckEnabled = autoDuckEnabled,
+        autoDuckStrength = autoDuckStrength
     )
 
     @Test
@@ -181,6 +189,84 @@ class ProjectCompositionPlanTest {
         assertEquals(4, audioSequence.editedMediaItems.size)
         val item = audioSequence.editedMediaItems.first()
         assertEquals(10_000_000L, item.durationUs)
+    }
+
+    @Test
+    fun `auto ducking dips the music under a voice-over`() {
+        val music = AudioClip(
+            id = "music",
+            title = "Music",
+            artist = "Artist",
+            uriString = "content://music",
+            durationMs = 4_000L,
+            originalDurationMs = 4_000L
+        )
+        val voice = AudioClip(
+            id = "voice",
+            title = "Voice",
+            artist = "",
+            uriString = "content://voice",
+            durationMs = 2_000L,
+            originalDurationMs = 2_000L,
+            isVoiceover = true
+        )
+        val result = ProjectCompositionFactory.buildPreview(
+            project(
+                listOf(clip("a")),
+                audioTracks = listOf(music, voice),
+                autoDuckStrength = 0.5f
+            ),
+            watermarkEnabled = false
+        )
+        val musicSequence = result.composition.sequences.first { sequence ->
+            sequence.trackTypes == setOf(C.TRACK_TYPE_AUDIO) &&
+                sequence.editedMediaItems.first().mediaItem.localConfiguration?.uri.toString() ==
+                "content://music"
+        }
+        val gain = musicSequence.editedMediaItems.first().effects.audioProcessors
+            .filterIsInstance<GainProcessor>()
+            .first()
+        val duck = gain.gainProvider as DuckGainProvider
+        assertEquals(1, duck.voiceRanges.size)
+        assertEquals(0.5f, duck.duckAmount, 0.0001f)
+    }
+
+    @Test
+    fun `auto ducking off keeps the music at full level`() {
+        val music = AudioClip(
+            id = "music",
+            title = "Music",
+            artist = "Artist",
+            uriString = "content://music",
+            durationMs = 4_000L,
+            originalDurationMs = 4_000L
+        )
+        val voice = AudioClip(
+            id = "voice",
+            title = "Voice",
+            artist = "",
+            uriString = "content://voice",
+            durationMs = 2_000L,
+            originalDurationMs = 2_000L,
+            isVoiceover = true
+        )
+        val result = ProjectCompositionFactory.buildPreview(
+            project(
+                listOf(clip("a")),
+                audioTracks = listOf(music, voice),
+                autoDuckEnabled = false
+            ),
+            watermarkEnabled = false
+        )
+        val musicSequence = result.composition.sequences.first { sequence ->
+            sequence.trackTypes == setOf(C.TRACK_TYPE_AUDIO) &&
+                sequence.editedMediaItems.first().mediaItem.localConfiguration?.uri.toString() ==
+                "content://music"
+        }
+        val gain = musicSequence.editedMediaItems.first().effects.audioProcessors
+            .filterIsInstance<GainProcessor>()
+            .first()
+        assertTrue(gain.gainProvider is ConstantGainProvider)
     }
 
     @Test

@@ -1102,6 +1102,14 @@ class EditorViewModel(
     fun setAudioLoopCount(audioId: String, count: Int) =
         AudioMixerFeature.setAudioLoopCount(this, audioId, count)
 
+    /** Turns auto-ducking of music under a voice-over on or off. */
+    fun setAutoDuckEnabled(enabled: Boolean) =
+        AudioMixerFeature.setAutoDuckEnabled(this, enabled)
+
+    /** Sets how deep the music dips under a voice-over (0 = no dip, 1 = off). */
+    fun setAutoDuckStrength(strength: Float) =
+        AudioMixerFeature.setAutoDuckStrength(this, strength)
+
     /**
      * Splits the selected independent audio track at the playhead. Returns
      * false when the playhead is outside the track or too close to an edge, so

@@ -41,6 +41,8 @@ object ProjectJson {
         put("isMainTrackMuted", project.isMainTrackMuted)
         put("isMainTrackLocked", project.isMainTrackLocked)
         put("isMainTrackSolo", project.isMainTrackSolo)
+        put("autoDuckEnabled", project.autoDuckEnabled)
+        put("autoDuckStrength", project.autoDuckStrength.toDouble())
         put("thumbnailResId", project.thumbnailResId ?: JSONObject.NULL)
         put("coverFrameMs", project.coverFrameMs)
         put("coverImageUri", project.coverImageUri)
@@ -126,6 +128,9 @@ object ProjectJson {
         backgroundMode = json.optString("backgroundMode", "color"),
         isMainTrackMuted = json.optBoolean("isMainTrackMuted", false),
         isMainTrackLocked = json.optBoolean("isMainTrackLocked", false),
-        isMainTrackSolo = json.optBoolean("isMainTrackSolo", false)
+        isMainTrackSolo = json.optBoolean("isMainTrackSolo", false),
+        autoDuckEnabled = json.optBoolean("autoDuckEnabled", true),
+        autoDuckStrength = json.optDouble("autoDuckStrength", 0.35).toFloat()
+            .coerceIn(0f, 1f)
     )
 }

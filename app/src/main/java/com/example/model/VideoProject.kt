@@ -39,6 +39,16 @@ data class VideoProject(
     val isMainTrackMuted: Boolean = false,
     val isMainTrackLocked: Boolean = false,
     val isMainTrackSolo: Boolean = false,
+    /**
+     * Auto-ducking: music dips while a voice-over is audible. When off, the
+     * music keeps its level and the voice-over is mixed on top of it.
+     */
+    val autoDuckEnabled: Boolean = true,
+    /**
+     * How deep the music dips under a voice-over. 0 keeps the music at full
+     * level, 1 mutes it completely; 0.35 leaves it at 65 %.
+     */
+    val autoDuckStrength: Float = 0.35f,
     /** Named, coloured timeline markers (jump targets and snap magnets). */
     val markers: List<TimelineMarker> = emptyList()
 ) {

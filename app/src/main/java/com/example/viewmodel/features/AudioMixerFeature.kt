@@ -202,6 +202,34 @@ internal object AudioMixerFeature {
     }
 
     /**
+     * Turns the automatic ducking of music under a voice-over on or off.
+     *
+     * The flag is a project setting: the shared composition only collects the
+     * audible voice-over spans when it is on, so preview and export duck
+     * exactly the same way (or not at all).
+     */
+    fun setAutoDuckEnabled(vm: EditorViewModel, enabled: Boolean) {
+        val project = vm._currentProject.value ?: return
+        if (project.autoDuckEnabled == enabled) return
+        vm.updateProject("auto-duck") { updated ->
+            updated.copy(autoDuckEnabled = enabled)
+        }
+    }
+
+    /**
+     * Sets how deep the music dips under a voice-over. 0 keeps the music at
+     * full level, 1 mutes it completely.
+     */
+    fun setAutoDuckStrength(vm: EditorViewModel, strength: Float) {
+        val project = vm._currentProject.value ?: return
+        val clamped = if (strength.isFinite()) strength.coerceIn(0f, 1f) else 0.35f
+        if (project.autoDuckStrength == clamped) return
+        vm.updateProject("auto-duck-strength") { updated ->
+            updated.copy(autoDuckStrength = clamped)
+        }
+    }
+
+    /**
      * Splits the selected independent audio track at the playhead, keeping the
      * playhead exactly on the cut. Returns false when the playhead is outside
      * the clip or too close to an edge, so the UI can explain instead of
