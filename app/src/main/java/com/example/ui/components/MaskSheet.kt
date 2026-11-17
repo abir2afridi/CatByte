@@ -238,6 +238,25 @@ fun MaskSheet(
                     valueRange = 0.0f..0.5f,
                     colors = SliderDefaults.colors(thumbColor = colors.border, activeTrackColor = colors.accentPurple)
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Invert Mask", color = colors.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    androidx.compose.material3.Switch(
+                        checked = currentMask.isInverted,
+                        onCheckedChange = {
+                            currentMask = currentMask.copy(isInverted = it)
+                            onUpdateMask(currentMask)
+                        },
+                        colors = androidx.compose.material3.SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = colors.accentPurple
+                        )
+                    )
+                }
             }
         }
     }

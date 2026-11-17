@@ -1,6 +1,12 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,10 +23,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,20 +61,19 @@ import com.example.model.VideoProject
 @Composable
 internal fun EditorTopBar(
     project: VideoProject,
-    canUndo: Boolean,
-    canRedo: Boolean,
     exportOpen: Boolean,
     exportTab: String,
     onBack: () -> Unit,
-    onUndo: () -> Unit,
-    onRedo: () -> Unit,
     onToggleExportDropdown: () -> Unit,
     onExportTabSelected: (String) -> Unit,
     onStartExport: () -> Unit,
     onOpenSettings: () -> Unit,
     onSearch: () -> Unit = {},
-    onExportDraft: () -> Unit = {}
+    onExportDraft: () -> Unit = {},
+    onRenameProject: ((String) -> Unit)? = null
 ) {
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var renameText by remember(project.title) { mutableStateOf(project.title) }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -114,15 +129,81 @@ internal fun EditorTopBar(
                         modifier = Modifier.size(22.dp)
                     )
                 }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                // Project Title & Draft Saved Badge (Center Header)
+                val infiniteTransition = rememberInfiniteTransition(label = "saved_pulse")
+                val pulseAlpha by infiniteTransition.animateFloat(
+                    initialValue = 0.5f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1200),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "pulse_alpha"
+                )
+
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(enabled = onRenameProject != null) {
+                            renameText = project.title
+                            showRenameDialog = true
+                        }
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        text = project.title.ifBlank { "Untitled Project" },
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Color(0xFF26E5D7).copy(alpha = pulseAlpha))
+                        )
+                        Text(
+                            text = "Draft Saved ✓",
+                            color = Color(0xFFA5A8B2),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Right side: AI UHD format chip + Export button
+            // Right side: Quick Resolution Badge + AI UHD format chip + Export button
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Resolution & FPS Badge (Clickable to inspect / switch export dropdown)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF1E1F24))
+                        .border(0.8.dp, Color(0xFF33353E), RoundedCornerShape(4.dp))
+                        .clickable { onToggleExportDropdown() }
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = "${project.resolution} • ${project.fps}fps",
+                        color = Color(0xFF26E5D7),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 // "AI UHD ▾" chip button
                 Box(
                     modifier = Modifier
@@ -174,6 +255,46 @@ internal fun EditorTopBar(
                     )
                 }
             }
+        }
+
+        if (showRenameDialog) {
+            AlertDialog(
+                onDismissRequest = { showRenameDialog = false },
+                title = { Text("Rename Project", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+                text = {
+                    OutlinedTextField(
+                        value = renameText,
+                        onValueChange = { renameText = it },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFF26E5D7),
+                            unfocusedBorderColor = Color(0xFF33353E)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (renameText.isNotBlank()) {
+                                onRenameProject?.invoke(renameText.trim())
+                            }
+                            showRenameDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF26E5D7))
+                    ) {
+                        Text("Save", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRenameDialog = false }) {
+                        Text("Cancel", color = Color(0xFFA5A8B2))
+                    }
+                },
+                containerColor = Color(0xFF1E1F24)
+            )
         }
     }
 }

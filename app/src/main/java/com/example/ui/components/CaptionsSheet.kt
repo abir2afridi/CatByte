@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -29,17 +30,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.PencilTheme
 
-/**
- * Captions panel from the reference bottom navigation. Auto-captioning uses the
- * project's real caption generator; import/export use the SRT/VTT engine.
- */
 @Composable
 fun CaptionsSheet(
     onAutoCaptions: () -> Unit,
@@ -49,21 +46,19 @@ fun CaptionsSheet(
     onAddText: () -> Unit,
     onClose: () -> Unit
 ) {
-    val colors = PencilTheme.colors
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(210.dp)
+            .height(360.dp)
             .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.borderSubtle.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            .background(Color(0xFF141416))
+            .border(1.dp, Color(0xFF262832), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .testTag("captions_sheet")
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 6.dp, bottom = 2.dp),
+                .padding(top = 8.dp, bottom = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -71,14 +66,14 @@ fun CaptionsSheet(
                     .width(36.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(colors.textTertiary.copy(alpha = 0.4f))
+                    .background(Color(0xFF5A5B64))
             )
         }
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 14.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -86,39 +81,45 @@ fun CaptionsSheet(
                 Icon(
                     imageVector = Icons.Default.ClosedCaption,
                     contentDescription = "Captions",
-                    tint = colors.accentCyan,
-                    modifier = Modifier.size(18.dp)
+                    tint = Color(0xFF26E5D7),
+                    modifier = Modifier.size(20.dp)
                 )
-                Text("Captions", color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("Captions & Subtitles", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
-            IconButton(onClick = onClose, modifier = Modifier.size(30.dp)) {
-                Icon(Icons.Default.Check, contentDescription = "Close", tint = colors.textPrimary, modifier = Modifier.size(20.dp))
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF22242B))
+            ) {
+                Icon(Icons.Default.Check, contentDescription = "Confirm", tint = Color(0xFF26E5D7), modifier = Modifier.size(18.dp))
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             CaptionTile(Icons.Default.ClosedCaption, "Auto captions", "Auto") { onAutoCaptions() }
-            CaptionTile(Icons.Default.Upload, "Import", "Import") { onImportCaptions() }
+            CaptionTile(Icons.Default.Upload, "Import SRT/VTT", "Import") { onImportCaptions() }
             CaptionTile(Icons.Default.Download, "Export SRT", "Srt") { onExportSrt() }
             CaptionTile(Icons.Default.Download, "Export VTT", "Vtt") { onExportVtt() }
             CaptionTile(Icons.Default.PostAdd, "Add text", "Text") { onAddText() }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Text(
             text = "Auto captions transcribe the selected clip with the AI endpoint from Settings → AI. Import accepts .srt and .vtt files.",
-            color = colors.textTertiary,
-            fontSize = 10.sp,
-            modifier = Modifier.padding(horizontal = 14.dp)
+            color = Color(0xFFA5A8B2),
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 16.dp)
         )
     }
 }
@@ -130,20 +131,19 @@ private fun CaptionTile(
     tag: String,
     onClick: () -> Unit
 ) {
-    val colors = PencilTheme.colors
-
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
+            .width(110.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(colors.surfaceElevated)
-            .border(1.dp, colors.borderSubtle, RoundedCornerShape(10.dp))
+            .background(Color(0xFF22242B))
+            .border(1.dp, Color(0xFF33353E), RoundedCornerShape(10.dp))
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 9.dp)
+            .padding(horizontal = 10.dp, vertical = 12.dp)
             .testTag("caption_action_$tag")
     ) {
-        Icon(icon, contentDescription = label, tint = colors.accentCyan, modifier = Modifier.size(22.dp))
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(label, color = colors.textPrimary, fontSize = 10.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Icon(icon, contentDescription = label, tint = Color(0xFF26E5D7), modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }

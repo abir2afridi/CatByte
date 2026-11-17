@@ -72,6 +72,42 @@ internal fun AudioVoiceTab(
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold
         )
+
+        if (isRecordingVoice) {
+            Spacer(modifier = Modifier.height(8.dp))
+            // Animated Audio Level dB Meter (8 Animated Level Bars)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier
+                    .height(24.dp)
+                    .padding(horizontal = 16.dp)
+            ) {
+                val barHeights = remember { listOf(12.dp, 20.dp, 16.dp, 24.dp, 18.dp, 22.dp, 14.dp, 19.dp) }
+                barHeights.forEachIndexed { index, defaultHeight ->
+                    var activeHeight by remember { mutableStateOf(defaultHeight) }
+                    LaunchedEffect(isRecordingVoice, voiceDurationMs) {
+                        // Vary bar height dynamically to simulate live mic input
+                        val factor = ((voiceDurationMs + index * 150) % 500) / 500f
+                        activeHeight = (10 + (factor * 14)).dp
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(4.dp)
+                            .height(activeHeight)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(
+                                when {
+                                    activeHeight > 20.dp -> CapCutRed
+                                    activeHeight > 15.dp -> Color(0xFFFFC107)
+                                    else -> Color(0xFF26E5D7)
+                                }
+                            )
+                    )
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         val pulseScale: MutableState<Float> = remember { mutableStateOf(1f) }

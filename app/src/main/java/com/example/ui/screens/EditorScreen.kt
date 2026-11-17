@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -299,13 +301,9 @@ fun EditorScreen(
             if (!isPreviewFullscreen) {
                 EditorTopBar(
                     project = project!!,
-                    canUndo = canUndo,
-                    canRedo = canRedo,
                     exportOpen = showExportDropdown,
                     exportTab = exportSettings.tab,
                     onBack = onBackToHome,
-                    onUndo = { viewModel.undo() },
-                    onRedo = { viewModel.redo() },
                     onToggleExportDropdown = {
                         val opening = !showExportDropdown
                         showExportDropdown = opening
@@ -332,6 +330,9 @@ fun EditorScreen(
                     onSearch = { showFeatureSearch = true },
                     onExportDraft = {
                         Toast.makeText(context, "Draft saved successfully", Toast.LENGTH_SHORT).show()
+                    },
+                    onRenameProject = { newName ->
+                        viewModel.renameProject(project!!.id, newName)
                     }
                 )
             }
@@ -363,7 +364,7 @@ fun EditorScreen(
                 onExitFullscreen = { isPreviewFullscreen = false }
             )
 
-            // 3. CapCut transport row: fullscreen, play, snap, undo, redo.
+            // 3. CapCut transport row: fullscreen, play, snap, undo, redo, split, timecode.
             if (!isPreviewFullscreen) {
                 EditorTransportRow(
                     isPlaying = isPlaying,
@@ -371,12 +372,22 @@ fun EditorScreen(
                     canRedo = canRedo,
                     magneticSnap = magneticSnap,
                     aspectRatioLabel = project!!.aspectRatio.label,
+                    currentPositionMs = positionState.value,
+                    totalDurationMs = project!!.totalDurationMs,
                     onAspectRatioClick = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
                     onTogglePlay = { viewModel.togglePlayback() },
+                    onSplit = splitAtPlayhead,
+                    onStepBackward = {
+                        viewModel.seekTo((positionState.value - 33L).coerceAtLeast(0L))
+                    },
+                    onStepForward = {
+                        viewModel.seekTo((positionState.value + 33L).coerceAtMost(project!!.totalDurationMs))
+                    },
                     onFullscreen = { isPreviewFullscreen = true },
                     onToggleMagneticSnap = { viewModel.toggleMagneticSnap() },
                     onUndo = { viewModel.undo() },
-                    onRedo = { viewModel.redo() }
+                    onRedo = { viewModel.redo() },
+                    onSeek = { viewModel.seekTo(it) }
                 )
             }
 
@@ -420,6 +431,17 @@ fun EditorScreen(
                     onImportCaptions = { importCaptionsLauncher.launch(arrayOf("*/*")) }
                 )
             }
+        }
+
+        // Backdrop Scrim (tap outside tool sheet to dismiss)
+        if (activeSheet != ActiveToolSheet.NONE && activeSheet != ActiveToolSheet.EXPORT_MODAL && !isPreviewFullscreen) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+                    .zIndex(110f)
+            )
         }
 
         // Floating overlay tool sheets, one feature per sheet file.

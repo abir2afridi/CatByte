@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -280,21 +281,47 @@ private fun BottomSubFeatureItem(
     tag: String,
     onClick: () -> Unit
 ) {
+    val isAi = tag.contains("ai_") || tag.contains("auto_") || tag.contains("transcript")
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF232329))
+            .background(Color(0xFF222329))
+            .border(
+                0.8.dp,
+                if (isAi) Color(0xFF26E5D7).copy(alpha = 0.45f) else Color(0xFF32343E),
+                RoundedCornerShape(8.dp)
+            )
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = 11.dp, vertical = 7.dp)
             .testTag("bottom_sub_$tag")
     ) {
-        Text(
-            text = label,
-            color = Color.White.copy(alpha = 0.92f),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (isAi) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color(0xFF26E5D7))
+                        .padding(horizontal = 3.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = "AI",
+                        color = Color.Black,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+            Text(
+                text = label,
+                color = Color.White.copy(alpha = 0.92f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
+            )
+        }
     }
 }
 

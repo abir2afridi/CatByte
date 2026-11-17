@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -156,6 +157,28 @@ fun TimelineVideoTrack(
                             )
                             currX += barWidth + spacing
                             i++
+                        }
+                    }
+
+                    // Keyframe Diamond Markers (◆) rendered on timeline clip strip
+                    if (clip.keyframes.isNotEmpty()) {
+                        val distinctTimestamps = clip.keyframes.map { it.timestampMs }.distinct()
+                        distinctTimestamps.forEach { kfMs ->
+                            val kfOffsetDp = ((kfMs - clip.trimStartMs).coerceAtLeast(0L) * msToDp).dp
+                            if (kfOffsetDp <= clipWidthDp) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.CenterStart)
+                                        .offset(x = kfOffsetDp)
+                                        .size(11.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFFFD600))
+                                        .border(1.dp, Color.Black, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("◆", fontSize = 7.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
 

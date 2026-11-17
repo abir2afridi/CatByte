@@ -153,6 +153,36 @@ fun TransitionsPickerSheet(
             }
         }
 
+        // Transition Duration Control (0.1s to 3.0s)
+        var transitionDurationSec by remember { androidx.compose.runtime.mutableFloatStateOf(0.5f) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Duration: ${String.format(java.util.Locale.US, "%.1fs", transitionDurationSec)}",
+                color = Color.White,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Bold
+            )
+            androidx.compose.material3.Slider(
+                value = transitionDurationSec,
+                onValueChange = { transitionDurationSec = it },
+                valueRange = 0.1f..3.0f,
+                colors = androidx.compose.material3.SliderDefaults.colors(
+                    thumbColor = Color.White,
+                    activeTrackColor = Color(0xFF26E5D7),
+                    inactiveTrackColor = Color(0xFF22242B)
+                ),
+                modifier = Modifier
+                    .width(180.dp)
+                    .height(24.dp)
+            )
+        }
+
         // Category Tabs
         Row(
             modifier = Modifier

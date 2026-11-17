@@ -184,8 +184,13 @@ object ProjectCompositionFactory {
 
         val renderPlan = plan(project, width, height, fps)
         val warnings = linkedSetOf<String>().apply { addAll(renderPlan.warnings) }
-        val (sequences, overlayInputs) =
-            buildSequences(project, renderPlan, fps, warnings, removeVideo)
+        val (sequences, overlayInputs) = buildSequences(
+            project = project,
+            renderPlan = renderPlan,
+            fps = fps,
+            warnings = warnings,
+            removeVideo = removeVideo
+        )
 
         val compositionEffects = mutableListOf<Effect>()
         if (!removeVideo) {

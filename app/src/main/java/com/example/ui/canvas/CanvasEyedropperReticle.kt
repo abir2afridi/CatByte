@@ -41,53 +41,81 @@ internal fun CanvasEyedropperReticle(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .offset {
-                    val rx = (reticlePos.x * canvasSize.width) - 26.dp.toPx()
-                    val ry = (reticlePos.y * canvasSize.height) - 26.dp.toPx()
+                    // Position target crosshair at exact touch point
+                    val rx = (reticlePos.x * canvasSize.width) - 16.dp.toPx()
+                    val ry = (reticlePos.y * canvasSize.height) - 16.dp.toPx()
                     IntOffset(rx.toInt(), ry.toInt())
                 }
-                .size(52.dp)
+                .size(32.dp)
         ) {
-            // Outer ring with sampled color
+            // Precision target at finger point
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
-                    .background(Color.Transparent)
-                    .border(3.dp, Color(pickedColorHex), CircleShape)
-            )
-            // Inner circle border
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .align(Alignment.Center)
-                    .clip(CircleShape)
-                    .background(Color.Transparent)
-                    .border(1.5.dp, Color.White, CircleShape)
-            )
-            // Center dot with sampled color
-            Box(
-                modifier = Modifier
-                    .size(14.dp)
+                    .size(10.dp)
                     .align(Alignment.Center)
                     .clip(CircleShape)
                     .background(Color(pickedColorHex))
                     .border(1.5.dp, Color.White, CircleShape)
             )
-            // Crosshairs
             Box(
                 modifier = Modifier
                     .width(1.5.dp)
-                    .height(52.dp)
+                    .height(32.dp)
                     .align(Alignment.Center)
-                    .background(Color.White.copy(alpha = 0.7f))
+                    .background(Color.White.copy(alpha = 0.85f))
             )
             Box(
                 modifier = Modifier
-                    .width(52.dp)
+                    .width(32.dp)
                     .height(1.5.dp)
                     .align(Alignment.Center)
-                    .background(Color.White.copy(alpha = 0.7f))
+                    .background(Color.White.copy(alpha = 0.85f))
             )
+        }
+
+        // Elevated Magnifier Loupe: Floats ~64dp above the finger so user can clearly see the color!
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset {
+                    val lx = (reticlePos.x * canvasSize.width) - 34.dp.toPx()
+                    // Shift above touch point, or below if near top boundary
+                    val yShift = if (reticlePos.y * canvasSize.height < 80.dp.toPx()) 40.dp.toPx() else (-68.dp.toPx())
+                    val ly = (reticlePos.y * canvasSize.height) + yShift
+                    IntOffset(lx.toInt(), ly.toInt())
+                }
+                .size(68.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.9f))
+                .border(2.5.dp, Color(pickedColorHex), CircleShape)
+        ) {
+            // Color Swatch Core
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .align(Alignment.Center)
+                    .clip(CircleShape)
+                    .background(Color(pickedColorHex))
+                    .border(1.5.dp, Color.White.copy(alpha = 0.9f), CircleShape)
+            )
+
+            // Hex Code Badge at center
+            val hexText = String.format("#%06X", (pickedColorHex and 0xFFFFFFL))
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .offset(y = (-3).dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .padding(horizontal = 4.dp, vertical = 1.dp)
+            ) {
+                Text(
+                    text = hexText,
+                    color = Color.White,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
 
         // Bottom instruction pill

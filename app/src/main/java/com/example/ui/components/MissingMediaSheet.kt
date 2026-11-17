@@ -83,12 +83,19 @@ fun MissingMediaBanner(
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f)
         )
-        Text(
-            text = "Relink",
-            color = colors.accentCyan,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color(0xFFFFC94A))
+                .padding(horizontal = 9.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = "Relink Now ⟳",
+                color = Color.Black,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 

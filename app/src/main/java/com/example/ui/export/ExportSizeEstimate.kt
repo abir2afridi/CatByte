@@ -1,13 +1,19 @@
 package com.example.ui.export
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,13 +41,45 @@ internal fun ExportSizeEstimateFooter(
     modifier: Modifier = Modifier
 ) {
     val estimateMb = rememberEstimateMb(settings, currentAspectRatio, projectLengthMs)
-    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Text(
-            text = "Estimated file size: ${estimateMb.roundToInt()} MB",
-            color = Color(0xFFA5A8B2),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium
-        )
+    val mbText = if (estimateMb < 1.0) "< 1 MB" else "~${estimateMb.roundToInt()} MB"
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF1B1C22))
+            .border(0.8.dp, Color(0xFF2C2E38), RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "💾 Estimated file size:",
+                color = Color(0xFFA5A8B2),
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = mbText,
+                color = Color(0xFF26E5D7),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "•",
+                color = Color(0xFF555765),
+                fontSize = 10.sp
+            )
+            Text(
+                text = "${settings.resolution} ${settings.fps}fps",
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 

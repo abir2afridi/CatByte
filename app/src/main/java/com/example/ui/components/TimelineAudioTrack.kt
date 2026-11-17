@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -29,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -98,6 +101,14 @@ fun TimelineAudioTrack(
             val startOffsetDp = (audio.startTimelineMs * msToDp).dp
             val widthDp = (audio.durationMs * msToDp).dp.coerceAtLeast(54.dp)
 
+            // Dynamic color theme based on audio type:
+            val lowerTitle = audio.title.lowercase()
+            val themeColor = when {
+                lowerTitle.contains("voice") || lowerTitle.contains("rec") || lowerTitle.contains("mic") -> Color(0xFF7C4DFF) // Purple
+                lowerTitle.contains("sfx") || lowerTitle.contains("foley") || lowerTitle.contains("effect") -> Color(0xFFFF6D00) // Amber / Coral
+                else -> Color(0xFF00B0FF) // Cyan / Blue for Music
+            }
+
             Box(
                 modifier = Modifier
                     .offset(x = startOffsetDp)
@@ -110,13 +121,13 @@ fun TimelineAudioTrack(
                     }
                     .clip(RoundedCornerShape(6.dp))
                     .background(
-                        Color(0xFF7C4DFF).copy(
-                            alpha = if (isSelected || isDragging) 0.55f else 0.35f
+                        themeColor.copy(
+                            alpha = if (isSelected || isDragging) 0.55f else 0.30f
                         )
                     )
                     .border(
                         width = if (isSelected || isDragging) 1.8.dp else 0.8.dp,
-                        color = if (isDragging) Color(0xFFFFD600) else Color(0xFF7C4DFF),
+                        color = if (isDragging) Color(0xFFFFD600) else themeColor,
                         shape = RoundedCornerShape(6.dp)
                     )
                     .pointerInput(audio.id, msToDp) {
@@ -151,12 +162,34 @@ fun TimelineAudioTrack(
                             }
                         )
                     }
-                    .padding(horizontal = 8.dp),
+                    .padding(horizontal = 6.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
+                // Waveform rendering across the bottom of the audio clip
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val barWidth = 2.dp.toPx()
+                    val spacing = 2.dp.toPx()
+                    var currX = 0f
+                    var step = 0
+                    while (currX < size.width) {
+                        // Procedural acoustic waveform based on audio properties
+                        val sampleFactor = ((kotlin.math.sin(step * 0.45) * 0.4f + kotlin.math.cos(step * 0.18) * 0.4f) + 0.5f).toFloat().coerceIn(0.15f, 1f)
+                        val barHeight = size.height * 0.45f * sampleFactor * audio.volume.coerceIn(0.2f, 1.5f)
+                        drawLine(
+                            color = themeColor.copy(alpha = if (audio.isMuted) 0.15f else 0.7f),
+                            start = Offset(currX, size.height - barHeight),
+                            end = Offset(currX, size.height),
+                            strokeWidth = barWidth
+                        )
+                        currX += barWidth + spacing
+                        step++
+                    }
+                }
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier.zIndex(1f)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Audiotrack,
@@ -170,6 +203,12 @@ fun TimelineAudioTrack(
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1
+                    )
+                    Text(
+                        text = if (audio.isMuted) "🔇 Muted" else "🔊 ${(audio.volume * 100).toInt()}%",
+                        color = if (audio.isMuted) Color.LightGray else Color(0xFF26E5D7),
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }

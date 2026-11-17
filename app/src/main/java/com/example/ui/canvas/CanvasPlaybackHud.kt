@@ -125,17 +125,46 @@ internal fun BoxScope.CanvasPreviewNotice(
     }
 }
 
-/** The top status row (the active-filter pill). */
+/** The top status row (the active-filter pill & stereo audio peak meter). */
 @Composable
-internal fun BoxScope.CanvasTopStatusRow(activeClip: MediaClip?) {
+internal fun BoxScope.CanvasTopStatusRow(activeClip: MediaClip?, isPlaying: Boolean = false) {
     Row(
         modifier = Modifier
             .align(Alignment.TopCenter)
             .fillMaxWidth()
             .padding(8.dp),
-        horizontalArrangement = Arrangement.End,
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Stereo Audio Peak Meter (L / R) shown during playback
+        if (isPlaying && activeClip != null && !activeClip.isMuted) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .padding(horizontal = 6.dp, vertical = 3.dp)
+            ) {
+                Text("L", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                Box(
+                    modifier = Modifier
+                        .size(width = 20.dp, height = 3.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(Color(0xFF26E5D7))
+                )
+                Text("R", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                Box(
+                    modifier = Modifier
+                        .size(width = 24.dp, height = 3.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(Color(0xFFFFC107))
+                )
+            }
+        } else {
+            Box(modifier = Modifier.size(1.dp))
+        }
+
         CanvasFilterPill(activeClip)
     }
 }
