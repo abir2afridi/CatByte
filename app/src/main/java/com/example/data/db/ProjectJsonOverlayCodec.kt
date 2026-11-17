@@ -38,30 +38,25 @@ internal fun audioToJson(audio: AudioClip): JSONObject = JSONObject().apply {
 }
 
 internal fun audioFromJson(json: JSONObject): AudioClip {
-    val durationMs = json.optLong("durationMs", 6000L).coerceAtLeast(AudioTiming.MIN_AUDIO_DURATION_MS)
-    val fades = AudioTiming.clampFades(
-        durationMs = durationMs,
-        requestedFadeInMs = json.optLong("fadeInMs"),
-        requestedFadeOutMs = json.optLong("fadeOutMs")
-    )
-    return AudioClip(
+    val raw = AudioClip(
         id = json.optString("id"),
         title = json.optString("title", "Audio"),
         artist = json.optString("artist", ""),
         uriString = json.optStringOrNull("uriString"),
         startTimelineMs = json.optLong("startTimelineMs"),
-        durationMs = durationMs,
-        originalDurationMs = json.optLong("originalDurationMs"),
+        durationMs = json.optLong("durationMs", 6000L),
+        originalDurationMs = json.optLong("originalDurationMs", 0L),
         trimStartMs = json.optLong("trimStartMs"),
         trimEndMs = json.optLong("trimEndMs"),
-        speed = AudioTiming.normalizedSpeed(json.optDouble("speed", 1.0).toFloat()),
-        volume = json.optDouble("volume", 1.0).toFloat().coerceIn(0f, 2f),
+        speed = json.optDouble("speed", 1.0).toFloat(),
+        volume = json.optDouble("volume", 1.0).toFloat(),
         isVoiceover = json.optBoolean("isVoiceover", false),
         isMuted = json.optBoolean("isMuted", false),
-        fadeInMs = fades.first,
-        fadeOutMs = fades.second,
+        fadeInMs = json.optLong("fadeInMs"),
+        fadeOutMs = json.optLong("fadeOutMs"),
         waveform = json.optJSONArray("waveform").toFloatList()
     )
+    return AudioTiming.normalize(raw)
 }
 
 internal fun textToJson(text: TextOverlay): JSONObject = JSONObject().apply {

@@ -1,8 +1,10 @@
 package com.example.viewmodel.features
 
+import com.example.engine.AudioLoudness
 import com.example.engine.AudioTiming
 import com.example.model.AudioClip
 import com.example.viewmodel.EditorViewModel
+import kotlin.math.abs
 
 /**
  * Per-audio-clip mixer operations.
@@ -15,17 +17,44 @@ internal object AudioMixerFeature {
 
     /** Linear track gain in the range 0..2 (0..200%). */
     fun setAudioVolume(vm: EditorViewModel, audioId: String, volume: Float) {
-        val clipped = volume.coerceIn(0f, 2f)
+        val clipped = if (volume.isFinite()) volume.coerceIn(0f, 2f) else 1f
         val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
             ?: return
-        if (current.volume == clipped) return
+        val canonical = canonical(current)
+        if (canonical.volume == clipped) return
         vm.updateProject("audio-volume:$audioId") { project ->
             project.copy(
                 audioTracks = project.audioTracks.map { audio ->
-                    if (audio.id == audioId) audio.copy(volume = clipped) else audio
+                    if (audio.id == audioId) canonical.copy(volume = clipped) else audio
                 }
             )
         }
+    }
+
+    /**
+     * Loudness normalisation for independent audio tracks.
+     *
+     * The gain is derived from the track's decoded waveform - the same maths
+     * the per-clip Volume panel uses - and written through the normal volume
+     * field, so preview and export apply exactly the corrected level. Tracks
+     * without a decoded waveform return false: the UI then explains that the
+     * file must be analysed first instead of applying a bogus guess.
+     */
+    fun normaliseAudioVolume(vm: EditorViewModel, audioId: String): Boolean {
+        val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
+            ?: return false
+        val base = canonical(current)
+        if (!AudioLoudness.canNormalise(base.waveform)) return false
+        val target = AudioLoudness.gainFor(base.waveform).coerceIn(0f, 2f)
+        if (abs(target - base.volume) < 0.01f) return true
+        vm.updateProject("audio-volume:$audioId") { project ->
+            project.copy(
+                audioTracks = project.audioTracks.map { audio ->
+                    if (audio.id == audioId) base.copy(volume = target) else audio
+                }
+            )
+        }
+        return true
     }
 
     /** Fade durations on the output timeline. */
@@ -37,14 +66,15 @@ internal object AudioMixerFeature {
     ) {
         val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
             ?: return
-        val duration = AudioTiming.presentationDurationMs(current)
+        val canonical = canonical(current)
+        val duration = AudioTiming.presentationDurationMs(canonical)
         val fades = AudioTiming.clampFades(duration, fadeInMs, fadeOutMs)
-        if (current.fadeInMs == fades.first && current.fadeOutMs == fades.second) return
+        if (canonical.fadeInMs == fades.first && canonical.fadeOutMs == fades.second) return
         vm.updateProject("audio-fades:$audioId") { project ->
             project.copy(
                 audioTracks = project.audioTracks.map { audio ->
                     if (audio.id == audioId) {
-                        audio.copy(fadeInMs = fades.first, fadeOutMs = fades.second)
+                        canonical.copy(fadeInMs = fades.first, fadeOutMs = fades.second)
                     } else {
                         audio
                     }
@@ -58,25 +88,17 @@ internal object AudioMixerFeature {
         val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
             ?: return
         val normalized = AudioTiming.normalizedSpeed(speed)
-        if (current.speed == normalized) return
+        // Materialise a legacy source duration BEFORE changing speed. Otherwise
+        // sourceDurationMs would infer the new speed from the old output time.
+        val base = canonical(current)
+        if (base.speed == normalized) return
         vm.updateProject("audio-speed:$audioId") { project ->
             project.copy(
                 audioTracks = project.audioTracks.map { audio ->
                     if (audio.id != audioId) {
                         audio
                     } else {
-                        val retimed = audio.copy(speed = normalized)
-                        val duration = AudioTiming.presentationDurationMs(retimed)
-                        val fades = AudioTiming.clampFades(
-                            duration,
-                            retimed.fadeInMs,
-                            retimed.fadeOutMs
-                        )
-                        retimed.copy(
-                            durationMs = duration,
-                            fadeInMs = fades.first,
-                            fadeOutMs = fades.second
-                        )
+                        canonical(base.copy(speed = normalized))
                     }
                 }
             )
@@ -92,28 +114,20 @@ internal object AudioMixerFeature {
     ) {
         val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
             ?: return
-        val trim = AudioTiming.clampTrim(current, trimStartMs, trimEndMs)
-        if (current.trimStartMs == trim.first && current.trimEndMs == trim.second) return
+        val base = canonical(current)
+        val trim = AudioTiming.clampTrim(base, trimStartMs, trimEndMs)
+        if (base.trimStartMs == trim.first && base.trimEndMs == trim.second) return
         vm.updateProject("audio-trim:$audioId") { project ->
             project.copy(
                 audioTracks = project.audioTracks.map { audio ->
                     if (audio.id != audioId) {
                         audio
                     } else {
-                        val trimmed = audio.copy(
-                            trimStartMs = trim.first,
-                            trimEndMs = trim.second
-                        )
-                        val duration = AudioTiming.presentationDurationMs(trimmed)
-                        val fades = AudioTiming.clampFades(
-                            duration,
-                            trimmed.fadeInMs,
-                            trimmed.fadeOutMs
-                        )
-                        trimmed.copy(
-                            durationMs = duration,
-                            fadeInMs = fades.first,
-                            fadeOutMs = fades.second
+                        canonical(
+                            base.copy(
+                                trimStartMs = trim.first,
+                                trimEndMs = trim.second
+                            )
                         )
                     }
                 }
@@ -126,13 +140,16 @@ internal object AudioMixerFeature {
         val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
             ?: return
         val project = vm._currentProject.value ?: return
-        val maxStart = project.totalDurationMs.coerceAtLeast(0L)
+        val base = canonical(current)
+        // The project duration already contains this clip. Excluding its own
+        // length prevents moving it to the end from growing the project again.
+        val maxStart = (project.totalDurationMs - base.durationMs).coerceAtLeast(0L)
         val clipped = startMs.coerceIn(0L, maxStart)
-        if (current.startTimelineMs == clipped) return
+        if (base.startTimelineMs == clipped) return
         vm.updateProject("audio-start:$audioId") { updated ->
             updated.copy(
                 audioTracks = updated.audioTracks.map { audio ->
-                    if (audio.id == audioId) audio.copy(startTimelineMs = clipped) else audio
+                    if (audio.id == audioId) base.copy(startTimelineMs = clipped) else audio
                 }
             )
         }
@@ -142,25 +159,30 @@ internal object AudioMixerFeature {
     fun resetAudioMixer(vm: EditorViewModel, audioId: String) {
         val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
             ?: return
+        val base = canonical(current)
         vm.updateProject { project ->
             project.copy(
                 audioTracks = project.audioTracks.map { audio ->
                     if (audio.id != audioId) {
                         audio
                     } else {
-                        val reset = audio.copy(
-                            volume = 1f,
-                            isMuted = false,
-                            fadeInMs = 0L,
-                            fadeOutMs = 0L,
-                            speed = 1f,
-                            trimStartMs = 0L,
-                            trimEndMs = 0L
+                        canonical(
+                            base.copy(
+                                volume = 1f,
+                                isMuted = false,
+                                fadeInMs = 0L,
+                                fadeOutMs = 0L,
+                                speed = 1f,
+                                trimStartMs = 0L,
+                                trimEndMs = 0L
+                            )
                         )
-                        reset.copy(durationMs = AudioTiming.presentationDurationMs(reset))
                     }
                 }
             )
         }
     }
+
+    /** Canonicalises both legacy and malformed clips before every mutation. */
+    private fun canonical(audio: AudioClip): AudioClip = AudioTiming.normalize(audio)
 }

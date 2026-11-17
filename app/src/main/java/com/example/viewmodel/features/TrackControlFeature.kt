@@ -108,8 +108,22 @@ internal object TrackControlFeature {
     }
 
     /**
+     * Latest legal start for an audio clip. The clip's own duration is excluded
+     * from the available timeline span so a placement can never overhang the
+     * project end.
+     */
+    fun maxAudioStartMs(timelineDurationMs: Long, clipDurationMs: Long): Long {
+        val timeline = timelineDurationMs.coerceAtLeast(0L)
+        val duration = clipDurationMs.coerceAtLeast(0L)
+        return (timeline - duration).coerceAtLeast(0L)
+    }
+
+    /**
      * Moves an audio clip to a new start time. The drop snaps to neighbouring
      * audio clips and clamps inside the project.
+     *
+     * The UI commits one value at drag end, so this intentionally uses no
+     * coalescing key: two distinct drags remain two independent undo steps.
      */
     fun moveAudioClip(vm: EditorViewModel, audioId: String, desiredStartMs: Long) {
         vm.updateProject { proj ->
@@ -119,7 +133,7 @@ internal object TrackControlFeature {
                 others.map { it.startTimelineMs to it.durationMs }
             )
             val snapped = SnapEngine.magneticStart(desiredStartMs, clip.durationMs, occupied)
-            val maxStart = (proj.totalDurationMs - clip.durationMs).coerceAtLeast(0L)
+            val maxStart = maxAudioStartMs(proj.totalDurationMs, clip.durationMs)
             val start = snapped.coerceIn(0L, maxStart)
             proj.copy(
                 audioTracks = proj.audioTracks.map { existing ->

@@ -1,10 +1,17 @@
 package com.example.ui.audio
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
 import com.example.model.AudioClip
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -63,5 +70,257 @@ class AudioMixerSheetTest {
         assertEquals(listOf("music"), reset)
         assertEquals(listOf("music"), deleted)
         assertTrue(compose.onAllNodesWithTag("audio_mixer_sheet").fetchSemanticsNodes().isNotEmpty())
+    }
+
+    @Test
+    fun `auto volume stays disabled while the waveform is not decoded`() {
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onNormaliseVolume = { error("normalise must not fire without a waveform") },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        compose.onNodeWithTag("audio_mixer_auto_volume").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `auto volume reports the selected track when the waveform is decoded`() {
+        val normalised = mutableListOf<String>()
+        val withData = audio.copy(waveform = List(48) { 0.1f })
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(withData),
+                selectedAudioId = withData.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onNormaliseVolume = { normalised += it },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        compose.onNodeWithTag("audio_mixer_auto_volume").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        assertEquals(listOf("music"), normalised)
+    }
+
+    @Test
+    fun `slider gestures keep local drafts and commit once when the gesture ends`() {
+        var currentAudio by mutableStateOf(audio)
+        val volumes = mutableListOf<Pair<String, Float>>()
+        val fades = mutableListOf<Triple<String, Long, Long>>()
+        val speeds = mutableListOf<Pair<String, Float>>()
+        val trims = mutableListOf<Triple<String, Long, Long>>()
+        val starts = mutableListOf<Pair<String, Long>>()
+
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(currentAudio),
+                selectedAudioId = currentAudio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { id, value -> volumes += id to value },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { id, fadeIn, fadeOut ->
+                    fades += Triple(id, fadeIn, fadeOut)
+                },
+                onSpeedChanged = { id, value -> speeds += id to value },
+                onTrimChanged = { id, start, end -> trims += Triple(id, start, end) },
+                onTimelineStartChanged = { id, value -> starts += id to value },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        val volume = compose.onNodeWithTag("audio_mixer_volume").performScrollTo()
+        volume.performTouchInput {
+            down(center)
+            moveTo(Offset(center.x * 1.2f, center.y))
+            moveTo(Offset(center.x * 1.4f, center.y))
+            moveTo(Offset(center.x * 1.6f, center.y))
+        }
+        compose.waitForIdle()
+
+        // Pointer movement only updates the local draft. No model/history work
+        // is allowed until the finger is released.
+        assertTrue(volumes.isEmpty())
+        val draft = volume.fetchSemanticsNode()
+            .config[SemanticsProperties.ProgressBarRangeInfo]
+            .current
+        assertTrue("the slider should show its local draft", draft > 1f)
+
+        // An external update does not overwrite an active gesture. Once the
+        // gesture ends, the authoritative model value is reflected again.
+        currentAudio = currentAudio.copy(volume = 0.5f)
+        compose.waitForIdle()
+        assertTrue(volumes.isEmpty())
+
+        volume.performTouchInput { up() }
+        compose.waitForIdle()
+        assertEquals(1, volumes.size)
+        assertEquals("music", volumes.single().first)
+        assertEquals(draft, volumes.single().second, 0.0001f)
+
+        val reflected = volume.fetchSemanticsNode()
+            .config[SemanticsProperties.ProgressBarRangeInfo]
+            .current
+        assertEquals(0.5f, reflected, 0.0001f)
+
+        dragSlider("audio_mixer_fade_in", towardEnd = true)
+        dragSlider("audio_mixer_fade_out", towardEnd = true)
+        dragSlider("audio_mixer_speed", towardEnd = true)
+        dragSlider("audio_mixer_trim_in", towardEnd = true)
+        dragSlider("audio_mixer_trim_out", towardEnd = false)
+        dragSlider("audio_mixer_start", towardEnd = true)
+
+        assertEquals(2, fades.count { it.first == "music" })
+        assertEquals(2, fades.size)
+        assertEquals(1, speeds.size)
+        assertEquals(2, trims.size)
+        assertEquals(1, starts.size)
+    }
+
+    @Test
+    fun `speed slider uses the canonical editor range`() {
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        val range = compose.onNodeWithTag("audio_mixer_speed")
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.ProgressBarRangeInfo]
+            .range
+        assertEquals(0.1f, range.start, 0f)
+        assertEquals(16f, range.endInclusive, 0f)
+    }
+
+    @Test
+    fun `timeline placement excludes the moving clip duration from the range`() {
+        val starts = mutableListOf<Pair<String, Long>>()
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { id, value -> starts += id to value },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        val start = compose.onNodeWithTag("audio_mixer_start").performScrollTo()
+        val range = start.fetchSemanticsNode()
+            .config[SemanticsProperties.ProgressBarRangeInfo]
+            .range
+        assertEquals(0f, range.start, 0f)
+        assertEquals(6_000f, range.endInclusive, 0f)
+
+        start.performTouchInput {
+            down(center)
+            moveTo(Offset(center.x * 2f - 1f, center.y))
+            up()
+        }
+        compose.waitForIdle()
+
+        assertEquals(1, starts.size)
+        assertTrue(starts.single().second in 0L..6_000L)
+    }
+
+    @Test
+    fun `zero-width timing edits preserve their exact bounds`() {
+        val tinyClip = audio.copy(durationMs = 100L, originalDurationMs = 100L)
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(tinyClip),
+                selectedAudioId = tinyClip.id,
+                maxTimelineStartMs = 100L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        mapOf(
+            "audio_mixer_fade_in" to (0f to 100f),
+            "audio_mixer_fade_out" to (0f to 100f),
+            "audio_mixer_trim_in" to (0f to 0f),
+            "audio_mixer_trim_out" to (100f to 100f),
+            "audio_mixer_start" to (0f to 0f)
+        ).forEach { (tag, expected) ->
+            val range = compose.onNodeWithTag(tag)
+                .fetchSemanticsNode()
+                .config[SemanticsProperties.ProgressBarRangeInfo]
+                .range
+            assertEquals("$tag start", expected.first, range.start, 0f)
+            assertEquals("$tag end", expected.second, range.endInclusive, 0f)
+        }
+    }
+
+    private fun dragSlider(tag: String, towardEnd: Boolean) {
+        val slider = compose.onNodeWithTag(tag).performScrollTo()
+        slider.performTouchInput {
+            down(center)
+            if (towardEnd) {
+                moveTo(Offset(center.x * 1.2f, center.y))
+                moveTo(Offset(center.x * 1.4f, center.y))
+                moveTo(Offset(center.x * 1.6f, center.y))
+            } else {
+                moveTo(Offset(center.x * 0.8f, center.y))
+                moveTo(Offset(center.x * 0.6f, center.y))
+                moveTo(Offset(center.x * 0.4f, center.y))
+            }
+            up()
+        }
+        compose.waitForIdle()
     }
 }

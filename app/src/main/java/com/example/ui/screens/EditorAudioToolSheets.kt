@@ -1,6 +1,6 @@
 package com.example.ui.screens
 
-import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -31,17 +31,21 @@ internal fun AudioToolSheet(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        // Keep access after a process restart so the mixer/export can reopen
-        // the same source. Some document providers do not grant persistence.
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
+        // AudioFeature copies the provider content into app-private storage (or
+        // verifies a persisted grant) before reporting success. Keep the sheet
+        // open until that work finishes so a failed import is never presented
+        // as a completed one.
+        viewModel.addAudioTrackFromUri(uri.toString(), "", "Imported") { imported ->
+            if (imported) {
+                viewModel.setActiveSheet(ActiveToolSheet.NONE)
+            } else {
+                Toast.makeText(
+                    context,
+                    "Could not import audio. The file could not be copied or kept with persistent access.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
-        // AudioFeature resolves the provider's display name asynchronously.
-        viewModel.addAudioTrackFromUri(uri.toString(), "", "Imported")
-        viewModel.setActiveSheet(ActiveToolSheet.NONE)
     }
 
     AudioSheet(
@@ -49,8 +53,20 @@ internal fun AudioToolSheet(
         voiceDurationMs = voiceRecordingDurationMs,
         initialTab = initialTab,
         onAddAudio = { track ->
-            viewModel.addAudioTrack(track)
-            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+            // Library metadata has no media URI. Generate a real WAV first;
+            // keep the sheet open and explain the failure when that does not
+            // complete instead of presenting a fake successful track.
+            viewModel.addSampleAudioTrack(track) { added ->
+                if (added) {
+                    viewModel.setActiveSheet(ActiveToolSheet.NONE)
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Could not prepare the sample audio. No track was added.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
         },
         onImportAudio = { audioPicker.launch(arrayOf("audio/*")) },
         onExtractAudio = { viewModel.extractAudioFromSelectedClip() },
@@ -76,6 +92,7 @@ internal fun AudioMixerToolSheet(
         maxTimelineStartMs = project.totalDurationMs,
         onSelectAudio = { viewModel.selectAudioClip(it) },
         onVolumeChanged = { id, value -> viewModel.setAudioVolume(id, value) },
+        onNormaliseVolume = { id -> viewModel.normaliseAudioVolume(id) },
         onMuteChanged = { id, muted -> viewModel.setAudioClipMuted(id, muted) },
         onFadesChanged = { id, fadeIn, fadeOut ->
             viewModel.setAudioFades(id, fadeIn, fadeOut)

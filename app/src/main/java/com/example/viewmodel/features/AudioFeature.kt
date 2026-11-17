@@ -1,67 +1,406 @@
 package com.example.viewmodel.features
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppLog
 import com.example.data.ClipTiming
 import com.example.data.MediaDurationFallback
 import com.example.data.MediaMetadata
+import com.example.data.SampleAudioGenerator
+import com.example.engine.AudioTiming
 import com.example.model.AudioClip
 import com.example.model.MediaClip
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.IOException
 import java.util.UUID
 
 /** Audio-track import, extraction, microphone recording and TTS voice-over. */
 internal object AudioFeature {
 
-    /** Adds an audio track from a URI (real duration + waveform). */
+    private const val IMPORTED_AUDIO_DIRECTORY = "imported_audio"
+    private const val SAMPLE_AUDIO_DIRECTORY = "sample_audio"
+
+    /** A source that can safely be written into a persisted project. */
+    internal data class DurableAudioSource(
+        val uriString: String,
+        val metadataUri: Uri,
+        val displayName: String,
+        /** True when this is still a content URI backed by a persisted grant. */
+        val requiresPersistedReadPermission: Boolean = false
+    )
+
+    /** Metadata that is expensive to obtain and therefore read on IO. */
+    internal data class AudioImportMedia(
+        val durationMs: Long,
+        val waveform: List<Float> = emptyList()
+    )
+
+    /** A generated library sample persisted in app-private storage. */
+    internal data class GeneratedSampleAudio(
+        val file: File,
+        val durationMs: Long,
+        val waveform: List<Float>
+    )
+
+    /** Injectable metadata reader so import timing can be tested deterministically. */
+    internal fun interface AudioImportProbe {
+        suspend fun probe(context: Context, uri: Uri): AudioImportMedia
+    }
+
+    private val DefaultAudioImportProbe = AudioImportProbe { context, uri ->
+        AudioImportMedia(
+            durationMs = MediaMetadata.durationMs(context, uri),
+            waveform = MediaMetadata.waveform(context, uri, 48).orEmpty()
+        )
+    }
+
+    /**
+     * Adds an audio track from a URI (real duration + waveform).
+     *
+     * The playhead is captured synchronously at import initiation. Content URIs
+     * are copied into app-private storage before the project is changed, so a
+     * successful import never depends on a temporary document-provider grant.
+     * [onComplete] receives true only after the durable track was added.
+     */
     fun addAudioTrackFromUri(
         vm: EditorViewModel,
         uriString: String,
         title: String,
-        artist: String = "Unknown"
+        artist: String = "Unknown",
+        onComplete: (Boolean) -> Unit = {},
+        probe: AudioImportProbe = DefaultAudioImportProbe,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     ) {
-        val ctx = vm.context ?: return
-        val uri = Uri.parse(uriString)
+        // This must happen before any asynchronous metadata/waveform work: the
+        // user can move the playhead while a large file is being copied.
+        val startTimelineMs = vm._currentPositionMs.value
+        val ctx = vm.context
+        val projectId = vm._currentProject.value?.id
+        if (ctx == null || projectId == null || uriString.isBlank()) {
+            onComplete(false)
+            return
+        }
+
+        val uri = runCatching { Uri.parse(uriString) }.getOrElse {
+            onComplete(false)
+            return
+        }
+        // Persistable access must be requested while the picker grant is still
+        // active. A successful copy does not depend on it, but it is the only
+        // legal fallback when copying is impossible.
+        val persistableReadGranted = requestPersistableReadPermission(ctx, uri)
+
         vm.viewModelScope.launch {
-            val durationMs = MediaMetadata.durationMs(ctx, uri)
-            val waveform = MediaMetadata.waveform(ctx, uri, 48) ?: emptyList()
-            val realTitle = title.takeIf { it.isNotBlank() }
-                ?: MediaMetadata.displayName(ctx, uri)
-            val sourceDurationMs = if (durationMs > 0) durationMs else 6000L
-            val audio = AudioClip(
-                id = UUID.randomUUID().toString(),
-                title = realTitle,
-                artist = artist,
-                uriString = uriString,
-                startTimelineMs = vm._currentPositionMs.value,
-                durationMs = sourceDurationMs,
-                originalDurationMs = sourceDurationMs,
-                waveform = waveform.ifEmpty { emptyList() }
-            )
-            vm.updateProject { proj ->
-                proj.copy(audioTracks = proj.audioTracks + audio)
+            val succeeded = try {
+                val source = withContext(ioDispatcher) {
+                    resolveDurableAudioSource(ctx, uri, persistableReadGranted)
+                } ?: throw IOException("Audio source is not durable and has no persisted read grant")
+                val media = withContext(ioDispatcher) {
+                    probe.probe(ctx, source.metadataUri)
+                }
+                if (vm._currentProject.value?.id != projectId) {
+                    throw IOException("The open project changed while the audio was importing")
+                }
+                if (source.requiresPersistedReadPermission &&
+                    !hasPersistedReadPermission(ctx, source.metadataUri)
+                ) {
+                    throw IOException("The persisted read grant is no longer available")
+                }
+
+                val sourceDurationMs = if (media.durationMs > 0L) media.durationMs else 6000L
+                val realTitle = title.takeIf { it.isNotBlank() }
+                    ?: source.displayName.takeIf { it.isNotBlank() }
+                    ?: "Imported Audio"
+                val audio = AudioClip(
+                    id = UUID.randomUUID().toString(),
+                    title = realTitle,
+                    artist = artist,
+                    uriString = source.uriString,
+                    startTimelineMs = startTimelineMs,
+                    durationMs = sourceDurationMs,
+                    originalDurationMs = sourceDurationMs,
+                    waveform = media.waveform.ifEmpty { emptyList() }
+                )
+                vm.updateProject { proj ->
+                    proj.copy(audioTracks = proj.audioTracks + audio)
+                }
+                // Selection is a single source of truth: selecting the imported
+                // audio must also clear any text/video selection.
+                SelectionFeature.selectAudioClip(vm, audio.id)
+                true
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                AppLog.error("EditorViewModel", "Failed to import audio from $uriString", error)
+                false
             }
-            vm._selectedAudioId.value = audio.id
+            onComplete(succeeded)
+        }
+    }
+
+    /**
+     * Generates a built-in library sample as a real WAV file and adds it to
+     * the project only after the file has been written successfully.
+     *
+     * The sample metadata intentionally has no URI. Generating and persisting
+     * the source here prevents a null URI from reaching preview/export, where
+     * it would look like a successful track but could not be rendered.
+     */
+    fun addSampleAudioTrack(
+        vm: EditorViewModel,
+        sample: AudioClip,
+        onComplete: (Boolean) -> Unit = {},
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+        generator: (String, Long) -> SampleAudioGenerator.GeneratedAudio = SampleAudioGenerator::generate
+    ) {
+        // Capture the insertion point before generation. A long sample must not
+        // jump to wherever the user moved the playhead while it was prepared.
+        val startTimelineMs = vm._currentPositionMs.value
+        val ctx = vm.context
+        val projectId = vm._currentProject.value?.id
+        if (ctx == null || projectId == null || sample.id.isBlank()) {
+            onComplete(false)
+            return
+        }
+
+        vm.viewModelScope.launch {
+            val succeeded = try {
+                val generated = withContext(ioDispatcher) {
+                    val audio = generator(sample.id, sample.durationMs)
+                    persistGeneratedSample(ctx, audio)
+                }
+                if (vm._currentProject.value?.id != projectId) {
+                    throw IOException("The open project changed while the sample was being prepared")
+                }
+                if (!generated.file.isFile || generated.file.length() <= 44L) {
+                    throw IOException("The generated sample audio is missing or empty")
+                }
+
+                val track = AudioClip(
+                    id = UUID.randomUUID().toString(),
+                    title = sample.title,
+                    artist = sample.artist,
+                    uriString = generated.file.absolutePath,
+                    startTimelineMs = startTimelineMs,
+                    durationMs = generated.durationMs,
+                    originalDurationMs = generated.durationMs,
+                    waveform = generated.waveform
+                )
+                vm.updateProject { project ->
+                    project.copy(audioTracks = project.audioTracks + track)
+                }
+                SelectionFeature.selectAudioClip(vm, track.id)
+                true
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                AppLog.error(
+                    "EditorViewModel",
+                    "Failed to generate sample audio '${sample.id}'",
+                    error
+                )
+                false
+            }
+            onComplete(succeeded)
+        }
+    }
+
+    /** Writes a generated sample atomically into app-private storage. */
+    internal fun persistGeneratedSample(
+        context: Context,
+        audio: SampleAudioGenerator.GeneratedAudio
+    ): GeneratedSampleAudio {
+        val directory = File(context.filesDir, SAMPLE_AUDIO_DIRECTORY)
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw IOException("Cannot create the private sample-audio directory")
+        }
+        val target = File(directory, "sample_${UUID.randomUUID()}.wav")
+        val temporary = File(directory, ".${target.name}.part")
+        return try {
+            SampleAudioGenerator.writeWav(temporary, audio.samples)
+            if (temporary.length() <= 44L) {
+                throw IOException("The generated sample WAV is empty")
+            }
+            if (!temporary.renameTo(target)) {
+                temporary.copyTo(target, overwrite = true)
+                temporary.delete()
+            }
+            if (!target.isFile || target.length() <= 44L) {
+                throw IOException("The generated sample WAV could not be persisted")
+            }
+            GeneratedSampleAudio(
+                file = target,
+                durationMs = audio.durationMs,
+                waveform = audio.waveform
+            )
+        } finally {
+            temporary.delete()
         }
     }
 
     fun addAudioTrack(vm: EditorViewModel, audioClip: AudioClip) {
-        vm.updateProject { proj ->
-            val track = audioClip.copy(
-                id = UUID.randomUUID().toString(),
-                startTimelineMs = vm._currentPositionMs.value,
-                originalDurationMs = audioClip.originalDurationMs.takeIf { it > 0L }
-                    ?: audioClip.durationMs
+        if (audioClip.uriString.isNullOrBlank()) {
+            AppLog.warn(
+                "EditorViewModel",
+                "Cannot add '${audioClip.title}': the audio source is missing"
             )
+            return
+        }
+        val id = UUID.randomUUID().toString()
+        val startTimelineMs = vm._currentPositionMs.value
+        val track = audioClip.copy(
+            id = id,
+            startTimelineMs = startTimelineMs,
+            originalDurationMs = audioClip.originalDurationMs.takeIf { it > 0L }
+                ?: audioClip.durationMs
+        )
+        vm.updateProject { proj ->
             proj.copy(audioTracks = proj.audioTracks + track)
         }
+        SelectionFeature.selectAudioClip(vm, id)
+    }
+
+    /**
+     * Resolves an import source to something that remains readable after the
+     * process restarts. A content URI is copied into app-private storage; the
+     * original URI is accepted only when a persisted read grant is confirmed.
+     */
+    internal fun resolveDurableAudioSource(
+        context: Context,
+        uri: Uri,
+        persistableReadGranted: Boolean
+    ): DurableAudioSource? {
+        val displayName = queryDisplayName(context, uri)
+        if (!uri.scheme.equals("content", ignoreCase = true)) {
+            return DurableAudioSource(
+                uriString = uri.toString(),
+                metadataUri = uri,
+                displayName = displayName
+            )
+        }
+
+        val copiedFile = copyContentUriToPrivateStorage(context, uri, displayName)
+        if (copiedFile != null) {
+            return DurableAudioSource(
+                uriString = copiedFile.absolutePath,
+                metadataUri = Uri.fromFile(copiedFile),
+                displayName = displayName
+            )
+        }
+
+        // A provider may refuse a persistable grant. In that case its temporary
+        // URI would be dead after a process restart and must not be stored as a
+        // successful import.
+        if (persistableReadGranted && hasPersistedReadPermission(context, uri)) {
+            return DurableAudioSource(
+                uriString = uri.toString(),
+                metadataUri = uri,
+                displayName = displayName,
+                requiresPersistedReadPermission = true
+            )
+        }
+        return null
+    }
+
+    /** Copies a content URI into app-private files storage. */
+    internal fun copyContentUriToPrivateStorage(
+        context: Context,
+        uri: Uri,
+        displayName: String
+    ): File? {
+        val directory = File(context.filesDir, IMPORTED_AUDIO_DIRECTORY)
+        if (!directory.exists() && !directory.mkdirs()) {
+            AppLog.warn("EditorViewModel", "Cannot create private audio import directory")
+            return null
+        }
+
+        val extension = displayName.substringAfterLast('.', "")
+            .lowercase()
+            .takeIf { candidate ->
+                candidate.length in 1..8 && candidate.all { it.isLetterOrDigit() }
+            }
+            ?: "audio"
+        val target = File(directory, "${UUID.randomUUID()}.$extension")
+        val temporary = File(directory, ".${target.name}.part")
+        return try {
+            val input = context.contentResolver.openInputStream(uri)
+                ?: throw IOException("The selected audio cannot be opened")
+            input.use { source ->
+                temporary.outputStream().use { output -> source.copyTo(output) }
+            }
+            if (temporary.length() <= 0L) {
+                throw IOException("The selected audio is empty")
+            }
+            if (!temporary.renameTo(target)) {
+                temporary.copyTo(target, overwrite = true)
+                temporary.delete()
+            }
+            AppLog.info("EditorViewModel", "Copied imported audio into private storage")
+            target
+        } catch (error: Exception) {
+            temporary.delete()
+            target.delete()
+            AppLog.warn("EditorViewModel", "Cannot copy imported audio into private storage", error)
+            null
+        }
+    }
+
+    /** True only when Android reports an actual persisted read grant. */
+    internal fun hasPersistedReadPermission(context: Context, uri: Uri): Boolean =
+        runCatching {
+            context.contentResolver.persistedUriPermissions.any { permission ->
+                permission.uri == uri && permission.isReadPermission
+            }
+        }.getOrDefault(false)
+
+    /** Requests and verifies a persistable read grant while the picker grant lives. */
+    private fun requestPersistableReadPermission(context: Context, uri: Uri): Boolean {
+        if (!uri.scheme.equals("content", ignoreCase = true)) return false
+        if (hasPersistedReadPermission(context, uri)) return true
+        return try {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+            hasPersistedReadPermission(context, uri)
+        } catch (error: Exception) {
+            AppLog.warn("EditorViewModel", "Provider did not grant persistable audio access", error)
+            false
+        }
+    }
+
+    /** Reads the provider's display name without changing the stored source. */
+    private fun queryDisplayName(context: Context, uri: Uri): String {
+        val queried = runCatching {
+            context.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (column >= 0 && cursor.moveToFirst()) cursor.getString(column) else null
+            }
+        }.getOrNull()
+        return queried?.takeIf { it.isNotBlank() }
+            ?: uri.lastPathSegment
+                ?.substringAfterLast('/')
+                ?.substringBeforeLast('.')
+                ?.takeIf { it.isNotBlank() }
+            ?: "Imported Audio"
     }
 
     fun deleteAudioTrack(vm: EditorViewModel, id: String) {
@@ -118,9 +457,11 @@ internal object AudioFeature {
         val trimStart = clip.trimStartMs.coerceAtLeast(0L)
         val trimEnd = if (clip.trimEndMs > trimStart) clip.trimEndMs else trimStart + sourceLength
         val effectiveSpeed = if (ClipTiming.hasSpeedCurve(clip)) {
-            (sourceLength.toFloat() / clip.durationMs.coerceAtLeast(1L)).coerceIn(0.1f, 16f)
+            AudioTiming.normalizedSpeed(
+                sourceLength.toFloat() / clip.durationMs.coerceAtLeast(1L)
+            )
         } else {
-            clip.speed.coerceIn(0.1f, 16f)
+            AudioTiming.normalizedSpeed(clip.speed)
         }
 
         vm.viewModelScope.launch {
@@ -185,9 +526,11 @@ internal object AudioFeature {
         val trimStart = clip.trimStartMs.coerceAtLeast(0L)
         val trimEnd = if (clip.trimEndMs > trimStart) clip.trimEndMs else trimStart + sourceLength
         val effectiveSpeed = if (ClipTiming.hasSpeedCurve(clip)) {
-            (sourceLength.toFloat() / clip.durationMs.coerceAtLeast(1L)).coerceIn(0.1f, 16f)
+            AudioTiming.normalizedSpeed(
+                sourceLength.toFloat() / clip.durationMs.coerceAtLeast(1L)
+            )
         } else {
-            clip.speed.coerceIn(0.1f, 16f)
+            AudioTiming.normalizedSpeed(clip.speed)
         }
 
         val detached = AudioClip(
@@ -265,8 +608,9 @@ internal object AudioFeature {
 
         if (file != null && file.exists()) {
             val duration = vm._voiceRecordingDurationMs.value
+            val audioId = UUID.randomUUID().toString()
             val audio = AudioClip(
-                id = UUID.randomUUID().toString(),
+                id = audioId,
                 title = "Voiceover",
                 artist = "You",
                 uriString = file.absolutePath,
@@ -274,11 +618,14 @@ internal object AudioFeature {
                 durationMs = duration.coerceAtLeast(500L),
                 originalDurationMs = duration.coerceAtLeast(500L),
                 isVoiceover = true,
-                waveform = emptyList() // could compute later
+                waveform = emptyList()
             )
             vm.updateProject { proj ->
                 proj.copy(audioTracks = proj.audioTracks + audio)
             }
+            // The recording is a real local file: decode its envelope so the
+            // timeline shows the actual waveform instead of an empty row.
+            attachWaveformAsync(vm, audioId, file)
         }
     }
 
@@ -298,8 +645,9 @@ internal object AudioFeature {
             if (file != null) {
                 val durationMs = MediaDurationFallback.durationMs(vm.context!!, Uri.fromFile(file))
                     .coerceAtLeast(500L)
+                val audioId = UUID.randomUUID().toString()
                 val audio = AudioClip(
-                    id = UUID.randomUUID().toString(),
+                    id = audioId,
                     title = "AI Voiceover",
                     artist = "CatByte TTS",
                     uriString = file.absolutePath,
@@ -312,8 +660,33 @@ internal object AudioFeature {
                 vm.updateProject { proj ->
                     proj.copy(audioTracks = proj.audioTracks + audio)
                 }
+                // TTS output is a real file too; refine its waveform once the
+                // decoder has read it.
+                attachWaveformAsync(vm, audioId, file)
             }
             // The UI can show error if needed
+        }
+    }
+
+    /**
+     * Decodes the peak envelope of a freshly created voice-over/TTS file and
+     * attaches it in a follow-up update. The clip appears immediately with an
+     * honest "no data" waveform; the envelope arrives once decoding finishes.
+     */
+    private fun attachWaveformAsync(vm: EditorViewModel, audioId: String, file: File) {
+        val ctx = vm.context ?: return
+        vm.viewModelScope.launch {
+            val waveform = withContext(Dispatchers.IO) {
+                runCatching { MediaMetadata.waveform(ctx, Uri.fromFile(file), 48) }.getOrNull()
+            } ?: return@launch
+            if (waveform.isEmpty()) return@launch
+            vm.updateProject("audio-waveform:$audioId") { proj ->
+                proj.copy(
+                    audioTracks = proj.audioTracks.map {
+                        if (it.id == audioId) it.copy(waveform = waveform) else it
+                    }
+                )
+            }
         }
     }
 }

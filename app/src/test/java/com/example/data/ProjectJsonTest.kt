@@ -1,5 +1,6 @@
 package com.example.data.db
 
+import com.example.engine.AudioTiming
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
 import com.example.model.BezierPoint
@@ -21,6 +22,7 @@ import com.example.model.TimelineMarker
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -104,7 +106,7 @@ class ProjectJsonTest {
                     artist = "Test",
                     uriString = "content://media/audio/7",
                     startTimelineMs = 400L,
-                    durationMs = 9000L,
+                    durationMs = 7565L,
                     originalDurationMs = 10000L,
                     trimStartMs = 150L,
                     trimEndMs = 8850L,
@@ -295,6 +297,40 @@ class ProjectJsonTest {
         )
         val restored = ProjectJson.fromJson(ProjectJson.toJson(project))
         assertEquals(project, restored)
+    }
+
+    @Test
+    fun `malformed audio timing is normalized during json decode`() {
+        val json = JSONObject()
+            .put("id", "malformed_audio")
+            .put("title", "Audio")
+            .put(
+                "audioTracks",
+                JSONArray().put(
+                    JSONObject()
+                        .put("id", "broken")
+                        .put("title", "Broken")
+                        .put("artist", "Test")
+                        .put("uriString", "content://audio/broken")
+                        .put("startTimelineMs", -100L)
+                        .put("durationMs", 1_000L)
+                        .put("originalDurationMs", 1_000L)
+                        .put("trimStartMs", 5_000L)
+                        .put("trimEndMs", 6_000L)
+                        .put("speed", 2.0)
+                        .put("volume", 1.0)
+                        .put("fadeInMs", Long.MAX_VALUE)
+                        .put("fadeOutMs", Long.MAX_VALUE)
+                )
+            )
+
+        val audio = ProjectJson.fromJson(json.toString())!!.audioTracks.single()
+
+        assertTrue(audio.startTimelineMs >= 0L)
+        assertTrue(audio.trimStartMs <= audio.trimEndMs)
+        assertTrue(audio.trimEndMs <= audio.originalDurationMs)
+        assertEquals(AudioTiming.presentationDurationMs(audio), audio.durationMs)
+        assertTrue(audio.fadeInMs + audio.fadeOutMs <= audio.durationMs)
     }
 
     @Test

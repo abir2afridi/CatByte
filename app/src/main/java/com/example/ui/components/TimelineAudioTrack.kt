@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -33,16 +35,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.model.AudioClip
+import com.example.viewmodel.features.TrackControlFeature
 import kotlin.math.roundToLong
 
 /**
@@ -55,6 +60,7 @@ import kotlin.math.roundToLong
 fun TimelineAudioTrack(
     tracks: List<AudioClip>,
     msToDp: Float,
+    timelineDurationMs: Long? = null,
     onMoveClip: (audioId: String, newStartMs: Long) -> Unit = { _, _ -> },
     onToggleMute: (audioId: String, muted: Boolean) -> Unit = { _, _ -> },
     selectedAudioId: String? = null,
@@ -108,7 +114,9 @@ fun TimelineAudioTrack(
             val isSelected = audio.id == selectedAudioId
             val isDragging = draggedId == audio.id
             val startOffsetDp = (audio.startTimelineMs * msToDp).dp
-            val widthDp = (audio.durationMs * msToDp).dp.coerceAtLeast(54.dp)
+            // Keep enough room for the icon, title and the 28dp mute button.
+            // A short clip must never push its own primary control off-screen.
+            val widthDp = (audio.durationMs * msToDp).dp.coerceAtLeast(72.dp)
 
             Box(
                 modifier = Modifier
@@ -139,7 +147,13 @@ fun TimelineAudioTrack(
                             shape = RoundedCornerShape(6.dp)
                         )
                         .clickable { onSelectAudio(audio.id) }
-                        .pointerInput(audio.id, msToDp) {
+                        .pointerInput(
+                            audio.id,
+                            audio.startTimelineMs,
+                            audio.durationMs,
+                            timelineDurationMs,
+                            msToDp
+                        ) {
                             detectDragGesturesAfterLongPress(
                                 onDragStart = {
                                     draggedId = audio.id
@@ -157,10 +171,17 @@ fun TimelineAudioTrack(
                                         0L
                                     }
                                     if (draggedId == audio.id && deltaMs != 0L) {
-                                        onMoveClip(
-                                            audio.id,
-                                            (audio.startTimelineMs + deltaMs).coerceAtLeast(0L)
-                                        )
+                                        val desiredStart = audio.startTimelineMs + deltaMs
+                                        val start = timelineDurationMs?.let { totalMs ->
+                                            val maxStart = TrackControlFeature.maxAudioStartMs(
+                                                timelineDurationMs = totalMs,
+                                                clipDurationMs = audio.durationMs
+                                            )
+                                            desiredStart.coerceIn(0L, maxStart)
+                                        } ?: desiredStart.coerceAtLeast(0L)
+                                        if (start != audio.startTimelineMs) {
+                                            onMoveClip(audio.id, start)
+                                        }
                                     }
                                     draggedId = null
                                     dragOffsetPx = 0f
@@ -175,6 +196,37 @@ fun TimelineAudioTrack(
                         .testTag("timeline_audio_clip_${audio.id}"),
                     contentAlignment = Alignment.CenterStart
                 ) {
+                    // Real decoded envelope of the source file, drawn
+                    // symmetrically like a studio mixer strip. Clips whose
+                    // waveform has not been decoded yet stay flat instead of
+                    // showing a decorative fake pattern.
+                    if (audio.waveform.isNotEmpty()) {
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("timeline_audio_waveform_${audio.id}")
+                        ) {
+                            val barWidth = 2.dp.toPx()
+                            val gap = 2.dp.toPx()
+                            val centerY = size.height / 2f
+                            var x = 0f
+                            var i = 0
+                            val waveform = audio.waveform
+                            val count = waveform.size
+                            while (x < size.width) {
+                                val factor = waveform[i % count].coerceIn(0f, 1f)
+                                val half = size.height * 0.42f * factor
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.45f),
+                                    start = Offset(x, centerY - half),
+                                    end = Offset(x, centerY + half),
+                                    strokeWidth = barWidth
+                                )
+                                x += barWidth + gap
+                                i++
+                            }
+                        }
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -192,7 +244,8 @@ fun TimelineAudioTrack(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
-                            modifier = Modifier.weight(1f, fill = false)
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
                         IconButton(
                             onClick = { onToggleMute(audio.id, !audio.isMuted) },

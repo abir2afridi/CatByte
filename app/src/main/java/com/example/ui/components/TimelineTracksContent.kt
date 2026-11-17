@@ -100,6 +100,7 @@ internal fun TimelineTracksContent(
         TimelineAudioTrack(
             tracks = project.audioTracks,
             msToDp = msToDp,
+            timelineDurationMs = project.totalDurationMs,
             onMoveClip = onMoveAudioClip,
             selectedAudioId = selectedAudioId,
             onSelectAudio = onSelectAudio,

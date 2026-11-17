@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.ClipTiming
 import com.example.data.SpeedRampEngine
 import com.example.model.SpeedCurve
 import com.example.model.SpeedCurvePreset
@@ -129,12 +130,12 @@ fun SpeedSheet(
         }
 
         Slider(
-            value = speedVal.coerceIn(0.1f, 100f),
+            value = speedVal.coerceIn(0.1f, ClipTiming.MAX_SPEED),
             onValueChange = {
                 speedVal = it
                 onSpeedSelected(it)
             },
-            valueRange = 0.1f..100f,
+            valueRange = 0.1f..ClipTiming.MAX_SPEED,
             colors = SliderDefaults.colors(
                 thumbColor = Color.White,
                 activeTrackColor = colors.accentCyan,
@@ -158,7 +159,11 @@ fun SpeedSheet(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
             )
-            Text("100x", color = colors.textTertiary, fontSize = 10.sp)
+            Text(
+                "${ClipTiming.MAX_SPEED.toInt()}x",
+                color = colors.textTertiary,
+                fontSize = 10.sp
+            )
         }
 
         Spacer(modifier = Modifier.height(4.dp))

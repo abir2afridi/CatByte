@@ -906,9 +906,33 @@ class EditorViewModel(
     // Audio Tracks
     // ==========================================
 
-    /** Adds an audio track from a URI (real duration + waveform). */
-    fun addAudioTrackFromUri(uriString: String, title: String, artist: String = "Unknown") =
-        AudioFeature.addAudioTrackFromUri(this, uriString, title, artist)
+    /**
+     * Adds an audio track from a URI (real duration + waveform).
+     *
+     * [onComplete] receives true only after a durable source was stored and the
+     * track was added to the project.
+     */
+    fun addAudioTrackFromUri(
+        uriString: String,
+        title: String,
+        artist: String = "Unknown",
+        onComplete: (Boolean) -> Unit = {}
+    ) = AudioFeature.addAudioTrackFromUri(
+        this,
+        uriString,
+        title,
+        artist,
+        onComplete
+    )
+
+    /**
+     * Generates a built-in library sample as a durable WAV before adding it.
+     * [onComplete] is true only when a renderable track was actually added.
+     */
+    fun addSampleAudioTrack(
+        sample: AudioClip,
+        onComplete: (Boolean) -> Unit = {}
+    ) = AudioFeature.addSampleAudioTrack(this, sample, onComplete)
 
     fun addAudioTrack(audioClip: AudioClip) = AudioFeature.addAudioTrack(this, audioClip)
 
@@ -926,7 +950,10 @@ class EditorViewModel(
         if (tracks.isEmpty()) return false
         val selected = _selectedAudioId.value?.takeIf { id -> tracks.any { it.id == id } }
             ?: tracks.first().id
-        _selectedAudioId.value = selected
+        // Audio, video and text are mutually exclusive. Route through the
+        // selection feature so opening the mixer cannot leave a stale text or
+        // video selection behind.
+        SelectionFeature.selectAudioClip(this, selected)
         _activeSheet.value = ActiveToolSheet.AUDIO_MIXER
         return true
     }
@@ -934,6 +961,13 @@ class EditorViewModel(
     /** Sets one audio track's linear gain (0..2 = 0..200%). */
     fun setAudioVolume(audioId: String, volume: Float) =
         AudioMixerFeature.setAudioVolume(this, audioId, volume)
+
+    /**
+     * Normalises one audio track's gain to the target loudness from its decoded
+     * waveform. False means the track has no analysable waveform yet.
+     */
+    fun normaliseAudioVolume(audioId: String): Boolean =
+        AudioMixerFeature.normaliseAudioVolume(this, audioId)
 
     /** Sets fade-in/out durations on the output timeline. */
     fun setAudioFades(audioId: String, fadeInMs: Long, fadeOutMs: Long) =

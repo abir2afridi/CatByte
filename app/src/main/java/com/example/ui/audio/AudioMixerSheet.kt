@@ -33,6 +33,12 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,16 +47,23 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.engine.AudioLoudness
 import com.example.engine.AudioTiming
 import com.example.model.AudioClip
 import com.example.ui.theme.PencilTheme
+import com.example.viewmodel.features.TrackControlFeature
 import java.util.Locale
+
+private const val MIXER_MAX_SPEED = 16f
+private val MIXER_SPEED_RANGE =
+    AudioTiming.MIN_SPEED..AudioTiming.MAX_SPEED.coerceAtMost(MIXER_MAX_SPEED)
 
 /**
  * Per-track audio mixer.
  *
- * The controls write directly to the selected [AudioClip]. Preview and export
- * both consume that same model through the shared composition factory.
+ * Slider gestures keep a local draft while the finger is down and commit one
+ * absolute value when the gesture ends. Preview and export consume the same
+ * committed [AudioClip] model through the shared composition factory.
  */
 @Composable
 fun AudioMixerSheet(
@@ -59,6 +72,7 @@ fun AudioMixerSheet(
     maxTimelineStartMs: Long,
     onSelectAudio: (String) -> Unit,
     onVolumeChanged: (String, Float) -> Unit,
+    onNormaliseVolume: (String) -> Unit = {},
     onMuteChanged: (String, Boolean) -> Unit,
     onFadesChanged: (String, Long, Long) -> Unit,
     onSpeedChanged: (String, Float) -> Unit,
@@ -181,13 +195,49 @@ fun AudioMixerSheet(
                 MixerSectionTitle("Track: ${selected.title}")
 
                 MixerSlider(
+                    stateKey = "volume:${selected.id}",
                     label = "Volume",
-                    valueLabel = "${(selected.volume * 100f).toInt()}%",
+                    valueLabel = { "${(it * 100f).toInt()}%" },
                     value = selected.volume.coerceIn(0f, 2f),
                     range = 0f..2f,
                     tag = "audio_mixer_volume",
-                    onValueChange = { onVolumeChanged(selected.id, it) }
+                    onValueChangeFinished = { onVolumeChanged(selected.id, it) }
                 )
+
+                // Loudness normalisation is real maths on the decoded
+                // waveform; without data the button stays disabled and the
+                // hint explains why instead of pretending.
+                val canNormalise = AudioLoudness.canNormalise(selected.waveform)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (canNormalise) {
+                            "Auto volume sets the gain to match target loudness"
+                        } else {
+                            "Auto volume unlocks once the waveform is decoded"
+                        },
+                        color = colors.textSecondary,
+                        fontSize = 10.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    OutlinedButton(
+                        onClick = { onNormaliseVolume(selected.id) },
+                        enabled = canNormalise,
+                        modifier = Modifier
+                            .height(32.dp)
+                            .testTag("audio_mixer_auto_volume")
+                    ) {
+                        Text(
+                            text = "Auto volume",
+                            fontSize = 10.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -216,34 +266,40 @@ fun AudioMixerSheet(
                 val fadeOutMax = (durationMs - selected.fadeInMs).coerceAtLeast(0L).toFloat()
                 MixerSectionTitle("Fades (timeline)")
                 MixerSlider(
+                    stateKey = "fade-in:${selected.id}",
                     label = "Fade in",
-                    valueLabel = "${selected.fadeInMs} ms",
+                    valueLabel = { "${it.toLong()} ms" },
                     value = selected.fadeInMs.coerceIn(0L, durationMs).toFloat(),
-                    range = 0f..fadeInMax.coerceAtLeast(1f),
+                    range = 0f..fadeInMax,
                     tag = "audio_mixer_fade_in",
-                    onValueChange = {
+                    onValueChangeFinished = {
                         onFadesChanged(selected.id, it.toLong(), selected.fadeOutMs)
                     }
                 )
                 MixerSlider(
+                    stateKey = "fade-out:${selected.id}",
                     label = "Fade out",
-                    valueLabel = "${selected.fadeOutMs} ms",
+                    valueLabel = { "${it.toLong()} ms" },
                     value = selected.fadeOutMs.coerceIn(0L, durationMs).toFloat(),
-                    range = 0f..fadeOutMax.coerceAtLeast(1f),
+                    range = 0f..fadeOutMax,
                     tag = "audio_mixer_fade_out",
-                    onValueChange = {
+                    onValueChangeFinished = {
                         onFadesChanged(selected.id, selected.fadeInMs, it.toLong())
                     }
                 )
 
                 MixerSectionTitle("Speed")
                 MixerSlider(
+                    stateKey = "speed:${selected.id}",
                     label = "Playback speed",
-                    valueLabel = String.format(Locale.US, "%.2fx", selected.speed),
-                    value = selected.speed.coerceIn(0.25f, 3f),
-                    range = 0.25f..3f,
+                    valueLabel = { String.format(Locale.US, "%.2fx", it) },
+                    value = selected.speed.coerceIn(
+                        MIXER_SPEED_RANGE.start,
+                        MIXER_SPEED_RANGE.endInclusive
+                    ),
+                    range = MIXER_SPEED_RANGE,
                     tag = "audio_mixer_speed",
-                    onValueChange = { onSpeedChanged(selected.id, it) }
+                    onValueChangeFinished = { onSpeedChanged(selected.id, it) }
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -276,38 +332,44 @@ fun AudioMixerSheet(
                     fontSize = 10.sp
                 )
                 MixerSlider(
+                    stateKey = "trim-in:${selected.id}",
                     label = "Source in",
-                    valueLabel = "$sourceStart ms",
+                    valueLabel = { "${it.toLong()} ms" },
                     value = sourceStart.toFloat(),
                     range = 0f..(sourceDurationMs - AudioTiming.MIN_AUDIO_DURATION_MS)
                         .coerceAtLeast(0L).toFloat(),
                     tag = "audio_mixer_trim_in",
-                    onValueChange = {
+                    onValueChangeFinished = {
                         val end = if (selected.trimEndMs > 0L) selected.trimEndMs else sourceDurationMs
                         onTrimChanged(selected.id, it.toLong(), end)
                     }
                 )
                 MixerSlider(
+                    stateKey = "trim-out:${selected.id}",
                     label = "Source out",
-                    valueLabel = "$sourceEnd ms",
+                    valueLabel = { "${it.toLong()} ms" },
                     value = sourceEnd.toFloat(),
                     range = (sourceStart + AudioTiming.MIN_AUDIO_DURATION_MS)
                         .coerceAtMost(sourceDurationMs).toFloat()..sourceDurationMs.toFloat(),
                     tag = "audio_mixer_trim_out",
-                    onValueChange = {
+                    onValueChangeFinished = {
                         onTrimChanged(selected.id, selected.trimStartMs, it.toLong())
                     }
                 )
 
                 MixerSectionTitle("Timeline placement")
-                val maxStart = maxTimelineStartMs.coerceAtLeast(0L)
+                val maxStart = TrackControlFeature.maxAudioStartMs(
+                    timelineDurationMs = maxTimelineStartMs,
+                    clipDurationMs = selected.durationMs
+                )
                 MixerSlider(
+                    stateKey = "timeline-start:${selected.id}",
                     label = "Timeline start",
-                    valueLabel = "${selected.startTimelineMs} ms",
+                    valueLabel = { "${it.toLong()} ms" },
                     value = selected.startTimelineMs.coerceIn(0L, maxStart).toFloat(),
-                    range = 0f..maxStart.coerceAtLeast(1L).toFloat(),
+                    range = 0f..maxStart.toFloat(),
                     tag = "audio_mixer_start",
-                    onValueChange = { onTimelineStartChanged(selected.id, it.toLong()) }
+                    onValueChangeFinished = { onTimelineStartChanged(selected.id, it.toLong()) }
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -356,29 +418,53 @@ private fun MixerSectionTitle(text: String) {
 
 @Composable
 private fun MixerSlider(
+    stateKey: String,
     label: String,
-    valueLabel: String,
+    valueLabel: (Float) -> String,
     value: Float,
     range: ClosedFloatingPointRange<Float>,
     tag: String,
-    onValueChange: (Float) -> Unit
+    onValueChangeFinished: (Float) -> Unit
 ) {
     val colors = PencilTheme.colors
+    val clampedExternalValue = value.coerceIn(range.start, range.endInclusive)
+    var draftValue by remember(stateKey) { mutableFloatStateOf(clampedExternalValue) }
+    var isEditing by remember(stateKey) { mutableStateOf(false) }
+
+    // A committed model value is authoritative whenever the slider is idle.
+    // During a gesture the draft wins, so a parent recomposition cannot snap the
+    // thumb back to the pre-edit value before onValueChangeFinished commits it.
+    LaunchedEffect(stateKey, clampedExternalValue, range, isEditing) {
+        if (!isEditing) {
+            draftValue = clampedExternalValue
+        } else {
+            draftValue = draftValue.coerceIn(range.start, range.endInclusive)
+        }
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, color = colors.textSecondary, fontSize = 11.sp, modifier = Modifier.width(86.dp))
         Slider(
-            value = value.coerceIn(range.start, range.endInclusive),
-            onValueChange = onValueChange,
+            value = draftValue.coerceIn(range.start, range.endInclusive),
+            onValueChange = {
+                isEditing = true
+                draftValue = it.coerceIn(range.start, range.endInclusive)
+            },
+            onValueChangeFinished = {
+                val committedValue = draftValue.coerceIn(range.start, range.endInclusive)
+                isEditing = false
+                onValueChangeFinished(committedValue)
+            },
             valueRange = range,
             modifier = Modifier
                 .weight(1f)
                 .testTag(tag)
         )
         Text(
-            text = valueLabel,
+            text = valueLabel(draftValue),
             color = colors.textPrimary,
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium,

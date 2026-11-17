@@ -77,7 +77,7 @@ class AudioTimingTest {
     @Test
     fun `speed is clamped to the supported range`() {
         assertEquals(0.1f, AudioTiming.normalizedSpeed(0f), 0.0001f)
-        assertEquals(16f, AudioTiming.normalizedSpeed(99f), 0.0001f)
+        assertEquals(32f, AudioTiming.normalizedSpeed(99f), 0.0001f)
         assertEquals(1f, AudioTiming.normalizedSpeed(Float.NaN), 0.0001f)
     }
 
@@ -87,5 +87,73 @@ class AudioTimingTest {
         assertEquals(1_000L, fadeIn + fadeOut)
         assertEquals(571L, fadeIn)
         assertEquals(429L, fadeOut)
+    }
+
+    @Test
+    fun `malformed trim outside the source is normalized without crashing`() {
+        val clip = audio(
+            durationMs = 1_000L,
+            originalDurationMs = 1_000L,
+            trimStartMs = 5_000L,
+            trimEndMs = 6_000L
+        )
+
+        val normalized = AudioTiming.normalize(clip)
+
+        assertEquals(900L, normalized.trimStartMs)
+        assertEquals(1_000L, normalized.trimEndMs)
+        assertEquals(100L, normalized.durationMs)
+    }
+
+    @Test
+    fun `legacy normalization materialises source duration and canonical output duration`() {
+        val clip = audio(
+            durationMs = 4_000L,
+            originalDurationMs = 0L,
+            speed = 2f
+        )
+
+        val normalized = AudioTiming.normalize(clip)
+
+        assertEquals(8_000L, normalized.originalDurationMs)
+        assertEquals(4_000L, normalized.durationMs)
+        assertEquals(0L, normalized.trimEndMs)
+    }
+
+    @Test
+    fun `normalization replaces non finite volume and clamps fades`() {
+        val clip = audio(
+            durationMs = 1_000L,
+            originalDurationMs = 1_000L,
+            fadeInMs = Long.MAX_VALUE,
+            fadeOutMs = Long.MAX_VALUE
+        ).copy(volume = Float.NaN)
+
+        val normalized = AudioTiming.normalize(clip)
+
+        assertEquals(1f, normalized.volume, 0.0001f)
+        assertEquals(1_000L, normalized.fadeInMs + normalized.fadeOutMs)
+    }
+
+    @Test
+    fun `legacy placeholder waveform is dropped on normalization`() {
+        val clip = audio(durationMs = 4_000L, originalDurationMs = 4_000L).copy(
+            waveform = listOf(0.2f, 0.5f, 0.8f, 0.9f, 0.6f, 0.4f, 0.7f, 0.9f, 0.8f, 0.5f, 0.3f, 0.6f)
+        )
+
+        val normalized = AudioTiming.normalize(clip)
+
+        assertTrue(normalized.waveform.isEmpty())
+    }
+
+    @Test
+    fun `real waveforms survive normalization with malformed values cleaned`() {
+        val clip = audio(durationMs = 4_000L, originalDurationMs = 4_000L).copy(
+            waveform = listOf(0.25f, 0.75f, 1.4f, Float.NaN, -0.2f)
+        )
+
+        val normalized = AudioTiming.normalize(clip)
+
+        assertEquals(listOf(0.25f, 0.75f, 1f, 0f), normalized.waveform)
     }
 }
