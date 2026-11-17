@@ -12,6 +12,7 @@ import com.example.model.TimelineEffect
 import com.example.model.TimelineMarker
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.UUID
 
 /**
  * The overlay codecs: audio clips, text overlays, stickers, timeline
@@ -169,3 +170,34 @@ internal fun markerFromJson(json: JSONObject): TimelineMarker = TimelineMarker(
     label = json.optString("label", ""),
     colorArgb = json.optString("colorArgb", "4276944634").toLongOrNull() ?: 0xFFFFC94A
 )
+
+/**
+ * Decodes markers into a safe, unique list. Duplicate or blank ids would
+ * crash Compose's keyed lazy list and make jump/rename actions ambiguous, so
+ * malformed ids are replaced while valid ids remain stable across reloads.
+ */
+internal fun markersFromJson(array: JSONArray?): List<TimelineMarker> {
+    if (array == null) return emptyList()
+    val usedIds = mutableSetOf<String>()
+    return buildList {
+        for (index in 0 until array.length()) {
+            val marker = array.optJSONObject(index)?.let(::markerFromJson) ?: continue
+            val requestedId = marker.id.trim()
+            var safeId = requestedId.takeIf { it.isNotEmpty() && it !in usedIds }
+            if (safeId == null) {
+                do {
+                    safeId = "marker_${UUID.randomUUID()}"
+                } while (safeId in usedIds)
+            }
+            usedIds += safeId
+            add(
+                marker.copy(
+                    id = safeId,
+                    atMs = marker.atMs.coerceAtLeast(0L),
+                    label = marker.label.trim().take(24),
+                    colorArgb = marker.colorArgb and 0xFFFFFFFFL
+                )
+            )
+        }
+    }
+}

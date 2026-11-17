@@ -109,7 +109,7 @@ object ProjectJson {
         },
         audioTracks = json.optJSONArray("audioTracks").mapObjects { audioFromJson(it) },
         textOverlays = json.optJSONArray("textOverlays").mapObjects { textFromJson(it) },
-        markers = json.optJSONArray("markers").mapObjects { markerFromJson(it) },
+        markers = markersFromJson(json.optJSONArray("markers")),
         stickers = json.optJSONArray("stickers").mapObjects { stickerFromJson(it) },
         strokes = json.optJSONArray("strokes").mapObjects { strokeFromJson(it) },
         effects = json.optJSONArray("effects").mapObjects { effectFromJson(it) },

@@ -31,7 +31,7 @@ internal fun TimelineRulerStrip(
 ) {
     Box(
         modifier = modifier
-            .height(28.dp)
+            .height(36.dp)
             .horizontalScroll(scrollState)
     ) {
         Row {

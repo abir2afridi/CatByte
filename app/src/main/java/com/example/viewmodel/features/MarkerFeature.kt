@@ -22,10 +22,10 @@ internal object MarkerFeature {
 
     /** Renames a marker (the label is drawn next to the pin on the ruler). */
     fun renameMarker(vm: EditorViewModel, markerId: String, label: String) {
-        vm.updateProject { proj ->
+        vm.updateProject(coalesceKey = "markerLabel:$markerId") { proj ->
             proj.copy(
                 markers = proj.markers.map { marker ->
-                    if (marker.id == markerId) marker.copy(label = label.take(24)) else marker
+                    if (marker.id == markerId) marker.copy(label = label.trim().take(24)) else marker
                 }
             )
         }

@@ -52,7 +52,7 @@ fun TimelineRuler(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(28.dp)
+            .height(36.dp)
             .background(Color(0xFF101014))
             .testTag("timeline_ruler")
     ) {
@@ -130,11 +130,32 @@ fun TimelineRuler(
                 fontWeight = FontWeight.Normal,
                 modifier = Modifier.offset(
                     x = (labelMs * TimelineGeometry.dpPerMs(safeZoom)).dp + 1.dp,
-                    y = 8.dp
+                    y = 2.dp
                 )
             )
             labelMs += labelStepMs
         }
+
+        // Marker labels sit on a second line so the timecode remains readable.
+        // Limit the count to keep a marker-dense project from turning the
+        // ruler into an unreadable wall of text.
+        markers.asSequence()
+            .filter { it.label.isNotBlank() }
+            .take(12)
+            .forEach { marker ->
+                Text(
+                    text = marker.label.take(12),
+                    color = Color(marker.colorArgb),
+                    fontSize = 8.sp,
+                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    modifier = Modifier.offset(
+                        x = (marker.atMs * TimelineGeometry.dpPerMs(safeZoom)).dp + 2.dp,
+                        y = 19.dp
+                    )
+                )
+            }
     }
 }
 

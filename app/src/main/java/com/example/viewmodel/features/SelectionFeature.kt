@@ -4,9 +4,30 @@ import com.example.engine.TimelineEdits
 import com.example.model.MediaClip
 import com.example.model.VideoTrack
 import com.example.viewmodel.EditorViewModel
+import java.util.UUID
 
 /** Clip/text selection, multi-selection, overlay clipboard and timeline zoom. */
 internal object SelectionFeature {
+
+    /**
+     * One copied clip plus the timeline information needed to paste it back.
+     * Main clips keep their order and are inserted at the playhead; overlays
+     * keep their absolute start offsets relative to the first copied overlay.
+     */
+    internal data class ClipboardEntry(
+        val clip: MediaClip,
+        val isMain: Boolean,
+        val overlayTrackId: String?,
+        val timelineStartMs: Long,
+        val mainIndex: Int
+    )
+
+    private fun selectedIds(vm: EditorViewModel): Set<String> {
+        val ids = vm._selectedClipIds.value
+        if (ids.isNotEmpty()) return ids
+        val single = vm._selectedClipId.value ?: return emptySet()
+        return setOf(single)
+    }
 
     fun selectClip(vm: EditorViewModel, clipId: String?) {
         vm._selectedClipId.value = clipId
@@ -165,6 +186,133 @@ internal object SelectionFeature {
         vm._selectedClipIds.value = newIds.toSet()
         vm._selectedClipId.value = newIds.firstOrNull()
     }
+
+    /** Copies main-track and overlay clips; unlike the legacy helper it never drops main clips. */
+    fun copySelectedClips(vm: EditorViewModel): List<ClipboardEntry> {
+        val project = vm._currentProject.value ?: return emptyList()
+        val ids = selectedIds(vm)
+        if (ids.isEmpty()) return emptyList()
+
+        val entries = mutableListOf<ClipboardEntry>()
+        var cursorMs = 0L
+        project.clips.forEachIndexed { index, clip ->
+            if (clip.id in ids) {
+                entries += ClipboardEntry(
+                    clip = clip,
+                    isMain = true,
+                    overlayTrackId = null,
+                    timelineStartMs = cursorMs,
+                    mainIndex = index
+                )
+            }
+            cursorMs += clip.durationMs.coerceAtLeast(0L)
+        }
+        project.overlayTracks.forEach { track ->
+            track.clips.forEach { clip ->
+                if (clip.id in ids) {
+                    entries += ClipboardEntry(
+                        clip = clip,
+                        isMain = false,
+                        overlayTrackId = track.id,
+                        timelineStartMs = clip.startTimelineMs.coerceAtLeast(0L),
+                        mainIndex = -1
+                    )
+                }
+            }
+        }
+
+        vm.updateClipboard(entries)
+        // Keep the legacy flow in sync so existing overlay-only callers/tests
+        // continue to work with the new unified clipboard.
+        vm._overlayClipboard.value = entries
+            .filter { !it.isMain }
+            .map { it.clip.copy(id = "copy_${it.clip.id}") }
+        return entries
+    }
+
+    /** Copies the selection and removes it in one undoable edit. */
+    fun cutSelectedClips(vm: EditorViewModel) {
+        if (copySelectedClips(vm).isEmpty()) return
+        if (selectedIds(vm).isEmpty()) return
+        vm.deleteSelectedClips()
+    }
+
+    /**
+     * Pastes the clipboard at the playhead in one undoable edit. Main clips are
+     * inserted in their copied order at the playhead; overlays keep their
+     * relative offsets and their original tracks where those still exist.
+     */
+    fun pasteClips(vm: EditorViewModel) {
+        val entries = vm._clipboard.value
+        if (entries.isEmpty()) return
+        val pasteStartMs = vm._currentPositionMs.value.coerceAtLeast(0L)
+        val pastedIds = mutableListOf<String>()
+
+        vm.updateProject { proj ->
+            var updated = proj
+
+            val mainEntries = entries.filter { it.isMain }.sortedBy { it.mainIndex }
+            if (mainEntries.isNotEmpty()) {
+                var cursorMs = 0L
+                var insertIndex = proj.clips.size
+                for (index in proj.clips.indices) {
+                    if (cursorMs >= pasteStartMs) {
+                        insertIndex = index
+                        break
+                    }
+                    cursorMs += proj.clips[index].durationMs.coerceAtLeast(0L)
+                }
+                val pasted = mainEntries.map { entry ->
+                    entry.clip.copy(id = newPasteId()).also { pastedIds += it.id }
+                }
+                val clips = proj.clips.toMutableList()
+                clips.addAll(insertIndex, pasted)
+                updated = updated.copy(clips = clips)
+            }
+
+            val overlayEntries = entries.filter { !it.isMain }
+            if (overlayEntries.isNotEmpty()) {
+                val baseStart = overlayEntries.minOf { it.timelineStartMs }
+                val clipsByTrack = linkedMapOf<String, MutableList<MediaClip>>()
+                overlayEntries.forEach { entry ->
+                    val targetTrackId = if (proj.overlayTracks.any { it.id == entry.overlayTrackId }) {
+                        entry.overlayTrackId!!
+                    } else {
+                        proj.overlayTracks.firstOrNull()?.id ?: "pasted_track"
+                    }
+                    val clip = entry.clip.copy(
+                        id = newPasteId(),
+                        startTimelineMs = pasteStartMs + (entry.timelineStartMs - baseStart).coerceAtLeast(0L)
+                    )
+                    pastedIds += clip.id
+                    clipsByTrack.getOrPut(targetTrackId) { mutableListOf() } += clip
+                }
+                val tracks = proj.overlayTracks.map { track ->
+                    val additions = clipsByTrack[track.id]
+                    if (additions.isNullOrEmpty()) track else track.copy(clips = track.clips + additions)
+                }.toMutableList()
+                clipsByTrack["pasted_track"]?.let { additions ->
+                    if (proj.overlayTracks.none { it.id == "pasted_track" }) {
+                        tracks.add(
+                            VideoTrack(
+                                id = "pasted_track",
+                                name = "Pasted Track",
+                                isMainTrack = false,
+                                clips = additions
+                            )
+                        )
+                    }
+                }
+                updated = updated.copy(overlayTracks = tracks)
+            }
+            updated
+        }
+
+        vm._selectedClipIds.value = pastedIds.toSet()
+        vm._selectedClipId.value = pastedIds.firstOrNull()
+    }
+
+    private fun newPasteId(): String = "paste_${UUID.randomUUID()}"
 
     fun selectText(vm: EditorViewModel, textId: String?) {
         vm._selectedTextId.value = textId

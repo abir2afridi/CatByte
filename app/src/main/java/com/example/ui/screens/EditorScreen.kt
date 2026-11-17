@@ -84,6 +84,7 @@ fun EditorScreen(
     val selectedClipId by viewModel.selectedClipId.collectAsState()
     val selectedClipIds by viewModel.selectedClipIds.collectAsState()
     val overlayClipboard by viewModel.overlayClipboard.collectAsState()
+    val clipboardCount by viewModel.clipboardCount.collectAsState()
     val selectedTextId by viewModel.selectedTextId.collectAsState()
     val selectedAudioId by viewModel.selectedAudioId.collectAsState()
     val activeSheet by viewModel.activeSheet.collectAsState()
@@ -403,7 +404,7 @@ fun EditorScreen(
                     selectedTextId = selectedTextId,
                     selectedAudioId = selectedAudioId,
                     selectedClipIds = selectedClipIds,
-                    hasOverlayClipboard = overlayClipboard.isNotEmpty(),
+                    hasOverlayClipboard = clipboardCount > 0 || overlayClipboard.isNotEmpty(),
                     timelineZoom = timelineZoom,
                     magneticSnap = magneticSnap,
                     snapBeats = snapBeats,

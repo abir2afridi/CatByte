@@ -18,9 +18,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,12 +31,20 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.TimelineMarker
@@ -58,6 +69,7 @@ fun MarkerSheet(
     markers: List<TimelineMarker>,
     onAddAtPlayhead: () -> Unit,
     onJump: (String) -> Unit,
+    onMoveToPlayhead: (String) -> Unit,
     onRename: (String, String) -> Unit,
     onColor: (String, Long) -> Unit,
     onDelete: (String) -> Unit,
@@ -160,6 +172,7 @@ fun MarkerSheet(
                 MarkerRow(
                     marker = marker,
                     onJump = { onJump(marker.id) },
+                    onMoveToPlayhead = { onMoveToPlayhead(marker.id) },
                     onRename = { onRename(marker.id, it) },
                     onColor = { onColor(marker.id, it) },
                     onDelete = { onDelete(marker.id) }
@@ -173,11 +186,32 @@ fun MarkerSheet(
 private fun MarkerRow(
     marker: TimelineMarker,
     onJump: () -> Unit,
+    onMoveToPlayhead: () -> Unit,
     onRename: (String) -> Unit,
     onColor: (Long) -> Unit,
     onDelete: () -> Unit
 ) {
     val colors = PencilTheme.colors
+    val focusManager = LocalFocusManager.current
+    var draft by remember(marker.id) { mutableStateOf(marker.label) }
+    var committedLabel by remember(marker.id) { mutableStateOf(marker.label) }
+    var isFocused by remember(marker.id) { mutableStateOf(false) }
+
+    LaunchedEffect(marker.label) {
+        if (!isFocused) {
+            draft = marker.label
+            committedLabel = marker.label
+        }
+    }
+
+    fun commitDraft() {
+        val next = draft.trim().take(24)
+        draft = next
+        if (next != committedLabel) {
+            committedLabel = next
+            onRename(next)
+        }
+    }
 
     Row(
         modifier = Modifier
@@ -204,11 +238,18 @@ private fun MarkerRow(
         Spacer(modifier = Modifier.width(8.dp))
 
         OutlinedTextField(
-            value = marker.label,
-            onValueChange = onRename,
+            value = draft,
+            onValueChange = { draft = it.take(24) },
             singleLine = true,
             placeholder = { Text("Label", fontSize = 11.sp) },
             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    commitDraft()
+                    focusManager.clearFocus()
+                }
+            ),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = colors.textPrimary,
                 unfocusedTextColor = colors.textPrimary
@@ -216,6 +257,10 @@ private fun MarkerRow(
             modifier = Modifier
                 .weight(1f)
                 .height(48.dp)
+                .onFocusChanged { state ->
+                    isFocused = state.isFocused
+                    if (!state.isFocused) commitDraft()
+                }
                 .testTag("marker_label_${marker.id}")
         )
 
@@ -238,6 +283,19 @@ private fun MarkerRow(
             }
         }
 
+        IconButton(
+            onClick = onMoveToPlayhead,
+            modifier = Modifier
+                .size(32.dp)
+                .testTag("marker_move_to_playhead_${marker.id}")
+        ) {
+            Icon(
+                Icons.Default.Place,
+                contentDescription = "Move marker to playhead",
+                tint = colors.textSecondary,
+                modifier = Modifier.size(17.dp)
+            )
+        }
         IconButton(onClick = onJump, modifier = Modifier.size(32.dp)) {
             Icon(
                 Icons.Default.PlayArrow,

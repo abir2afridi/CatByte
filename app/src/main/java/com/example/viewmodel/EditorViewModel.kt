@@ -96,6 +96,7 @@ import com.example.viewmodel.features.PlaybackFeature
 import com.example.viewmodel.features.ScrubPreviewFeature
 import com.example.viewmodel.features.ProjectLifecycleFeature
 import com.example.viewmodel.features.SelectionFeature
+import com.example.viewmodel.features.SelectionFeature.ClipboardEntry
 import com.example.viewmodel.features.TemplateFeature
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -592,10 +593,31 @@ class EditorViewModel(
     internal val _overlayClipboard = MutableStateFlow<List<MediaClip>>(emptyList())
     val overlayClipboard: StateFlow<List<MediaClip>> = _overlayClipboard.asStateFlow()
 
+    /** Unified clipboard containing selected main-track and overlay clips. */
+    internal val _clipboard = MutableStateFlow<List<ClipboardEntry>>(emptyList())
+    private val _clipboardCount = MutableStateFlow(0)
+    val clipboardCount: StateFlow<Int> = _clipboardCount.asStateFlow()
+
+    internal fun updateClipboard(entries: List<ClipboardEntry>) {
+        _clipboard.value = entries
+        _clipboardCount.value = entries.size
+    }
+
     fun copySelectedOverlays() = SelectionFeature.copySelectedOverlays(this)
 
     /** Pastes the clipboard at the playhead, keeping the copied relative offsets. */
     fun pasteOverlays() = SelectionFeature.pasteOverlays(this)
+
+    /** Copies the current selection (main track included). */
+    fun copySelectedClips() {
+        SelectionFeature.copySelectedClips(this)
+    }
+
+    /** Cuts the current selection as one undoable edit. */
+    fun cutSelectedClips() = SelectionFeature.cutSelectedClips(this)
+
+    /** Pastes main-track and overlay clips at the playhead as one undoable edit. */
+    fun pasteClips() = SelectionFeature.pasteClips(this)
 
     fun selectText(textId: String?) = SelectionFeature.selectText(this, textId)
 

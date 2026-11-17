@@ -42,6 +42,7 @@ fun SelectionControlsBar(
     onMoveBlockRight: () -> Unit = {},
     onDelete: () -> Unit,
     onCopy: () -> Unit,
+    onCut: () -> Unit,
     onPaste: () -> Unit,
     onCopyAttributes: () -> Unit = {},
     onPasteAttributes: () -> Unit = {},
@@ -110,6 +111,12 @@ fun SelectionControlsBar(
             enabled = true,
             onClick = onCopy,
             testTag = "selection_copy"
+        )
+        SelectionButton(
+            text = "Cut",
+            enabled = true,
+            onClick = onCut,
+            testTag = "selection_cut"
         )
         SelectionButton(
             text = "Paste",
