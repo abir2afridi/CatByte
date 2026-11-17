@@ -155,7 +155,9 @@ enum class ActiveToolSheet {
     /** Freehand drawing sheet (Text → Draw). */
     DRAW,
     /** Body effects library (Effect → Body effects). */
-    BODY_EFFECTS
+    BODY_EFFECTS,
+    /** Custom .cube LUT import sheet (Filters → Import .cube LUT). */
+    LUT_IMPORT
 }
 
 /**
@@ -894,6 +896,30 @@ class EditorViewModel(
     fun setClipSpeedCurve(curve: SpeedCurve) = ClipPropertyFeature.setClipSpeedCurve(this, curve)
 
     fun setClipFilter(filter: VideoFilter) = ClipPropertyFeature.setClipFilter(this, filter)
+
+    /** Custom `.cube` LUTs imported from storage (Filters → Import .cube LUT). */
+    internal val _importedLuts = MutableStateFlow<List<com.example.ui.components.ImportedLut>>(emptyList())
+    val importedLuts: StateFlow<List<com.example.ui.components.ImportedLut>> = _importedLuts.asStateFlow()
+
+    /** The currently applied imported LUT on the selected clip, if any. */
+    internal val _activeLutId = MutableStateFlow<String?>(null)
+    val activeLutId: StateFlow<String?> = _activeLutId.asStateFlow()
+
+    fun addImportedLut(lut: com.example.ui.components.ImportedLut) {
+        _importedLuts.value = _importedLuts.value + lut
+        _activeLutId.value = lut.id
+        setClipFilter(VideoFilter.NONE)
+    }
+
+    fun removeImportedLut(id: String) {
+        _importedLuts.value = _importedLuts.value.filterNot { it.id == id }
+        if (_activeLutId.value == id) _activeLutId.value = null
+    }
+
+    fun setActiveLut(lut: com.example.ui.components.ImportedLut?) {
+        _activeLutId.value = lut?.id
+        if (lut != null) setClipFilter(VideoFilter.NONE)
+    }
 
     /** Per-clip audio effects (voice preset, enhance voice, noise gate). */
     /** Applies or removes GPU motion blur on the selected clip ("Motion blur"). */

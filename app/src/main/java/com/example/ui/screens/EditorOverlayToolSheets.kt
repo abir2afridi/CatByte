@@ -117,12 +117,29 @@ internal fun FiltersToolSheet(
     viewModel: EditorViewModel,
     currentClip: MediaClip?
 ) {
+    val importedLuts by viewModel.importedLuts.collectAsStateWithLifecycle()
+    val activeLutId by viewModel.activeLutId.collectAsStateWithLifecycle()
     FiltersSheet(
         activeFilter = currentClip?.filter ?: VideoFilter.NONE,
+        importedLuts = importedLuts,
+        activeLutId = activeLutId,
         onSelectFilter = { filter ->
             viewModel.setClipFilter(filter)
         },
+        onSelectLut = { lut -> viewModel.setActiveLut(lut) },
+        onOpenLutImport = { viewModel.setActiveSheet(ActiveToolSheet.LUT_IMPORT) },
         onClose = { viewModel.closeToolSheet() }
+    )
+}
+
+@Composable
+internal fun LutImportToolSheet(viewModel: EditorViewModel) {
+    val importedLuts by viewModel.importedLuts.collectAsStateWithLifecycle()
+    com.example.ui.components.LutImportSheet(
+        importedLuts = importedLuts,
+        onImportLut = { viewModel.addImportedLut(it) },
+        onRemoveLut = { viewModel.removeImportedLut(it) },
+        onClose = { viewModel.setActiveSheet(ActiveToolSheet.FILTERS_LIBRARY) }
     )
 }
 

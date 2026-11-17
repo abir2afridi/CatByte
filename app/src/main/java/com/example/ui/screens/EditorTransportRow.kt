@@ -19,6 +19,8 @@ import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -71,6 +73,11 @@ internal fun EditorTransportRow(
     onUndo: () -> Unit,
     onRedo: () -> Unit,
     onTransition: (() -> Unit)? = null,
+    /** Number of timeline markers; the jump buttons only appear when there are some. */
+    markerCount: Int = 0,
+    /** Jumps to the marker before / after the playhead. */
+    onPreviousMarker: (() -> Unit)? = null,
+    onNextMarker: (() -> Unit)? = null,
     onSeek: ((Long) -> Unit)? = null
 ) {
     val barBackground = Color(0xFF101014)
@@ -234,11 +241,42 @@ internal fun EditorTransportRow(
             }
         }
 
-        // Right: Magnetic Snap [ON], Undo, Redo
+        // Right: Marker jump, Magnetic Snap [ON], Undo, Redo
         Row(
             modifier = Modifier.align(Alignment.CenterEnd),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Marker navigation: jump to the previous / next timeline marker.
+            // The buttons stay hidden while the project has no markers.
+            if (markerCount > 0 && onPreviousMarker != null && onNextMarker != null) {
+                IconButton(
+                    onClick = onPreviousMarker,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .testTag("editor_previous_marker_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.SkipPrevious,
+                        contentDescription = "Previous marker",
+                        tint = Color(0xFFFFD600),
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+                IconButton(
+                    onClick = onNextMarker,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .testTag("editor_next_marker_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.SkipNext,
+                        contentDescription = "Next marker",
+                        tint = Color(0xFFFFD600),
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
+
             // Magnetic Snapping / Track Magnet toggle
             Box(
                 modifier = Modifier

@@ -123,6 +123,9 @@ internal fun BoxScope.EditorToolSheetHost(
             ActiveToolSheet.FILTERS_LIBRARY -> {
                 FiltersToolSheet(viewModel = viewModel, currentClip = currentClip)
             }
+            ActiveToolSheet.LUT_IMPORT -> {
+                LutImportToolSheet(viewModel = viewModel)
+            }
             ActiveToolSheet.ADJUSTMENTS -> {
                 AdjustmentsToolSheet(viewModel = viewModel, currentClip = currentClip)
             }

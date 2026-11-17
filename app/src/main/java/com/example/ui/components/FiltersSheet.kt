@@ -43,7 +43,11 @@ import com.example.model.VideoFilter
 @Composable
 fun FiltersSheet(
     activeFilter: VideoFilter,
+    importedLuts: List<ImportedLut> = emptyList(),
+    activeLutId: String? = null,
     onSelectFilter: (VideoFilter) -> Unit,
+    onSelectLut: (ImportedLut?) -> Unit = {},
+    onOpenLutImport: () -> Unit = {},
     onClose: () -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -151,10 +155,9 @@ fun FiltersSheet(
                     .clip(RoundedCornerShape(6.dp))
                     .background(Color(0xFF22242B))
                     .border(1.dp, Color(0xFF33353E), RoundedCornerShape(6.dp))
-                    .clickable {
-                        // Import .cube LUT callback stub / action
-                    }
+                    .clickable { onOpenLutImport() }
                     .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .testTag("lut_import_open")
             ) {
                 Text(
                     text = "📥 Import .cube LUT",
@@ -162,6 +165,56 @@ fun FiltersSheet(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
+            }
+        }
+
+        // Imported custom LUTs
+        if (importedLuts.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                importedLuts.forEach { lut ->
+                    val isSelected = lut.id == activeLutId
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .width(86.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) Color(0xFF26E5D7).copy(alpha = 0.2f) else Color(0xFF22242B))
+                            .border(
+                                width = if (isSelected) 1.5.dp else 0.8.dp,
+                                color = if (isSelected) Color(0xFF26E5D7) else Color(0xFF33353E),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable { onSelectLut(if (isSelected) null else lut) }
+                            .padding(8.dp)
+                            .testTag("lut_${lut.id}")
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(listOf(Color(0xFFFF5E9C), Color(0xFF26E5D7), Color(0xFF7C5CFF)))
+                                )
+                                .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = lut.displayName,
+                            color = if (isSelected) Color(0xFF26E5D7) else Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1
+                        )
+                    }
+                }
             }
         }
 

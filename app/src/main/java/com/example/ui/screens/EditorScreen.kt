@@ -387,6 +387,9 @@ fun EditorScreen(
                     },
                     onFullscreen = { isPreviewFullscreen = true },
                     onToggleMagneticSnap = { viewModel.toggleMagneticSnap() },
+                    markerCount = project!!.markers.size,
+                    onPreviousMarker = { viewModel.jumpToMarker(-1) },
+                    onNextMarker = { viewModel.jumpToMarker(1) },
                     onUndo = { viewModel.undo() },
                     onRedo = { viewModel.redo() },
                     onSeek = { viewModel.seekTo(it) }
