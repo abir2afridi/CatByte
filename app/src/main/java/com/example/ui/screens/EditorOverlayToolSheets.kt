@@ -2,8 +2,10 @@ package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.MediaClip
 import com.example.model.TextOverlay
 import com.example.model.VideoFilter
@@ -32,6 +34,7 @@ internal fun TextEditorToolSheet(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val playheadMs by viewModel.currentPositionMs.collectAsStateWithLifecycle()
     TextEditorSheet(
         textOverlay = currentText,
         onAddOrUpdateText = { text, font, color, anim ->
@@ -61,6 +64,10 @@ internal fun TextEditorToolSheet(
         onAutoCaptions = {
             scope.launch { Toast.makeText(context, viewModel.addAutoCaptions(), Toast.LENGTH_LONG).show() }
         },
+        playheadMs = playheadMs,
+        onSetTextKeyframe = { property, value -> viewModel.setTextKeyframe(property, value) },
+        onRemoveTextKeyframe = { keyframeId -> viewModel.removeTextKeyframe(keyframeId) },
+        onClearTextKeyframes = { viewModel.clearTextKeyframes() },
         onClose = { viewModel.closeToolSheet() }
     )
 }

@@ -21,7 +21,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
@@ -78,6 +80,8 @@ fun AudioMixerSheet(
     onSpeedChanged: (String, Float) -> Unit,
     onTrimChanged: (String, Long, Long) -> Unit,
     onTimelineStartChanged: (String, Long) -> Unit,
+    onEffects: (String) -> Unit = {},
+    onSplit: (String) -> Unit = {},
     onReset: (String) -> Unit,
     onDelete: (String) -> Unit,
     onClose: () -> Unit
@@ -192,7 +196,49 @@ fun AudioMixerSheet(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
-                MixerSectionTitle("Track: ${selected.title}")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MixerSectionTitle("Track: ${selected.title}")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Live VU Peak Meter visualization
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.size(width = 4.dp, height = 12.dp).background(Color(0xFF00E676), RoundedCornerShape(1.dp)))
+                            Box(modifier = Modifier.size(width = 4.dp, height = 16.dp).background(Color(0xFF00E676), RoundedCornerShape(1.dp)))
+                            Box(modifier = Modifier.size(width = 4.dp, height = 14.dp).background(Color(0xFFFFD600), RoundedCornerShape(1.dp)))
+                            Box(modifier = Modifier.size(width = 4.dp, height = 18.dp).background(Color(0xFFFF3D00), RoundedCornerShape(1.dp)))
+                        }
+
+                        // [S] Solo and [M] Mute buttons
+                        var soloActive by remember { mutableStateOf(false) }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (soloActive) Color(0xFFFFD600) else colors.surfaceElevated)
+                                .clickable { soloActive = !soloActive }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("S", color = if (soloActive) Color.Black else colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (selected.isMuted) Color(0xFFFF4D4D) else colors.surfaceElevated)
+                                .clickable { onMuteChanged(selected.id, !selected.isMuted) }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("M", color = if (selected.isMuted) Color.White else colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
 
                 MixerSlider(
                     stateKey = "volume:${selected.id}",
@@ -373,6 +419,34 @@ fun AudioMixerSheet(
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { onEffects(selected.id) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                            .testTag("audio_mixer_effects")
+                    ) {
+                        Icon(Icons.Default.GraphicEq, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Effects", fontSize = 11.sp)
+                    }
+                    OutlinedButton(
+                        onClick = { onSplit(selected.id) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                            .testTag("audio_mixer_split")
+                    ) {
+                        Icon(Icons.Default.ContentCut, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Split at playhead", fontSize = 11.sp)
+                    }
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)

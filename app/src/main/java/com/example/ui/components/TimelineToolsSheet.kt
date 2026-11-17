@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.PencilTheme
+import java.util.Locale
 
 /**
  * Extra timeline utilities that do not exist in the reference top/transport
@@ -143,7 +144,7 @@ fun TimelineToolsSheet(
                 valueRange = 0.5f..3f,
                 modifier = Modifier.weight(1f)
             )
-            Text(String.format("%.1fx", zoom), color = colors.accentCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(String.format(Locale.US, "%.1fx", zoom), color = colors.accentCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

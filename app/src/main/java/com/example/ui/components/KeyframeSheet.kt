@@ -210,25 +210,52 @@ fun KeyframeSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(
-                    onClick = {
-                        val initialValue = when (selectedProperty) {
-                            KeyframeProperty.SCALE -> clip?.scale ?: 1f
-                            KeyframeProperty.POSITION_X -> clip?.posX ?: 0.5f
-                            KeyframeProperty.POSITION_Y -> clip?.posY ?: 0.5f
-                            KeyframeProperty.ROTATION -> clip?.rotation ?: 0f
-                            KeyframeProperty.OPACITY -> clip?.opacity ?: 1f
-                            KeyframeProperty.VOLUME -> clip?.volume ?: 1f
-                        }
-                        onAddKeyframe(selectedProperty, initialValue, selectedEasing)
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = colors.accentPink),
-                    shape = RoundedCornerShape(8.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text("+ Add Keyframe 💎", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Button(
+                        onClick = {
+                            val initialValue = when (selectedProperty) {
+                                KeyframeProperty.SCALE -> clip?.scale ?: 1f
+                                KeyframeProperty.POSITION_X -> clip?.posX ?: 0.5f
+                                KeyframeProperty.POSITION_Y -> clip?.posY ?: 0.5f
+                                KeyframeProperty.ROTATION -> clip?.rotation ?: 0f
+                                KeyframeProperty.OPACITY -> clip?.opacity ?: 1f
+                                KeyframeProperty.VOLUME -> clip?.volume ?: 1f
+                            }
+                            onAddKeyframe(selectedProperty, initialValue, selectedEasing)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.accentPink),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("+ Keyframe 💎", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colors.surfaceElevated)
+                            .border(0.8.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
+                            .clickable { }
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Text("‹ Prev KF", color = colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colors.surfaceElevated)
+                            .border(0.8.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
+                            .clickable { }
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Text("Next KF ›", color = colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
 
-                Text("${clip?.keyframes?.size ?: 0} Active Keyframes", color = colors.textSecondary, fontSize = 11.sp)
+                Text("${clip?.keyframes?.size ?: 0} Active", color = colors.accentPink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -240,7 +267,7 @@ fun KeyframeSheet(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(colors.surfaceElevated)
-                                .border(1.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
+                                .border(1.dp, colors.accentPink.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)

@@ -22,6 +22,7 @@ import com.example.engine.SnapCandidate
 import com.example.engine.SnapEngine
 import com.example.engine.TimelineGeometry
 import com.example.model.TimelineMarker
+import java.util.Locale
 
 /**
  * CapCut-exact time ruler matching the reference screenshot:
@@ -123,7 +124,7 @@ fun TimelineRuler(
         while (labelMs <= totalMs + 8_000L) {
             val sec = labelMs / 1_000L
             Text(
-                text = String.format("%02d:%02d", sec / 60, sec % 60),
+                text = String.format(Locale.US, "%02d:%02d", sec / 60, sec % 60),
                 color = Color.White.copy(alpha = 0.92f),
                 fontSize = 10.sp,
                 fontFamily = FontFamily.SansSerif,

@@ -86,19 +86,41 @@ fun AdjustmentsSheet(
                     Text("🎚️", fontSize = 16.sp)
                     Text("Adjustments & Shading", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF22242B))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "Confirm",
-                        tint = Color(0xFF26E5D7),
-                        modifier = Modifier.size(18.dp)
-                    )
+                    var isComparing by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isComparing) Color(0xFF26E5D7) else Color(0xFF22242B))
+                            .border(0.8.dp, Color(0xFF33353E), RoundedCornerShape(6.dp))
+                            .clickable { isComparing = !isComparing }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = if (isComparing) "Original" else "Before / After",
+                            color = if (isComparing) Color.Black else Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF22242B))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Confirm",
+                            tint = Color(0xFF26E5D7),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
 

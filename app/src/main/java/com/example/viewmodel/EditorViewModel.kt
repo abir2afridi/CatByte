@@ -31,6 +31,7 @@ import com.example.data.SpeechSynthesizer
 import com.example.data.VoiceRecorder
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
+import com.example.model.AudioEffectSettings
 import com.example.model.BlendMode
 import com.example.model.ClipAnimation
 import com.example.model.EasingCurve
@@ -95,6 +96,7 @@ import com.example.viewmodel.features.HistoryFeature
 import com.example.viewmodel.features.PlaybackFeature
 import com.example.viewmodel.features.ScrubPreviewFeature
 import com.example.viewmodel.features.ProjectLifecycleFeature
+import com.example.viewmodel.features.ProjectBackupFeature
 import com.example.viewmodel.features.SelectionFeature
 import com.example.viewmodel.features.SelectionFeature.ClipboardEntry
 import com.example.viewmodel.features.TemplateFeature
@@ -122,6 +124,8 @@ enum class ActiveToolSheet {
     SPEED,
     AUDIO_LIBRARY,
     AUDIO_MIXER,
+    /** Per-clip / per-track audio effects (voice presets, EQ, gate). */
+    AUDIO_EFFECTS,
     VOICE_RECORDER,
     TEXT_EDITOR,
     EFFECTS_LIBRARY,
@@ -281,6 +285,10 @@ class EditorViewModel(
     /** Reusable brand background (app-storage path, empty = none). */
     private val _brandBackgroundPath = MutableStateFlow("")
     val brandBackgroundPath: StateFlow<String> = _brandBackgroundPath.asStateFlow()
+
+    /** Reusable brand music (app-storage path, empty = none). */
+    private val _brandMusicPath = MutableStateFlow("")
+    val brandMusicPath: StateFlow<String> = _brandMusicPath.asStateFlow()
 
     internal val _cacheSizeMb = MutableStateFlow(0)
     val cacheSizeMb: StateFlow<Int> = _cacheSizeMb.asStateFlow()
@@ -463,6 +471,7 @@ class EditorViewModel(
                         speechModel = settings.aiSpeechModel
                     )
                     _brandBackgroundPath.value = settings.brandBackgroundPath
+                    _brandMusicPath.value = settings.brandMusicPath
                 }
             }
         }
@@ -563,6 +572,17 @@ class EditorViewModel(
 
     /** Restores a draft removed from the home screen (undo delete). */
     fun restoreProject(project: VideoProject) = ProjectLifecycleFeature.restoreProject(this, project)
+
+    /** Writes a project (optionally with its media) to a `.catbyte.zip` file. */
+    suspend fun backupProject(
+        projectId: String,
+        destination: Uri,
+        includeMedia: Boolean
+    ): String = ProjectBackupFeature.backupProject(this, projectId, destination, includeMedia)
+
+    /** Imports a `.catbyte.zip` backup into the home library. */
+    suspend fun restoreProjectBackup(source: Uri): String =
+        ProjectBackupFeature.restoreBackup(this, source)
 
     /** Clears ALL projects from the repository (database + memory). */
     fun clearAllProjects() = ProjectLifecycleFeature.clearAllProjects(this)
@@ -873,6 +893,22 @@ class EditorViewModel(
 
     fun setClipFilter(filter: VideoFilter) = ClipPropertyFeature.setClipFilter(this, filter)
 
+    /** Per-clip audio effects (voice preset, enhance voice, noise gate). */
+    /**
+     * Applies or removes vocal isolation on the selected video clip. Used by
+     * the "Isolate voice" bottom-bar chip; returns false when nothing is selected.
+     */
+    fun toggleIsolateVoiceOnSelectedClip(enabled: Boolean): Boolean {
+        val clipId = _selectedClipId.value ?: return false
+        val project = _currentProject.value ?: return false
+        val clip = project.allVideoClips.firstOrNull { it.id == clipId } ?: return false
+        setClipAudioEffects(clip.audioEffects.copy(isolateVoice = enabled))
+        return true
+    }
+
+    fun setClipAudioEffects(settings: AudioEffectSettings) =
+        ClipPropertyFeature.setClipAudioEffects(this, settings)
+
     fun setClipTransition(transition: TransitionType) =
         ClipPropertyFeature.setClipTransition(this, transition)
 
@@ -973,6 +1009,33 @@ class EditorViewModel(
 
     fun addAudioTrack(audioClip: AudioClip) = AudioFeature.addAudioTrack(this, audioClip)
 
+    /**
+     * "AI music": composes a track for the whole timeline on-device
+     * ([com.example.engine.MusicGenerator], procedural synthesis, no network)
+     * and adds it at the playhead like any imported track.
+     */
+    fun generateAiMusic(mood: com.example.engine.MusicGenerator.Mood, onComplete: (Boolean) -> Unit = {}) {
+        val project = _currentProject.value
+        if (project == null) {
+            onComplete(false)
+            return
+        }
+        val duration = totalDurationMsOf(project).coerceIn(2_000L, 60_000L)
+        val seed = System.nanoTime()
+        AudioFeature.addSampleAudioTrack(
+            this,
+            AudioClip(
+                id = "ai_music_${mood.name.lowercase()}",
+                title = "AI music · ${mood.displayName}",
+                artist = "Generated on device",
+                durationMs = duration
+            ),
+            onComplete
+        ) { _, renderDurationMs ->
+            com.example.engine.MusicGenerator.render(mood, renderDurationMs, seed)
+        }
+    }
+
     fun deleteAudioTrack(id: String) = AudioFeature.deleteAudioTrack(this, id)
 
     /** Selects an independent audio clip and clears video/text selection. */
@@ -1024,6 +1087,17 @@ class EditorViewModel(
 
     /** Restores gain, mute, fades, speed and trim for one audio clip. */
     fun resetAudioMixer(audioId: String) = AudioMixerFeature.resetAudioMixer(this, audioId)
+
+    /** Sets one track's audio-effect chain (voice preset, EQ, gate). */
+    fun setAudioEffects(audioId: String, settings: AudioEffectSettings) =
+        AudioMixerFeature.setAudioEffects(this, audioId, settings)
+
+    /**
+     * Splits the selected independent audio track at the playhead. Returns
+     * false when the playhead is outside the track or too close to an edge, so
+     * the UI can tell the user instead of silently doing nothing.
+     */
+    fun splitAudioAtPlayhead(): Boolean = AudioMixerFeature.splitAudioAtPlayhead(this)
 
     /** Extracts the selected clip's audio as a real timeline audio track. */
     fun extractAudioFromSelectedClip() = AudioFeature.extractAudioFromSelectedClip(this)
@@ -1087,6 +1161,18 @@ class EditorViewModel(
         lineSpacingMultiplier: Float
     ) = TextFeature.setSelectedTextStyle(this, bold, italic, letterSpacingEm, lineSpacingMultiplier)
 
+    /** Adds/replaces a keyframe on the selected text at the playhead. */
+    fun setTextKeyframe(
+        property: KeyframeProperty,
+        value: Float,
+        easing: EasingCurve = EasingCurve.EASE_IN_OUT
+    ): Boolean = TextFeature.setTextKeyframe(this, property, value, easing)
+
+    fun removeTextKeyframe(keyframeId: String) =
+        TextFeature.removeTextKeyframe(this, keyframeId)
+
+    fun clearTextKeyframes() = TextFeature.clearTextKeyframes(this)
+
     fun deleteSelectedText() = TextFeature.deleteSelectedText(this)
 
     // ==========================================
@@ -1117,6 +1203,16 @@ class EditorViewModel(
     /** Copies a picked gallery image into app storage and applies it. */
     fun importBackgroundImage(picked: Uri): String? =
         context?.let { CanvasFeature.importBackgroundImage(this, it, picked) }
+
+    /** Copies a picked audio file into app storage. Returns the stored path. */
+    fun importBrandMusic(picked: Uri): String? =
+        context?.let { AudioFeature.importBrandAudio(it, picked) }
+
+    /** Stores (or clears) the reusable brand music path. */
+    fun saveBrandMusic(path: String) {
+        _brandMusicPath.value = path
+        viewModelScope.launch { settingsRepository?.setBrandMusic(path) }
+    }
 
     /**
      * Brand background: stores [path] as the reusable brand image and applies

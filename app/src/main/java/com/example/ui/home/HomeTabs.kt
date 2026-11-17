@@ -102,6 +102,7 @@ import com.example.model.AspectRatioType
 import com.example.model.VideoProject
 import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.pencilHatching
+import java.util.Locale
 import kotlinx.coroutines.delay
 
 @Composable
@@ -205,7 +206,7 @@ internal fun ProfileTabContent(
                 Text("Projects", color = colors.textSecondary, fontSize = 11.sp)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("${String.format("%.1fs", totalDurationSec)}", color = colors.accentCyan, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("${String.format(Locale.US, "%.1fs", totalDurationSec)}", color = colors.accentCyan, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text("Total Time", color = colors.textSecondary, fontSize = 11.sp)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {

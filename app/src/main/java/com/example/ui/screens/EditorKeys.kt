@@ -102,7 +102,6 @@ import com.example.ui.components.AdjustmentsSheet
 import com.example.ui.audio.AudioSheet
 import com.example.ui.components.BlendModeSheet
 import com.example.ui.components.CanvasRatioSheet
-import com.example.ui.components.PlaybackControlsStrip
 import com.example.ui.components.EditClipSheet
 import com.example.ui.components.EffectsSheet
 import com.example.ui.export.ExportDialog

@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -239,17 +240,29 @@ internal fun EditorTransportRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Magnetic Snapping / Track Magnet toggle
-            IconButton(
-                onClick = onToggleMagneticSnap,
+            Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .testTag("editor_magnetic_snap_button")
+                    .padding(end = 4.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (magneticSnap) Color(0xFF26E5D7).copy(alpha = 0.15f) else Color.Transparent)
+                    .border(
+                        width = if (magneticSnap) 1.dp else 0.dp,
+                        color = if (magneticSnap) Color(0xFF26E5D7) else Color.Transparent,
+                        shape = RoundedCornerShape(16.dp)
+                    )
             ) {
-                CapCutIconMagnetOn(
-                    isOn = magneticSnap,
-                    tint = Color.White,
-                    size = 22.dp
-                )
+                IconButton(
+                    onClick = onToggleMagneticSnap,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .testTag("editor_magnetic_snap_button")
+                ) {
+                    CapCutIconMagnetOn(
+                        isOn = magneticSnap,
+                        tint = if (magneticSnap) Color(0xFF26E5D7) else Color.White,
+                        size = 20.dp
+                    )
+                }
             }
 
             // Undo

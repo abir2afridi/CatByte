@@ -46,6 +46,7 @@ import com.example.ui.theme.CapCutSurfaceElevated
 import com.example.ui.theme.CapCutTextPrimary
 import com.example.ui.theme.CapCutTextSecondary
 import com.example.ui.theme.PencilTheme
+import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -67,7 +68,7 @@ internal fun AudioVoiceTab(
         Spacer(modifier = Modifier.height(16.dp))
         val sec = voiceDurationMs / 1000f
         Text(
-            text = if (isRecordingVoice) String.format("Recording: %02d:%04.1f", (sec / 60).toInt(), sec % 60) else "Hold or Tap to Record Voiceover",
+            text = if (isRecordingVoice) String.format(Locale.US, "Recording: %02d:%04.1f", (sec / 60).toInt(), sec % 60) else "Hold or Tap to Record Voiceover",
             color = if (isRecordingVoice) CapCutRed else Color.LightGray,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold

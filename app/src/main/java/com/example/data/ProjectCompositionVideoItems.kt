@@ -10,6 +10,7 @@ import androidx.media3.transformer.Effects
 import androidx.media3.effect.AlphaScale
 import com.example.data.composition.ClipTransformEffect
 import com.example.data.composition.MirrorAndRotationEffect
+import com.example.data.export.AudioEffectProcessors
 import com.example.data.export.ConstantGainProvider
 import com.example.data.export.TransitionMapper
 import com.example.model.MediaClip
@@ -109,6 +110,10 @@ internal fun ProjectCompositionFactory.buildVideoItem(
     }
 
     val audioProcessors = mutableListOf<AudioProcessor>()
+    // Per-clip DSP chain (gate -> voice EQ -> creative preset -> pitch) runs
+    // before the gain envelope, so the volume slider stays a pure level
+    // control on top of the effects. Preview and export both get this list.
+    audioProcessors += AudioEffectProcessors.forSettings(clip.audioEffects)
     val gain = videoVoiceGain(project, clip, isOverlay)
     if (!isOverlay || gain != 1f) {
         if (abs(gain - 1f) > 0.001f) {

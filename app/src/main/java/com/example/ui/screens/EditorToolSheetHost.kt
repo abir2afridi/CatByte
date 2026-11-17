@@ -97,6 +97,14 @@ internal fun BoxScope.EditorToolSheetHost(
                     selectedAudioId = selectedAudioId
                 )
             }
+            ActiveToolSheet.AUDIO_EFFECTS -> {
+                AudioEffectsToolSheet(
+                    viewModel = viewModel,
+                    project = project,
+                    currentClip = currentClip,
+                    selectedAudioId = selectedAudioId
+                )
+            }
             ActiveToolSheet.TEXT_EDITOR -> {
                 TextEditorToolSheet(
                     viewModel = viewModel,

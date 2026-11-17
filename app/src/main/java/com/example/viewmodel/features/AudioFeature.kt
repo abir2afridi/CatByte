@@ -218,6 +218,27 @@ internal object AudioFeature {
     }
 
     /** Writes a generated sample atomically into app-private storage. */
+    /**
+     * Copies a picked gallery audio file into app storage (photo/document
+     * grants do not survive a reboot). Returns the stored absolute path, or
+     * null when the copy failed.
+     */
+    fun importBrandAudio(context: android.content.Context, picked: android.net.Uri): String? {
+        return runCatching {
+            val dir = java.io.File(context.filesDir, "brand_music").apply { mkdirs() }
+            val extension = picked.lastPathSegment?.substringAfterLast('.', "audio") ?: "audio"
+            val dest = java.io.File(dir, "brand_${System.currentTimeMillis()}.$extension")
+            context.contentResolver.openInputStream(picked)?.use { input ->
+                dest.outputStream().use { output -> input.copyTo(output) }
+            } ?: error("Could not read the picked audio")
+            if (dest.length() <= 0L) error("The picked audio is empty")
+            dest.absolutePath
+        }.getOrElse {
+            com.example.data.AppLog.error("AudioFeature", "Could not import the brand music", it)
+            null
+        }
+    }
+
     internal fun persistGeneratedSample(
         context: Context,
         audio: SampleAudioGenerator.GeneratedAudio

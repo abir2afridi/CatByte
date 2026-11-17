@@ -9,6 +9,9 @@ import com.example.data.ai.AiClient
 import com.example.data.ai.AiResult
 import com.example.engine.CaptionBridge
 import com.example.engine.SubtitleIO
+import com.example.model.EasingCurve
+import com.example.model.Keyframe
+import com.example.model.KeyframeProperty
 import com.example.model.TextAnimationType
 import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
@@ -265,6 +268,86 @@ internal object TextFeature {
         }
     }
 
+    /**
+     * Adds (or replaces) a keyframe on the selected text overlay at the
+     * playhead. The renderers already evaluate these keyframes in both the
+     * preview and the exported file; this is the missing way to author them.
+     *
+     * Only properties the text renderer actually reads are accepted. Returns
+     * false when nothing is selected or the playhead is outside the overlay.
+     */
+    fun setTextKeyframe(
+        vm: EditorViewModel,
+        property: KeyframeProperty,
+        value: Float,
+        easing: EasingCurve = EasingCurve.EASE_IN_OUT
+    ): Boolean {
+        if (property !in TEXT_KEYFRAME_PROPERTIES) return false
+        val id = vm._selectedTextId.value ?: return false
+        val project = vm._currentProject.value ?: return false
+        val text = project.textOverlays.firstOrNull { it.id == id } ?: return false
+        val localMs = (vm._currentPositionMs.value - text.startTimelineMs)
+            .coerceIn(0L, text.durationMs)
+        if (vm._currentPositionMs.value < text.startTimelineMs ||
+            vm._currentPositionMs.value > text.startTimelineMs + text.durationMs
+        ) {
+            return false
+        }
+        val safeValue = when (property) {
+            KeyframeProperty.POSITION_X, KeyframeProperty.POSITION_Y -> value.coerceIn(0f, 1f)
+            KeyframeProperty.SCALE -> value.coerceIn(0.2f, 4f)
+            KeyframeProperty.OPACITY -> value.coerceIn(0f, 1f)
+            else -> value
+        }
+        vm.updateProject("text-keyframe:$id:$property") { proj ->
+            proj.copy(
+                textOverlays = proj.textOverlays.map { item ->
+                    if (item.id != id) {
+                        item
+                    } else {
+                        val kept = item.keyframes.filterNot {
+                            it.property == property && kotlin.math.abs(it.timestampMs - localMs) < 100L
+                        }
+                        val keyframe = Keyframe(
+                            timestampMs = localMs,
+                            property = property,
+                            value = safeValue,
+                            easing = easing
+                        )
+                        item.copy(keyframes = (kept + keyframe).sortedBy { it.timestampMs })
+                    }
+                }
+            )
+        }
+        return true
+    }
+
+    fun removeTextKeyframe(vm: EditorViewModel, keyframeId: String) {
+        val id = vm._selectedTextId.value ?: return
+        vm.updateProject { proj ->
+            proj.copy(
+                textOverlays = proj.textOverlays.map { item ->
+                    if (item.id == id) {
+                        item.copy(keyframes = item.keyframes.filterNot { it.id == keyframeId })
+                    } else {
+                        item
+                    }
+                }
+            )
+        }
+    }
+
+    fun clearTextKeyframes(vm: EditorViewModel) {
+        val id = vm._selectedTextId.value ?: return
+        vm.updateProject { proj ->
+            proj.copy(
+                textOverlays = proj.textOverlays.map { item ->
+                    if (item.id == id) item.copy(keyframes = emptyList()) else item
+                }
+            )
+        }
+    }
+
     fun deleteSelectedText(vm: EditorViewModel) {
         val id = vm._selectedTextId.value ?: return
         vm.updateProject { proj ->
@@ -272,4 +355,12 @@ internal object TextFeature {
         }
         vm._selectedTextId.value = null
     }
+
+    /** Properties the text renderer evaluates (volume/rotation are clip-only). */
+    private val TEXT_KEYFRAME_PROPERTIES = setOf(
+        KeyframeProperty.POSITION_X,
+        KeyframeProperty.POSITION_Y,
+        KeyframeProperty.SCALE,
+        KeyframeProperty.OPACITY
+    )
 }

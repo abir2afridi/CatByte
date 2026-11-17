@@ -284,15 +284,15 @@ private fun BottomSubFeatureItem(
     val isAi = tag.contains("ai_") || tag.contains("auto_") || tag.contains("transcript")
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF222329))
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isAi) Color(0xFF1E262A) else Color(0xFF222329))
             .border(
-                0.8.dp,
-                if (isAi) Color(0xFF26E5D7).copy(alpha = 0.45f) else Color(0xFF32343E),
-                RoundedCornerShape(8.dp)
+                1.dp,
+                if (isAi) Color(0xFF26E5D7) else Color(0xFF32343E),
+                RoundedCornerShape(14.dp)
             )
             .clickable { onClick() }
-            .padding(horizontal = 11.dp, vertical = 7.dp)
+            .padding(horizontal = 12.dp, vertical = 7.dp)
             .testTag("bottom_sub_$tag")
     ) {
         Row(
@@ -316,9 +316,9 @@ private fun BottomSubFeatureItem(
             }
             Text(
                 text = label,
-                color = Color.White.copy(alpha = 0.92f),
+                color = Color.White.copy(alpha = 0.95f),
                 fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1
             )
         }

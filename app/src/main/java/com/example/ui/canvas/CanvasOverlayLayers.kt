@@ -3,7 +3,9 @@ package com.example.ui.canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -11,14 +13,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.KeyframeInterpolator
+import com.example.model.KeyframeProperty
 import com.example.model.StickerOverlay
 import com.example.model.TextAnimationType
 import com.example.model.TextFontStyle
@@ -57,16 +61,26 @@ internal fun CanvasTextOverlayLayers(
             1.0f
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            contentAlignment = when {
-                textOverlay.posY < 0.4f -> Alignment.TopCenter
-                textOverlay.posY > 0.6f -> Alignment.BottomCenter
-                else -> Alignment.Center
-            }
-        ) {
+        // The export renderer evaluates text keyframes; the fallback preview
+        // must do the same or a keyframed text would jump between scrub and play.
+        val localMs = (positionMs - textOverlay.startTimelineMs).coerceAtLeast(0L)
+        val keyPosX = KeyframeInterpolator.interpolate(
+            textOverlay.keyframes, KeyframeProperty.POSITION_X, localMs, textOverlay.posX
+        )
+        val keyPosY = KeyframeInterpolator.interpolate(
+            textOverlay.keyframes, KeyframeProperty.POSITION_Y, localMs, textOverlay.posY
+        )
+        val keyScale = KeyframeInterpolator.interpolate(
+            textOverlay.keyframes, KeyframeProperty.SCALE, localMs, textOverlay.scale
+        )
+        val keyOpacity = KeyframeInterpolator.interpolate(
+            textOverlay.keyframes, KeyframeProperty.OPACITY, localMs, 1f
+        )
+        val keyRotation = KeyframeInterpolator.interpolate(
+            textOverlay.keyframes, KeyframeProperty.ROTATION, localMs, 0f
+        )
+
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val baseSize = when (textOverlay.fontStyle) {
                 TextFontStyle.CAPCUT_BOLD -> 23.sp
                 TextFontStyle.NEON_GLOW -> 21.sp
@@ -94,7 +108,18 @@ internal fun CanvasTextOverlayLayers(
                 },
                 textAlign = TextAlign.Center,
                 modifier = Modifier
-                    .scale(textScale * textOverlay.scale)
+                    // Centred child + fractional offset = the same normalised
+                    // (posX, posY) anchor the export renderer uses.
+                    .offset(
+                        x = maxWidth * (keyPosX.coerceIn(0f, 1f) - 0.5f),
+                        y = maxHeight * (keyPosY.coerceIn(0f, 1f) - 0.5f)
+                    )
+                    .graphicsLayer {
+                        scaleX = keyScale * textScale
+                        scaleY = keyScale * textScale
+                        alpha = keyOpacity.coerceIn(0f, 1f)
+                        rotationZ = keyRotation
+                    }
                     .background(
                         color = if (textOverlay.backgroundColor != null) Color(textOverlay.backgroundColor) else Color.Transparent,
                         shape = RoundedCornerShape(8.dp)

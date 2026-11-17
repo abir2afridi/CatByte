@@ -6,10 +6,14 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,6 +41,8 @@ fun HomeScreen(
     onDuplicateProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
     onRestoreProject: (VideoProject) -> Unit = {}, // NEW: undo delete
+    onBackupProject: (projectId: String, destination: Uri, includeMedia: Boolean) -> Unit = { _, _, _ -> },
+    onRestoreBackup: (Uri) -> Unit = {},
     onQuickTool: (QuickTool) -> Unit = {},
     onOpenSettings: () -> Unit
 ) {
@@ -50,6 +56,11 @@ fun HomeScreen(
     // State for delete confirmation with undo
     var deletedProject by rememberSaveable { mutableStateOf<VideoProject?>(null) }
     var showUndoBar by remember { mutableStateOf(false) }
+    // Project id + media choice while the SAF create-document picker is open.
+    // Saved so a rotation while the picker is up does not lose the backup.
+    var pendingBackupId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingBackupIncludeMedia by rememberSaveable { mutableStateOf(true) }
+    var backupChoiceProject by remember { mutableStateOf<VideoProject?>(null) }
 
     val filteredProjects = remember(projects, searchQuery, filterChoice) {
         projects.filter { proj ->
@@ -85,6 +96,34 @@ fun HomeScreen(
     }
 
     val lazyListState = rememberLazyListState()
+
+    val backupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { destination ->
+        val projectId = pendingBackupId
+        pendingBackupId = null
+        if (destination != null && projectId != null) {
+            onBackupProject(projectId, destination, pendingBackupIncludeMedia)
+        }
+    }
+
+    val restoreLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { source ->
+        if (source != null) onRestoreBackup(source)
+    }
+
+    val startBackup: (VideoProject, Boolean) -> Unit = { project, includeMedia ->
+        pendingBackupId = project.id
+        pendingBackupIncludeMedia = includeMedia
+        backupLauncher.launch(backupFileName(project.title))
+    }
+
+    val pickRestoreBackup: () -> Unit = {
+        restoreLauncher.launch(
+            arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")
+        )
+    }
     val scrollOffsetProvider = remember(lazyListState) {
         {
             if (lazyListState.firstVisibleItemIndex > 0) 1000f
@@ -123,6 +162,8 @@ fun HomeScreen(
                         onToggleFavorite = onToggleFavorite,
                         onRenameProject = onRenameProject,
                         onDuplicateProject = onDuplicateProject,
+                        onBackupProject = { project -> backupChoiceProject = project },
+                        onRestoreBackup = pickRestoreBackup,
                         onRequestDeleteProject = { project ->
                             deletedProject = project
                             onDeleteProject(project.id)
@@ -132,13 +173,13 @@ fun HomeScreen(
                 }
                 1 -> {
                     Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-                        HomeTopBar(onOpenSettings = onOpenSettings)
+                        HomeTopBar(onOpenSettings = onOpenSettings, onRestoreBackup = pickRestoreBackup)
                         InboxTabContent(projects)
                     }
                 }
                 2 -> {
                     Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-                        HomeTopBar(onOpenSettings = onOpenSettings)
+                        HomeTopBar(onOpenSettings = onOpenSettings, onRestoreBackup = pickRestoreBackup)
                         ProfileTabContent(projects, onOpenSettings = onOpenSettings)
                     }
                 }
@@ -163,6 +204,46 @@ fun HomeScreen(
             onSelect = { selectedBottomNav = it }
         )
 
+        // Backup options: media makes a portable archive, project-only stays small.
+        backupChoiceProject?.let { project ->
+            AlertDialog(
+                onDismissRequest = { backupChoiceProject = null },
+                title = { Text("Back up \"${project.title}\"", color = colors.textPrimary) },
+                text = {
+                    Text(
+                        "Include the original media files so this backup opens on another device? " +
+                            "A project-only backup is much smaller and can relink media later.",
+                        color = colors.textSecondary
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            backupChoiceProject = null
+                            startBackup(project, true)
+                        }
+                    ) {
+                        Text("Include media")
+                    }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(
+                            onClick = {
+                                backupChoiceProject = null
+                                startBackup(project, false)
+                            }
+                        ) {
+                            Text("Project only")
+                        }
+                        TextButton(onClick = { backupChoiceProject = null }) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            )
+        }
+
         // New Project Setup Dialog
         if (showNewProjectDialog) {
             NewProjectBlueprintDialog(
@@ -180,4 +261,15 @@ fun HomeScreen(
             )
         }
     }
+}
+
+/** SAF-safe file name for a project backup (`<title>.catbyte.zip`). */
+private fun backupFileName(title: String): String {
+    val cleaned = title.trim()
+        .map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }
+        .joinToString("")
+        .trim('_')
+        .take(48)
+        .ifEmpty { "CatByte_project" }
+    return "$cleaned.catbyte.zip"
 }

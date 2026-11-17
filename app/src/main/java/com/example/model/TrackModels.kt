@@ -42,7 +42,9 @@ data class AudioClip(
      * real file has been analysed - the UI renders "no data" instead of a
      * decorative fake pattern.
      */
-    val waveform: List<Float> = emptyList()
+    val waveform: List<Float> = emptyList(),
+    /** Per-track audio processing (voice presets, enhance voice, noise gate). */
+    val audioEffects: AudioEffectSettings = AudioEffectSettings()
 )
 
 /** Stable ids for the two tracks that exist without a `VideoTrack` object. */

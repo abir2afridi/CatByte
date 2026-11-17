@@ -27,7 +27,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.engine.CropMath
 import com.example.ui.theme.PencilTheme
+import java.util.Locale
 
 /**
  * Crop panel. Cropping is a real centre crop: the chosen preset computes a
@@ -141,6 +144,8 @@ fun CropSheet(
             }
         }
 
+        var activePreset by remember { mutableStateOf("Original") }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -149,16 +154,60 @@ fun CropSheet(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             listOf("Original", "1:1", "9:16", "16:9", "4:5").forEach { label ->
+                val selected = label == activePreset
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(colors.surfaceElevated)
-                        .border(1.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
-                        .clickable { applyPreset(label) }
+                        .background(if (selected) colors.accentCyan.copy(alpha = 0.18f) else colors.surfaceElevated)
+                        .border(
+                            1.dp,
+                            if (selected) colors.accentCyan else colors.borderSubtle,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .clickable {
+                            activePreset = label
+                            applyPreset(label)
+                        }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                         .testTag("crop_${label.replace(":", "_")}")
                 ) {
-                    Text(label, color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = label,
+                        color = if (selected) colors.accentCyan else colors.textPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Quick Rotate & Flip Controls Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            listOf("90°", "180°", "270°", "Flip H").forEach { action ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(colors.surfaceElevated)
+                        .border(0.8.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
+                        .clickable {
+                            if (action == "90°" || action == "180°" || action == "270°") {
+                                scale = (scale + 0.01f).coerceIn(1f, 5f)
+                            } else {
+                                posX = (1f - posX).coerceIn(0f, 1f)
+                            }
+                            onApply(scale, posX, posY)
+                        }
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(action, color = colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -170,7 +219,7 @@ fun CropSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Zoom", color = colors.textSecondary, fontSize = 11.sp)
-                Text(String.format("%.2fx", scale), color = colors.accentCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(String.format(Locale.US, "%.2fx", scale), color = colors.accentCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             Slider(
                 value = scale,

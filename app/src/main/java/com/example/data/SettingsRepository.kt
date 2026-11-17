@@ -41,7 +41,9 @@ data class AppSettings(
      * Brand background: a locally imported image (app-storage path) the user
      * picked once and can reapply to any project with one tap. Empty = none.
      */
-    val brandBackgroundPath: String = ""
+    val brandBackgroundPath: String = "",
+    /** Reusable brand music (app-storage path). Empty = none. */
+    val brandMusicPath: String = ""
 ) {
     /** True when the user has pointed the app at an AI endpoint. */
     val hasAiEndpoint: Boolean get() = aiBaseUrl.isNotBlank()
@@ -71,6 +73,7 @@ class SettingsRepository(private val context: Context) {
         val AI_IMAGE_MODEL = stringPreferencesKey("ai_image_model")
         val AI_SPEECH_MODEL = stringPreferencesKey("ai_speech_model")
         val BRAND_BACKGROUND = stringPreferencesKey("brand_background_path")
+        val BRAND_MUSIC = stringPreferencesKey("brand_music_path")
     }
 
     val settings: Flow<AppSettings> = context.settingsDataStore.data
@@ -99,7 +102,8 @@ class SettingsRepository(private val context: Context) {
                 aiModel = prefs[Keys.AI_MODEL] ?: "gpt-4o-mini",
                 aiImageModel = prefs[Keys.AI_IMAGE_MODEL] ?: "dall-e-3",
                 aiSpeechModel = prefs[Keys.AI_SPEECH_MODEL] ?: "whisper-1",
-                brandBackgroundPath = prefs[Keys.BRAND_BACKGROUND] ?: ""
+                brandBackgroundPath = prefs[Keys.BRAND_BACKGROUND] ?: "",
+                brandMusicPath = prefs[Keys.BRAND_MUSIC] ?: ""
             )
         }
 
@@ -137,6 +141,14 @@ class SettingsRepository(private val context: Context) {
         context.settingsDataStore.edit { prefs ->
             if (path.isBlank()) prefs.remove(Keys.BRAND_BACKGROUND)
             else prefs[Keys.BRAND_BACKGROUND] = path
+        }
+    }
+
+    /** Stores (or clears) the reusable brand music track. */
+    suspend fun setBrandMusic(path: String) {
+        context.settingsDataStore.edit { prefs ->
+            if (path.isBlank()) prefs.remove(Keys.BRAND_MUSIC)
+            else prefs[Keys.BRAND_MUSIC] = path
         }
     }
 

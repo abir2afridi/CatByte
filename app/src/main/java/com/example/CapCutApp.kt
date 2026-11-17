@@ -9,6 +9,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -21,6 +22,7 @@ import com.example.ui.settings.SettingsScreen
 import com.example.ui.systemlogs.SystemLogsScreen
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
+import kotlinx.coroutines.launch
 
 enum class AppScreen {
     SPLASH,
@@ -73,6 +75,7 @@ fun CapCutApp(
     }
 
     val appContext = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // Quick Tools are real shortcuts: creation tools open a fresh project with
     // the relevant sheet, while clip tools open the most recent project that
@@ -173,6 +176,24 @@ fun CapCutApp(
                     },
                     onRestoreProject = { project ->
                         viewModel.restoreProject(project)
+                    },
+                    onBackupProject = { projectId, destination, includeMedia ->
+                        scope.launch {
+                            Toast.makeText(
+                                appContext,
+                                viewModel.backupProject(projectId, destination, includeMedia),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    onRestoreBackup = { source ->
+                        scope.launch {
+                            Toast.makeText(
+                                appContext,
+                                viewModel.restoreProjectBackup(source),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     },
                     onQuickTool = handleQuickTool,
                     onOpenCamera = {

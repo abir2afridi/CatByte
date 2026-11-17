@@ -28,7 +28,8 @@ internal fun LazyListScope.homeProjectListItems(
     onToggleFavorite: (String) -> Unit,
     onRenameProject: (id: String, title: String) -> Unit = { _, _ -> },
     onDuplicateProject: (String) -> Unit,
-    onRequestDeleteProject: (VideoProject) -> Unit
+    onRequestDeleteProject: (VideoProject) -> Unit,
+    onBackupProject: (VideoProject) -> Unit = {}
 ) {
     if (filteredProjects.isEmpty()) {
         item {
@@ -59,6 +60,7 @@ internal fun LazyListScope.homeProjectListItems(
                     onToggleFavorite = { onToggleFavorite(project.id) },
                     onRename = { title -> onRenameProject(project.id, title) },
                     onDuplicate = { onDuplicateProject(project.id) },
+                    onBackup = { onBackupProject(project) },
                     onDelete = { onRequestDeleteProject(project) }
                 )
             }

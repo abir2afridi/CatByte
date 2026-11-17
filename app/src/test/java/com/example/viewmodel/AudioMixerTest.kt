@@ -2,8 +2,10 @@ package com.example.viewmodel
 
 import com.example.data.ProjectRepository
 import com.example.model.AudioClip
+import com.example.model.AudioEffectSettings
 import com.example.model.MediaClip
 import com.example.model.VideoProject
+import com.example.model.VoiceEffectType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -262,5 +264,88 @@ class AudioMixerTest {
         assertNull(viewModel.selectedClipId.value)
         assertTrue(viewModel.selectedClipIds.value.isEmpty())
         assertNull(viewModel.selectedTextId.value)
+    }
+
+    @Test
+    fun `split at playhead cuts the selected track at output time`() {
+        val (viewModel, _) = viewModel()
+        viewModel.setAudioTrim("music", 1_000L, 5_000L) // 4 s on the timeline
+        viewModel.selectAudioClip("music")
+        viewModel.seekTo(3_000L)
+
+        assertTrue(viewModel.splitAudioAtPlayhead())
+
+        val tracks = viewModel.currentProject.value!!.audioTracks
+        assertEquals(2, tracks.size)
+        val first = tracks[0]
+        val second = tracks[1]
+        // Playhead 3 s into the output; speed 1 maps the cut to source 4 s.
+        assertEquals(1_000L, first.trimStartMs)
+        assertEquals(4_000L, first.trimEndMs)
+        assertEquals(3_000L, first.durationMs)
+        assertEquals(0L, first.startTimelineMs)
+        assertEquals(4_000L, second.trimStartMs)
+        assertEquals(5_000L, second.trimEndMs)
+        assertEquals(1_000L, second.durationMs)
+        assertEquals(3_000L, second.startTimelineMs)
+        assertEquals(second.id, viewModel.selectedAudioId.value)
+    }
+
+    @Test
+    fun `split maps the playhead through playback speed to source time`() {
+        val (viewModel, project) = viewModel()
+        val fast = project.audioTracks.single().copy(
+            trimStartMs = 0L,
+            trimEndMs = 0L,
+            speed = 2f,
+            durationMs = 5_000L
+        )
+        viewModel.openProject(project.copy(audioTracks = listOf(fast)))
+        viewModel.selectAudioClip("music")
+        viewModel.seekTo(2_500L)
+
+        assertTrue(viewModel.splitAudioAtPlayhead())
+
+        val tracks = viewModel.currentProject.value!!.audioTracks
+        assertEquals(2, tracks.size)
+        // 2.5 s of output at 2x starts at source second 5.
+        assertEquals(5_000L, tracks[1].trimStartMs)
+        assertEquals(2_500L, tracks[0].durationMs)
+        assertEquals(2_500L, tracks[1].durationMs)
+    }
+
+    @Test
+    fun `split is refused outside the selected track`() {
+        val (viewModel, _) = viewModel()
+        viewModel.selectAudioClip("music")
+        // Place the playhead beyond the 10 s track directly; seekTo clamps to
+        // the project duration, which would mask this regression.
+        viewModel._currentPositionMs.value = 15_000L
+
+        assertFalse(viewModel.splitAudioAtPlayhead())
+        assertEquals(1, viewModel.currentProject.value!!.audioTracks.size)
+    }
+
+    @Test
+    fun `audio effects persist and undo`() {
+        val (viewModel, _) = viewModel()
+        val echo = AudioEffectSettings(
+            type = VoiceEffectType.ECHO,
+            intensity = 0.8f,
+            reduceNoise = true
+        )
+
+        viewModel.setAudioEffects("music", echo)
+
+        val applied = viewModel.currentProject.value!!.audioTracks.single().audioEffects
+        assertEquals(VoiceEffectType.ECHO, applied.type)
+        assertEquals(0.8f, applied.intensity, 0.0001f)
+        assertTrue(applied.reduceNoise)
+
+        viewModel.undo()
+        assertTrue(viewModel.currentProject.value!!.audioTracks.single().audioEffects.isNoOp)
+
+        viewModel.redo()
+        assertEquals(VoiceEffectType.ECHO, viewModel.currentProject.value!!.audioTracks.single().audioEffects.type)
     }
 }

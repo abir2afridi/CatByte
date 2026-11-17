@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.example.model.BezierPoint
 import com.example.model.SpeedCurve
 import com.example.ui.theme.PencilTheme
+import java.util.Locale
 
 /** Card editor for the currently selected curve control point. */
 @Composable
@@ -96,7 +97,7 @@ internal fun SpeedCurvePointEditor(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Speed: ${String.format("%.2f", speed)}x", color = colors.textPrimary, fontSize = 14.sp, modifier = Modifier.width(100.dp))
+                Text("Speed: ${String.format(Locale.US, "%.2f", speed)}x", color = colors.textPrimary, fontSize = 14.sp, modifier = Modifier.width(100.dp))
                 Slider(
                     value = speed.coerceIn(0.1f, 3f),
                     onValueChange = {

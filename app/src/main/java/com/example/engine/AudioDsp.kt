@@ -5,6 +5,7 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.ln
+import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -67,6 +68,21 @@ object AudioDsp {
                     b0 = (1f + cosW) / 2f,
                     b1 = -(1f + cosW),
                     b2 = (1f + cosW) / 2f,
+                    a0 = 1f + alpha,
+                    a1 = -2f * cosW,
+                    a2 = 1f - alpha
+                )
+            }
+
+            /** Butterworth low-pass (Q = 0.707). */
+            fun lowPass(sampleRate: Int, cutoffHz: Float, q: Float = 0.707f): Biquad {
+                val w0 = 2f * PI.toFloat() * cutoffHz / sampleRate
+                val cosW = cos(w0)
+                val alpha = sin(w0) / (2f * q)
+                return Biquad(
+                    b0 = (1f - cosW) / 2f,
+                    b1 = 1f - cosW,
+                    b2 = (1f - cosW) / 2f,
                     a0 = 1f + alpha,
                     a1 = -2f * cosW,
                     a2 = 1f - alpha
@@ -168,6 +184,35 @@ object AudioDsp {
                 val y = presence.process(highPass.process(x, i % channels), i % channels)
                 samples[i] = clampToShort(y * 32768f)
             }
+        }
+    }
+
+    /**
+     * Vocal isolation ("Isolate voice"): band-limits the signal to the speech
+     * range (180 Hz .. 5.2 kHz) with real Butterworth filters and fades below
+     * the gate floor, so music bass and cymbal hiss collapse around the voice.
+     * It is an honest EQ-based isolation, not a source-separation model.
+     */
+    class IsolateVoice(sampleRate: Int) : SampleKernel {
+        // Cutoffs are clamped below Nyquist so the filters stay stable even
+        // for small sample rates in tests and low-quality pipelines. Two
+        // cascaded low-pass biquads give a 4th-order roll-off, so cymbal hiss
+        // above the speech band collapses even with the +3 dB presence shelf.
+        private val highPass = Biquad.highPass(sampleRate, min(180f, sampleRate * 0.2f))
+        private val lowPass = Biquad.lowPass(sampleRate, min(5200f, sampleRate * 0.45f))
+        private val lowPass2 = Biquad.lowPass(sampleRate, min(5200f, sampleRate * 0.45f))
+        private val presence = Biquad.highShelf(sampleRate, min(2400f, sampleRate * 0.22f), 3f)
+        private val gate = NoiseGate(sampleRate, thresholdDb = -38f, holdMs = 90f)
+
+        override fun process(samples: ShortArray, frames: Int, channels: Int) {
+            for (i in 0 until frames * channels) {
+                val x = samples[i] / 32768f
+                val channel = i % channels
+                val band = lowPass2.process(lowPass.process(highPass.process(x, channel), channel), channel)
+                val y = presence.process(band, channel)
+                samples[i] = clampToShort(y * 32768f)
+            }
+            gate.process(samples, frames, channels)
         }
     }
 

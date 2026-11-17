@@ -17,11 +17,13 @@ import com.example.model.SpeedCurvePreset
 import com.example.model.StickerOverlay
 import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
+import com.example.model.AudioEffectSettings
 import com.example.model.TimelineEffect
 import com.example.model.TimelineMarker
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
+import com.example.model.VoiceEffectType
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -88,7 +90,13 @@ class ProjectJsonTest {
             scale = 1.4f,
             posX = 0.25f,
             posY = 0.75f,
-            opacity = 0.9f
+            opacity = 0.9f,
+            audioEffects = AudioEffectSettings(
+                type = VoiceEffectType.ROBOT,
+                intensity = 0.7f,
+                enhanceVoice = true,
+                reduceNoise = true
+            )
         )
         val overlayClip = clip.copy(id = "pip_1", title = "PiP")
         return VideoProject(
@@ -112,6 +120,11 @@ class ProjectJsonTest {
                     trimEndMs = 8850L,
                     speed = 1.15f,
                     volume = 0.5f,
+                    audioEffects = AudioEffectSettings(
+                        type = VoiceEffectType.REVERB,
+                        intensity = 0.5f,
+                        enhanceVoice = true
+                    ),
                     fadeInMs = 300L,
                     fadeOutMs = 250L,
                     isMuted = false,
@@ -206,6 +219,24 @@ class ProjectJsonTest {
         assertNotNull(project)
         assertEquals(AspectRatioType.RATIO_9_16, project!!.aspectRatio)
         assertEquals(VideoFilter.NONE, project.clips.first().filter)
+    }
+
+    @Test
+    fun `malformed audio effects fall back to safe defaults`() {
+        val malformed = JSONObject()
+            .put("type", "BANANA")
+            .put("intensity", "not-a-number")
+            .put("enhanceVoice", true)
+        val applied = audioEffectsFromJson(malformed)
+        assertEquals(VoiceEffectType.NONE, applied.type)
+        assertEquals(0.6f, applied.intensity, 0.0001f)
+        assertTrue(applied.enhanceVoice)
+
+        // Missing object entirely: the documented defaults.
+        val missing = audioEffectsFromJson(null)
+        assertTrue(missing.isNoOp)
+        assertFalse(missing.enhanceVoice)
+        assertFalse(missing.reduceNoise)
     }
 
     @Test

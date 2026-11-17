@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -147,20 +148,32 @@ internal fun EditorTopBar(
                 Column(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF16171C))
                         .clickable(enabled = onRenameProject != null) {
                             renameText = project.title
                             showRenameDialog = true
                         }
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
                     horizontalAlignment = Alignment.Start
                 ) {
-                    Text(
-                        text = project.title.ifBlank { "Untitled Project" },
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = project.title.ifBlank { "Untitled Project" },
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Rename project",
+                            tint = Color(0xFFA5A8B2),
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -193,7 +206,11 @@ internal fun EditorTopBar(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(Color(0xFF1E1F24))
-                        .border(0.8.dp, Color(0xFF33353E), RoundedCornerShape(4.dp))
+                        .border(
+                            width = 0.8.dp,
+                            color = if (exportOpen) Color(0xFF26E5D7) else Color(0xFF33353E),
+                            shape = RoundedCornerShape(4.dp)
+                        )
                         .clickable { onToggleExportDropdown() }
                         .padding(horizontal = 6.dp, vertical = 3.dp)
                 ) {
@@ -210,6 +227,11 @@ internal fun EditorTopBar(
                         .height(36.dp)
                         .clip(RoundedCornerShape(18.dp))
                         .background(Color(0xFF24252A))
+                        .border(
+                            width = if (exportOpen) 1.dp else 0.dp,
+                            color = if (exportOpen) Color(0xFF26E5D7) else Color.Transparent,
+                            shape = RoundedCornerShape(18.dp)
+                        )
                         .clickable { onToggleExportDropdown() }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                         .testTag("editor_ai_uhd_chip"),

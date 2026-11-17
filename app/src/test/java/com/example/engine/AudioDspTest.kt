@@ -278,4 +278,46 @@ class AudioDspTest {
         assertEquals(-32768, AudioDsp.clampToShort(-40000f).toInt())
         assertEquals(1000, AudioDsp.clampToShort(1000.4f).toInt())
     }
+
+    // ------------------------------------------------------------------
+    // Isolate voice
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `isolate voice collapses bass far more than speech band tones`() {
+        // Real export rate, so every test tone is below Nyquist.
+        val hsr = 44_100
+        val samplesIn = 44_100
+        val bass = ShortArray(samplesIn) { i ->
+            AudioDsp.clampToShort(0.8f * sin(2.0 * Math.PI * 60.0 * i / hsr).toFloat() * 32768f)
+        }
+        val voice = ShortArray(samplesIn) { i ->
+            AudioDsp.clampToShort(0.8f * sin(2.0 * Math.PI * 900.0 * i / hsr).toFloat() * 32768f)
+        }
+
+        val isolate = AudioDsp.IsolateVoice(hsr)
+        isolate.process(bass, bass.size, 1)
+        val isolate2 = AudioDsp.IsolateVoice(hsr)
+        isolate2.process(voice, voice.size, 1)
+
+        val bassOut = amplitude(bass, samplesIn / 2)
+        val voiceOut = amplitude(voice, samplesIn / 2)
+        // The 60 Hz rumble is heavily rejected; a speech-band tone survives.
+        assertTrue("bass $bassOut should be well below the voice", bassOut < voiceOut * 0.25f)
+        assertTrue("voice $voiceOut should still be audible", voiceOut > 0.2f)
+    }
+
+    @Test
+    fun `isolate voice rejects content above the speech band`() {
+        val hsr = 44_100
+        val samplesIn = 44_100
+        val cymbal = ShortArray(samplesIn) { i ->
+            AudioDsp.clampToShort(0.8f * sin(2.0 * Math.PI * 8_000.0 * i / hsr).toFloat() * 32768f)
+        }
+        AudioDsp.IsolateVoice(hsr).process(cymbal, cymbal.size, 1)
+        // A 2nd-order roll-off at 5.2 kHz gives ~-9 dB at 8 kHz; the +3 dB
+        // presence shelf partially offsets it, so expect roughly halved.
+        val out = amplitude(cymbal, samplesIn / 2)
+        assertTrue("8 kHz should be attenuated, got $out", out < 0.45f)
+    }
 }

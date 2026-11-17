@@ -76,6 +76,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -150,7 +151,6 @@ import com.example.viewmodel.EditorViewModel
 import com.example.data.MediaDurationFallback
 import com.example.data.ScrubPreviewFrame
 
-@android.annotation.SuppressLint("SuspiciousIndentation")
 @Composable
 internal fun EditorTtsDialog(
     text: String,
@@ -159,64 +159,123 @@ internal fun EditorTtsDialog(
     onGenerate: () -> Unit
 ) {
     val colors = PencilTheme.colors
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = onDismiss,
-            properties = androidx.compose.ui.window.DialogProperties(
-                usePlatformDefaultWidth = false,
-                dismissOnBackPress = true,
-                dismissOnClickOutside = true
-            )
+    var selectedVoice by remember { mutableStateOf("Bangla Female") }
+    val voicePresets = listOf("Bangla Female", "English Female", "English Male", "Narrator")
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+            contentAlignment = Alignment.Center
         ) {
-            androidx.compose.foundation.layout.Box(
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 24.dp, vertical = 32.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xFF18191E))
+                    .border(1.5.dp, Color(0xFF26E5D7).copy(alpha = 0.5f), RoundedCornerShape(22.dp))
+                    .padding(20.dp)
             ) {
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(colors.surface)
-                        .border(1.5.dp, colors.border, RoundedCornerShape(22.dp))
-                        .padding(20.dp)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("AI Voiceover", color = colors.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Text("Enter the text you want to convert to speech:", color = colors.textSecondary, fontSize = 14.sp)
-
-                        OutlinedTextField(
-                            value = text,
-                            onValueChange = onTextChange,
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = false
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = Color(0xFF26E5D7),
+                            modifier = Modifier.size(20.dp)
                         )
+                        Text("AI Voiceover (Text to Audio)", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
+                    Text("Text to speech generator:", color = Color(0xFFA5A8B2), fontSize = 13.sp)
+
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = onTextChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Write speech prompt here...", color = Color.Gray, fontSize = 13.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF26E5D7),
+                            unfocusedBorderColor = Color(0xFF33353E),
+                            focusedContainerColor = Color(0xFF101014),
+                            unfocusedContainerColor = Color(0xFF101014),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        singleLine = false,
+                        maxLines = 3
+                    )
+
+                    Text("Voice Voiceover Preset:", color = Color(0xFFA5A8B2), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        voicePresets.forEach { voice ->
+                            val active = voice == selectedVoice
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (active) Color(0xFF26E5D7).copy(alpha = 0.2f) else Color(0xFF24252A))
+                                    .border(
+                                        width = if (active) 1.dp else 0.8.dp,
+                                        color = if (active) Color(0xFF26E5D7) else Color(0xFF33353E),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { selectedVoice = voice }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = voice,
+                                    color = if (active) Color(0xFF26E5D7) else Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = onDismiss,
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
                         ) {
-                            androidx.compose.material3.TextButton(
-                                onClick = onDismiss,
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
-                            ) {
-                                Text("Cancel", color = colors.textSecondary, fontWeight = FontWeight.Bold)
-                            }
-                            androidx.compose.material3.Button(
-                                onClick = onGenerate,
-                                colors = ButtonDefaults.buttonColors(containerColor = colors.accentCyan),
-                                shape = RoundedCornerShape(16.dp),
-                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
-                            ) {
-                                Text("Generate", color = Color.White, fontWeight = FontWeight.Bold)
-                            }
+                            Text("Cancel", color = Color(0xFFA5A8B2), fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = onGenerate,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF26E5D7)),
+                            shape = RoundedCornerShape(16.dp),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                        ) {
+                            Text("Generate", color = Color.Black, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
         }
+    }
 }

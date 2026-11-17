@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.Offset
 import com.example.ui.theme.PencilTheme
+import java.util.Locale
 
 /**
  * The CapCut-style eyedropper magnifier reticle.
@@ -100,7 +101,7 @@ internal fun CanvasEyedropperReticle(
             )
 
             // Hex Code Badge at center
-            val hexText = String.format("#%06X", (pickedColorHex and 0xFFFFFFL))
+            val hexText = String.format(Locale.US, "#%06X", (pickedColorHex and 0xFFFFFFL))
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

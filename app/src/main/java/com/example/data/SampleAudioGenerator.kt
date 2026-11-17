@@ -59,6 +59,15 @@ object SampleAudioGenerator {
             else -> renderTone(raw)
         }
 
+        return normalize(raw)
+    }
+
+    /**
+     * Peak-normalises raw floats to -1.4 dB and wraps them with the derived
+     * duration and a preview waveform. Shared by the library generator and
+     * the procedural music composer ([com.example.engine.MusicGenerator]).
+     */
+    fun normalize(raw: FloatArray, buckets: Int = 48): GeneratedAudio {
         var peak = 0f
         raw.forEach { peak = max(peak, abs(it)) }
         val scale = if (peak > 0f) 0.88f / peak else 1f
@@ -70,7 +79,7 @@ object SampleAudioGenerator {
         }
         return GeneratedAudio(
             samples = samples,
-            waveform = waveform(samples, buckets = 48),
+            waveform = waveform(samples, buckets = buckets),
             durationMs = samples.size.toLong() * 1_000L / SAMPLE_RATE
         )
     }

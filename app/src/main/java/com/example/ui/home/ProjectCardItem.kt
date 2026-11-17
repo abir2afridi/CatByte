@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.model.VideoProject
 import com.example.ui.theme.PencilTheme
+import java.util.Locale
 
 /** One project row: thumbnail, title/meta, pin toggle and overflow menu. */
 @Composable
@@ -48,7 +49,8 @@ internal fun ProjectCardItem(
     onToggleFavorite: () -> Unit = {},
     onRename: (String) -> Unit = {},
     onDuplicate: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onBackup: () -> Unit = {}
 ) {
     val colors = PencilTheme.colors
     var menuExpanded by remember { mutableStateOf(false) }
@@ -91,7 +93,7 @@ internal fun ProjectCardItem(
                 Spacer(modifier = Modifier.height(4.dp))
                 val durationSec = project.totalDurationMs / 1000f
                 Text(
-                    text = "${String.format("%.1fs", durationSec)} • ${project.clips.size} clips",
+                    text = "${String.format(Locale.US, "%.1fs", durationSec)} • ${project.clips.size} clips",
                     color = colors.textSecondary,
                     fontSize = 12.sp
                 )
@@ -133,6 +135,7 @@ internal fun ProjectCardItem(
                 onDismiss = { menuExpanded = false },
                 onRename = { showRenameDialog = true },
                 onDuplicate = onDuplicate,
+                onBackup = onBackup,
                 onDelete = { showDeleteConfirm = true }
             )
         }

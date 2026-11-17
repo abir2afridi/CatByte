@@ -75,6 +75,26 @@ internal fun EditorBottomActionStage(
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
+    var showAiMusicDialog by rememberSaveable { mutableStateOf(false) }
+
+    // Brand music: first pick imports + saves it; later taps re-add it.
+    val brandMusicPath by viewModel.brandMusicPath.collectAsState()
+    val brandMusicPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { picked ->
+        if (picked != null) {
+            val stored = viewModel.importBrandMusic(picked)
+            if (stored != null) {
+                viewModel.saveBrandMusic(stored)
+                viewModel.addAudioTrackFromUri(stored, "Brand music", "Your brand") { ok ->
+                    notify(if (ok) "Brand music saved and added" else "Could not add the brand music")
+                }
+            } else {
+                notify("Could not import the brand music")
+            }
+        }
+    }
+
     // Brand background: first pick imports + saves it as the reusable brand
     // image; afterwards the chip reapplies the saved one with a single tap.
     val brandBackgroundPicker = rememberLauncherForActivityResult(
@@ -210,10 +230,20 @@ internal fun EditorBottomActionStage(
                 "auto_reframe" -> notAvailable("Auto reframe")
                 "stabilize" -> notAvailable("Stabilize")
                 "camera_tracking" -> notAvailable("Camera tracking")
-                "isolate_voice" -> notAvailable("Isolate voice")
-                "reduce_noise" -> notAvailable("Reduce noise")
-                "audio_effects" -> notAvailable("Audio effects")
-                "enhance_voice" -> notAvailable("Enhance voice")
+                "isolate_voice" -> withClip {
+                    val applied = viewModel.toggleIsolateVoiceOnSelectedClip(true)
+                    if (applied) {
+                        notify("Voice isolated - speech band kept, music suppressed")
+                    } else {
+                        notify("Could not apply voice isolation")
+                    }
+                }
+                // The audio DSP (voice presets, enhance voice, noise gate) is
+                // real: the sheet drives AudioEffectSettings into the shared
+                // composition, so preview and export both run the kernels.
+                "reduce_noise" -> withClip { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_EFFECTS) }
+                "audio_effects" -> withClip { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_EFFECTS) }
+                "enhance_voice" -> withClip { viewModel.setActiveSheet(ActiveToolSheet.AUDIO_EFFECTS) }
                 "video_translator" -> scope.launch {
                     notify("AI translate: working...")
                     notify(AiFeature.translateCaptions(viewModel))
@@ -265,8 +295,16 @@ internal fun EditorBottomActionStage(
                 "sound_fx" -> onOpenAudioSheet(EditorAudioTabs.SFX)
                 "record" -> onOpenAudioSheet(EditorAudioTabs.MIC)
                 "text_to_audio" -> onShowTts()
-                "ai_music" -> notAvailable("AI music")
-                "brand_music" -> notAvailable("Brand music")
+                "ai_music" -> showAiMusicDialog = true
+                "brand_music" -> {
+                    if (brandMusicPath.isNotBlank()) {
+                        viewModel.addAudioTrackFromUri(brandMusicPath, "Brand music", "Your brand") { ok ->
+                            notify(if (ok) "Brand music added at the playhead" else "Could not add the brand music")
+                        }
+                    } else {
+                        brandMusicPicker.launch("audio/*")
+                    }
+                }
                 "copyright" -> notify("Copyright-free music lives in the Sounds library")
                 else -> notify("${subFeature.label} is not available yet")
             }
@@ -385,6 +423,19 @@ internal fun EditorBottomActionStage(
 
             else -> notify("${subFeature.label} is not available yet")
         }
+    }
+
+    if (showAiMusicDialog) {
+        com.example.ui.components.AiMusicDialog(
+            onGenerate = { mood ->
+                showAiMusicDialog = false
+                notify("Composing ${mood.displayName.lowercase()} music...")
+                viewModel.generateAiMusic(mood) { ok ->
+                    notify(if (ok) "AI music added at the playhead" else "Could not generate the music")
+                }
+            },
+            onDismiss = { showAiMusicDialog = false }
+        )
     }
 
     Box(

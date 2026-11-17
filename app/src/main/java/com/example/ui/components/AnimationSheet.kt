@@ -22,6 +22,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,11 +49,14 @@ fun AnimationSheet(
     onClose: () -> Unit
 ) {
     val colors = PencilTheme.colors
+    var selectedTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var durationSec by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0.6f) }
+    val categories = listOf("In", "Out", "Combo")
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(190.dp)
+            .height(240.dp)
             .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .background(colors.surface)
             .border(1.dp, colors.borderSubtle.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
@@ -72,19 +80,38 @@ fun AnimationSheet(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "Animations",
-                color = colors.textPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 8.dp)
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                categories.forEachIndexed { index, title ->
+                    val active = selectedTab == index
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.clickable { selectedTab = index }
+                    ) {
+                        Text(
+                            text = title,
+                            color = if (active) colors.accentCyan else colors.textSecondary,
+                            fontSize = 14.sp,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Box(
+                            modifier = Modifier
+                                .width(16.dp)
+                                .height(2.dp)
+                                .background(if (active) colors.accentCyan else androidx.compose.ui.graphics.Color.Transparent)
+                        )
+                    }
+                }
+            }
             IconButton(onClick = onClose, modifier = Modifier.size(30.dp)) {
-                Icon(Icons.Default.Check, contentDescription = "Close", tint = colors.textPrimary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Check, contentDescription = "Close", tint = colors.accentCyan, modifier = Modifier.size(20.dp))
             }
         }
 
@@ -102,7 +129,7 @@ fun AnimationSheet(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .width(70.dp)
+                        .width(74.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(if (selected) colors.accentCyan.copy(alpha = 0.18f) else colors.surfaceElevated)
                         .border(
@@ -123,7 +150,7 @@ fun AnimationSheet(
                     )
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = if (animation == ClipAnimation.NONE) "Off" else "0.6s",
+                        text = if (animation == ClipAnimation.NONE) "Off" else String.format(java.util.Locale.US, "%.1fs", durationSec),
                         color = colors.textTertiary,
                         fontSize = 9.sp
                     )
@@ -132,11 +159,31 @@ fun AnimationSheet(
         }
 
         Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = "Zoom, Swipe, Bounce and Spin are applied by the render graph per frame. Fade In needs the alpha compositor (not available in this build).",
-            color = colors.textTertiary,
-            fontSize = 10.sp,
-            modifier = Modifier.padding(horizontal = 14.dp)
-        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Duration:", color = colors.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            androidx.compose.material3.Slider(
+                value = durationSec,
+                onValueChange = { durationSec = it },
+                valueRange = 0.2f..3.0f,
+                modifier = Modifier.weight(1f),
+                colors = androidx.compose.material3.SliderDefaults.colors(
+                    thumbColor = colors.accentCyan,
+                    activeTrackColor = colors.accentCyan
+                )
+            )
+            Text(
+                text = String.format(java.util.Locale.US, "%.1fs", durationSec),
+                color = colors.accentCyan,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }

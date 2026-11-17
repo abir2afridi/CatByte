@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
@@ -111,7 +112,8 @@ import kotlinx.coroutines.delay
 @Composable
 internal fun HomeTopBar(
     onOpenSettings: () -> Unit,
-    isOverlay: Boolean = false
+    isOverlay: Boolean = false,
+    onRestoreBackup: (() -> Unit)? = null
 ) {
     val colors = PencilTheme.colors
     val textColor = if (isOverlay) Color.White else colors.textPrimary
@@ -158,6 +160,24 @@ internal fun HomeTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (onRestoreBackup != null) {
+                IconButton(
+                    onClick = onRestoreBackup,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(if (isOverlay) Color.Black.copy(alpha = 0.4f) else colors.surfaceElevated)
+                        .border(0.8.dp, if (isOverlay) Color.White.copy(alpha = 0.3f) else colors.borderSubtle, CircleShape)
+                        .testTag("home_restore_backup_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Restore,
+                        contentDescription = "Restore a project backup",
+                        tint = textColor,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+            }
             // Settings Button
             IconButton(
                 onClick = onOpenSettings,

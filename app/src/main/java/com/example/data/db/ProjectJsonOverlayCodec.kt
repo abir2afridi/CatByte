@@ -37,6 +37,7 @@ internal fun audioToJson(audio: AudioClip): JSONObject = JSONObject().apply {
     put("fadeInMs", audio.fadeInMs)
     put("fadeOutMs", audio.fadeOutMs)
     put("waveform", JSONArray(audio.waveform))
+    put("audioEffects", audioEffectsToJson(audio.audioEffects))
 }
 
 internal fun audioFromJson(json: JSONObject): AudioClip {
@@ -56,7 +57,8 @@ internal fun audioFromJson(json: JSONObject): AudioClip {
         isMuted = json.optBoolean("isMuted", false),
         fadeInMs = json.optLong("fadeInMs"),
         fadeOutMs = json.optLong("fadeOutMs"),
-        waveform = json.optJSONArray("waveform").toFloatList()
+        waveform = json.optJSONArray("waveform").toFloatList(),
+        audioEffects = audioEffectsFromJson(json.optJSONObject("audioEffects"))
     )
     return AudioTiming.normalize(raw)
 }

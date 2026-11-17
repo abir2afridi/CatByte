@@ -8,6 +8,7 @@ import androidx.media3.common.audio.GainProcessor
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
+import com.example.data.export.AudioEffectProcessors
 import com.example.data.export.ConstantAudioSpeedProvider
 import com.example.data.export.ConstantGainProvider
 import com.example.data.export.DuckGainProvider
@@ -59,13 +60,16 @@ internal fun ProjectCompositionFactory.buildAudioSequence(
     } else {
         baseGain
     }
-    val processor = GainProcessor(gainProvider)
+    // Per-track DSP chain (gate -> voice EQ -> creative preset -> pitch) runs
+    // before the gain envelope, so the mixer's volume slider stays a pure
+    // level control. No-op settings produce no processors at all.
+    val processors = AudioEffectProcessors.forSettings(audio.audioEffects) + GainProcessor(gainProvider)
     val itemBuilder = EditedMediaItem.Builder(mediaItem)
         // Media3 requires the ORIGINAL source duration here. Clipping and
         // speed are applied afterwards to derive the presentation duration.
         .setDurationUs(spec.sourceDurationUs.coerceAtLeast(1_000L))
         .setRemoveVideo(true)
-        .setEffects(Effects(listOf(processor), emptyList()))
+        .setEffects(Effects(processors, emptyList()))
     if (abs(spec.speed - 1f) > 0.001f && spec.speed > 0.01f) {
         val clippedSourceDurationUs = (spec.sourceOutUs - spec.sourceInUs).coerceAtLeast(1L)
         itemBuilder.setSpeed(

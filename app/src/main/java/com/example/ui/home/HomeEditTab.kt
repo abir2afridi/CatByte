@@ -35,7 +35,9 @@ internal fun HomeEditTab(
     onToggleFavorite: (String) -> Unit,
     onRenameProject: (id: String, title: String) -> Unit,
     onDuplicateProject: (String) -> Unit,
-    onRequestDeleteProject: (VideoProject) -> Unit
+    onRequestDeleteProject: (VideoProject) -> Unit,
+    onBackupProject: (VideoProject) -> Unit = {},
+    onRestoreBackup: (() -> Unit)? = null
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -47,7 +49,8 @@ internal fun HomeEditTab(
             item {
                 CoverVideoHeaderSection(
                     scrollOffsetProvider = scrollOffsetProvider,
-                    onOpenSettings = onOpenSettings
+                    onOpenSettings = onOpenSettings,
+                    onRestoreBackup = onRestoreBackup
                 )
             }
 
@@ -92,7 +95,8 @@ internal fun HomeEditTab(
                 onToggleFavorite = onToggleFavorite,
                 onRenameProject = onRenameProject,
                 onDuplicateProject = onDuplicateProject,
-                onRequestDeleteProject = onRequestDeleteProject
+                onRequestDeleteProject = onRequestDeleteProject,
+                onBackupProject = onBackupProject
             )
         }
     }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -18,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.PencilTheme
 
-/** Overflow menu for a project card: rename, duplicate or delete. */
+/** Overflow menu for a project card: rename, duplicate, back up or delete. */
 @Composable
 internal fun ProjectCardMenu(
     expanded: Boolean,
@@ -26,7 +27,8 @@ internal fun ProjectCardMenu(
     onDismiss: () -> Unit,
     onRename: () -> Unit,
     onDuplicate: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onBackup: () -> Unit = {}
 ) {
     val colors = PencilTheme.colors
 
@@ -59,6 +61,14 @@ internal fun ProjectCardMenu(
                 onClick = {
                     onDismiss()
                     onDuplicate()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Back up…", color = colors.textPrimary) },
+                leadingIcon = { Icon(Icons.Default.Backup, contentDescription = null, tint = colors.textPrimary) },
+                onClick = {
+                    onDismiss()
+                    onBackup()
                 }
             )
             DropdownMenuItem(

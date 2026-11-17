@@ -3,8 +3,11 @@ package com.example.viewmodel.features
 import com.example.engine.AudioLoudness
 import com.example.engine.AudioTiming
 import com.example.model.AudioClip
+import com.example.model.AudioEffectSettings
 import com.example.viewmodel.EditorViewModel
+import java.util.UUID
 import kotlin.math.abs
+import kotlin.math.roundToLong
 
 /**
  * Per-audio-clip mixer operations.
@@ -153,6 +156,79 @@ internal object AudioMixerFeature {
                 }
             )
         }
+    }
+
+    /**
+     * Sets one track's audio-effect chain (voice preset, enhance voice, noise
+     * gate). The stored [AudioEffectSettings] flows into the shared composition
+     * factory, so preview and export run exactly the same DSP chain.
+     */
+    fun setAudioEffects(vm: EditorViewModel, audioId: String, settings: AudioEffectSettings) {
+        val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
+            ?: return
+        val canonical = canonical(current)
+        if (canonical.audioEffects == settings) return
+        vm.updateProject("audio-effects:$audioId") { project ->
+            project.copy(
+                audioTracks = project.audioTracks.map { audio ->
+                    if (audio.id == audioId) canonical.copy(audioEffects = settings) else audio
+                }
+            )
+        }
+    }
+
+    /**
+     * Splits the selected independent audio track at the playhead, keeping the
+     * playhead exactly on the cut. Returns false when the playhead is outside
+     * the clip or too close to an edge, so the UI can explain instead of
+     * silently doing nothing.
+     *
+     * [AudioClip.durationMs] lives on the output timeline, so a local cut at
+     * `localMs` maps back to source time through the clip speed. The first
+     * half keeps the original in-point and loses the outgoing fade; the second
+     * half gets a fresh id and loses the incoming fade, so no fade spans the
+     * cut edge.
+     */
+    fun splitAudioAtPlayhead(vm: EditorViewModel): Boolean {
+        val project = vm._currentProject.value ?: return false
+        val audioId = vm._selectedAudioId.value ?: return false
+        if (vm._isPlaying.value) {
+            vm.pausePlayback()
+            vm.playerManager?.syncPosition()
+            vm.playerManager?.currentPositionMs?.value?.let { vm._currentPositionMs.value = it }
+        }
+        val playhead = vm._currentPositionMs.value
+        val selected = project.audioTracks.firstOrNull { it.id == audioId } ?: return false
+        val clip = AudioTiming.normalize(selected)
+        val min = AudioTiming.MIN_AUDIO_DURATION_MS
+        val localMs = playhead - clip.startTimelineMs
+        if (localMs < min || localMs > clip.durationMs - min) return false
+
+        val speed = AudioTiming.normalizedSpeed(clip.speed)
+        val splitSrcMs = clip.trimStartMs + (localMs * speed).roundToLong()
+        val sourceEnd = AudioTiming.sourceEndMs(clip)
+        if (splitSrcMs < clip.trimStartMs + min || sourceEnd - splitSrcMs < min) return false
+
+        val first = AudioTiming.normalize(
+            clip.copy(trimEndMs = splitSrcMs, fadeOutMs = 0L)
+        )
+        val second = AudioTiming.normalize(
+            clip.copy(
+                id = UUID.randomUUID().toString(),
+                startTimelineMs = clip.startTimelineMs + localMs,
+                trimStartMs = splitSrcMs,
+                fadeInMs = 0L
+            )
+        )
+        vm.updateProject { current ->
+            current.copy(
+                audioTracks = current.audioTracks.flatMap { audio ->
+                    if (audio.id == audioId) listOf(first, second) else listOf(audio)
+                }
+            )
+        }
+        vm._selectedAudioId.value = second.id
+        return true
     }
 
     /** Restores gain, mute, fades, speed and trim without moving the clip. */

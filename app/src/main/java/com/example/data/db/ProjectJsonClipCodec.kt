@@ -1,5 +1,6 @@
 package com.example.data.db
 
+import com.example.model.AudioEffectSettings
 import com.example.model.BezierPoint
 import com.example.model.BlendMode
 import com.example.model.ClipAnimation
@@ -11,6 +12,7 @@ import com.example.model.SpeedCurve
 import com.example.model.SpeedCurvePreset
 import com.example.model.TransitionType
 import com.example.model.VideoFilter
+import com.example.model.VoiceEffectType
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -72,6 +74,7 @@ internal fun clipToJson(clip: MediaClip): JSONObject = JSONObject().apply {
     put("sourceWidth", clip.sourceWidth)
     put("sourceHeight", clip.sourceHeight)
     put("isLoudnessAdjusted", clip.isLoudnessAdjusted)
+    put("audioEffects", audioEffectsToJson(clip.audioEffects))
     put("chromaKey", JSONObject().apply {
         put("isEnabled", clip.chromaKey.isEnabled)
         put("keyColorHex", clip.chromaKey.keyColorHex)
@@ -129,6 +132,7 @@ internal fun clipFromJson(json: JSONObject): MediaClip = MediaClip(
     sourceWidth = json.optInt("sourceWidth", 0),
     sourceHeight = json.optInt("sourceHeight", 0),
     isLoudnessAdjusted = json.optBoolean("isLoudnessAdjusted", false),
+    audioEffects = audioEffectsFromJson(json.optJSONObject("audioEffects")),
     chromaKey = json.optJSONObject("chromaKey")?.let { cj ->
         com.example.model.ChromaKeyData(
             isEnabled = cj.optBoolean("isEnabled", false),
@@ -139,6 +143,36 @@ internal fun clipFromJson(json: JSONObject): MediaClip = MediaClip(
         )
     } ?: com.example.model.ChromaKeyData()
 )
+
+/**
+ * The audio-effects codec: [AudioEffectSettings] <-> JSON.
+ *
+ * Unknown preset names and malformed numbers fall back to safe defaults so a
+ * project written by a newer build still opens on an older one.
+ */
+internal fun audioEffectsToJson(settings: AudioEffectSettings): JSONObject = JSONObject().apply {
+    put("type", settings.type.name)
+    put("intensity", settings.intensity.toDouble())
+    put("enhanceVoice", settings.enhanceVoice)
+    put("isolateVoice", settings.isolateVoice)
+    put("reduceNoise", settings.reduceNoise)
+}
+
+internal fun audioEffectsFromJson(json: JSONObject?): AudioEffectSettings {
+    if (json == null) return AudioEffectSettings()
+    val type = json.optString("type")
+        .let { name -> VoiceEffectType.entries.firstOrNull { it.name == name } }
+        ?: VoiceEffectType.NONE
+    val intensity = json.optDouble("intensity", AudioEffectSettings().intensity.toDouble())
+        .toFloat()
+    return AudioEffectSettings(
+        type = type,
+        intensity = if (intensity.isFinite()) intensity.coerceIn(0f, 1f) else 0.6f,
+        enhanceVoice = json.optBoolean("enhanceVoice", false),
+        isolateVoice = json.optBoolean("isolateVoice", false),
+        reduceNoise = json.optBoolean("reduceNoise", false)
+    )
+}
 
 internal fun speedCurveToJson(curve: SpeedCurve): JSONObject = JSONObject().apply {
     put("preset", curve.preset.name)

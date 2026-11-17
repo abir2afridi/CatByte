@@ -184,7 +184,8 @@ fun CapCutTimelineLeftGutter(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF1E2026)),
+                        .background(Color(0xFF1E2026))
+                        .border(0.8.dp, Color(0xFF00F2FE).copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -198,8 +199,7 @@ fun CapCutTimelineLeftGutter(
             Spacer(modifier = Modifier.height(5.dp))
         }
 
-        // 4. One audio row per independent clip. The rows deliberately have
-        // no gap between them; the single spacer below matches the timeline.
+        // 4. One audio row per independent clip.
         val audioRows = if (audioTracks.isEmpty()) listOf(null) else audioTracks
         audioRows.forEach { audio ->
             Box(
@@ -213,6 +213,11 @@ fun CapCutTimelineLeftGutter(
                         .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFF1E2026))
+                        .border(
+                            width = 0.8.dp,
+                            color = if (audio?.isMuted == true) Color(0xFFFF6B6B).copy(alpha = 0.6f) else Color(0xFF26E5D7).copy(alpha = 0.4f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
                         .then(
                             if (audio != null) {
                                 Modifier.clickable {
@@ -241,7 +246,7 @@ fun CapCutTimelineLeftGutter(
                         } else {
                             "Mute ${audio.title}"
                         },
-                        tint = if (audio?.isMuted == true) Color(0xFFFF6B6B) else Color(0xFFA5A8B2),
+                        tint = if (audio?.isMuted == true) Color(0xFFFF6B6B) else Color(0xFF26E5D7),
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -261,12 +266,13 @@ fun CapCutTimelineLeftGutter(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF1E2026)),
+                        .background(Color(0xFF1E2026))
+                        .border(0.8.dp, Color(0xFFFFD600).copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "T",
-                        color = Color(0xFFA5A8B2),
+                        color = Color(0xFFFFD600),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )

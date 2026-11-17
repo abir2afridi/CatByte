@@ -5,8 +5,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import com.example.model.AudioEffectSettings
 import com.example.model.MediaClip
 import com.example.model.VideoProject
+import com.example.ui.audio.AudioEffectsSheet
+import com.example.ui.audio.AudioEffectsSheetEmpty
 import com.example.ui.audio.AudioMixerSheet
 import com.example.ui.audio.AudioSheet
 import com.example.ui.components.VolumeSheet
@@ -86,6 +89,7 @@ internal fun AudioMixerToolSheet(
     project: VideoProject,
     selectedAudioId: String?
 ) {
+    val context = LocalContext.current
     AudioMixerSheet(
         audioTracks = project.audioTracks,
         selectedAudioId = selectedAudioId,
@@ -100,10 +104,57 @@ internal fun AudioMixerToolSheet(
         onSpeedChanged = { id, speed -> viewModel.setAudioSpeed(id, speed) },
         onTrimChanged = { id, start, end -> viewModel.setAudioTrim(id, start, end) },
         onTimelineStartChanged = { id, start -> viewModel.setAudioTimelineStart(id, start) },
+        onEffects = { id ->
+            viewModel.selectAudioClip(id)
+            viewModel.setActiveSheet(ActiveToolSheet.AUDIO_EFFECTS)
+        },
+        onSplit = { id ->
+            viewModel.selectAudioClip(id)
+            if (!viewModel.splitAudioAtPlayhead()) {
+                Toast.makeText(
+                    context,
+                    "Move the playhead inside the selected track to split it",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        },
         onReset = { viewModel.resetAudioMixer(it) },
         onDelete = { viewModel.deleteAudioTrack(it) },
         onClose = { viewModel.closeToolSheet() }
     )
+}
+
+/**
+ * The audio-effects sheet. It edits whichever the user has selected: an
+ * independent audio track (from the mixer) or the selected video clip (from
+ * the clip toolbar). Selection is mutually exclusive, so at most one target
+ * exists; otherwise the sheet explains that honestly.
+ */
+@Composable
+internal fun AudioEffectsToolSheet(
+    viewModel: EditorViewModel,
+    project: VideoProject,
+    currentClip: MediaClip?,
+    selectedAudioId: String?
+) {
+    val audio = project.audioTracks.firstOrNull { it.id == selectedAudioId }
+    when {
+        audio != null -> AudioEffectsSheet(
+            targetTitle = audio.title,
+            settings = audio.audioEffects,
+            onSettingsChange = { viewModel.setAudioEffects(audio.id, it) },
+            onClose = { viewModel.closeToolSheet() }
+        )
+        currentClip != null -> AudioEffectsSheet(
+            targetTitle = currentClip.title,
+            settings = currentClip.audioEffects,
+            onSettingsChange = { settings: AudioEffectSettings ->
+                viewModel.setClipAudioEffects(settings)
+            },
+            onClose = { viewModel.closeToolSheet() }
+        )
+        else -> AudioEffectsSheetEmpty(onClose = { viewModel.closeToolSheet() })
+    }
 }
 
 @Composable

@@ -13,10 +13,12 @@ data class AudioEffectSettings(
     /** Speech-clarity EQ (90 Hz rumble cut + 3 kHz presence shelf). */
     val enhanceVoice: Boolean = false,
     /** Basic peak-envelope noise gate. */
-    val reduceNoise: Boolean = false
+    val reduceNoise: Boolean = false,
+    /** Band-limit to the speech range (music bass and cymbals collapse). */
+    val isolateVoice: Boolean = false
 ) {
     val isNoOp: Boolean
-        get() = type == VoiceEffectType.NONE && !enhanceVoice && !reduceNoise
+        get() = type == VoiceEffectType.NONE && !enhanceVoice && !reduceNoise && !isolateVoice
 }
 
 /** The creative effects of the "Audio effects" sheet. */

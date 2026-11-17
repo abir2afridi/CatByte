@@ -49,7 +49,9 @@ data class MediaClip(
     val sourceWidth: Int = 0,
     val sourceHeight: Int = 0,
     /** Set when the loudness-adjustment switch normalised this clip's gain. */
-    val isLoudnessAdjusted: Boolean = false
+    val isLoudnessAdjusted: Boolean = false,
+    /** Per-clip audio processing (voice presets, enhance voice, noise gate). */
+    val audioEffects: AudioEffectSettings = AudioEffectSettings()
 ) {
     /**
      * True when this clip has no real media behind it, e.g. the legacy

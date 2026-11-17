@@ -112,7 +112,8 @@ import kotlinx.coroutines.delay
 @Composable
 internal fun CoverVideoHeaderSection(
     scrollOffsetProvider: () -> Float = { 0f },
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onRestoreBackup: (() -> Unit)? = null
 ) {
     val colors = PencilTheme.colors
     val context = LocalContext.current
@@ -190,7 +191,8 @@ internal fun CoverVideoHeaderSection(
         ) {
             HomeTopBar(
                 onOpenSettings = onOpenSettings,
-                isOverlay = true
+                isOverlay = true,
+                onRestoreBackup = onRestoreBackup
             )
         }
     }

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.ClipTiming
 import com.example.data.MediaMetadata
 import com.example.engine.AudioLoudness
+import com.example.model.AudioEffectSettings
 import com.example.model.ClipAnimation
 import com.example.model.SpeedCurve
 import com.example.model.TransitionType
@@ -74,6 +75,18 @@ internal object ClipPropertyFeature {
         val clipId = vm._selectedClipId.value ?: return
         vm.updateProject { proj ->
             proj.withUpdatedClip(clipId) { clip -> clip.copy(filter = filter) }
+        }
+    }
+
+    /**
+     * Per-clip audio effects (voice preset, enhance voice, noise gate). The
+     * same [AudioEffectSettings] reaches both preview and export through the
+     * shared composition factory.
+     */
+    fun setClipAudioEffects(vm: EditorViewModel, settings: AudioEffectSettings) {
+        val clipId = vm._selectedClipId.value ?: return
+        vm.updateProject { proj ->
+            proj.withUpdatedClip(clipId) { clip -> clip.copy(audioEffects = settings) }
         }
     }
 

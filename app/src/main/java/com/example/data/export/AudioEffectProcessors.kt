@@ -34,6 +34,11 @@ object AudioEffectProcessors {
                 AudioDsp.NoiseGate(sampleRate)
             }
         }
+        if (settings.isolateVoice) {
+            processors += KernelAudioProcessor { sampleRate, _ ->
+                AudioDsp.IsolateVoice(sampleRate)
+            }
+        }
         if (settings.enhanceVoice) {
             processors += KernelAudioProcessor { sampleRate, _ ->
                 AudioDsp.VoiceEnhance(sampleRate)

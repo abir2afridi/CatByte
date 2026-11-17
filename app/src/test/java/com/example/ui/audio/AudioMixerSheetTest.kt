@@ -306,6 +306,38 @@ class AudioMixerSheetTest {
         }
     }
 
+    @Test
+    fun `effects and split actions report the selected track`() {
+        val effects = mutableListOf<String>()
+        val splits = mutableListOf<String>()
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onEffects = { effects += it },
+                onSplit = { splits += it },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        compose.onNodeWithTag("audio_mixer_effects").performScrollTo().performClick()
+        compose.onNodeWithTag("audio_mixer_split").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        assertEquals(listOf("music"), effects)
+        assertEquals(listOf("music"), splits)
+    }
+
     private fun dragSlider(tag: String, towardEnd: Boolean) {
         val slider = compose.onNodeWithTag(tag).performScrollTo()
         slider.performTouchInput {
