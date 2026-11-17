@@ -209,15 +209,13 @@ class ProjectCompositionPlanTest {
             originalDurationMs = 2_000L,
             isVoiceover = true
         )
-        val result = ProjectCompositionFactory.buildPreview(
-            project(
-                listOf(clip("a")),
-                audioTracks = listOf(music, voice),
-                autoDuckStrength = 0.5f
-            ),
-            watermarkEnabled = false
+        val source = project(
+            listOf(clip("a")),
+            audioTracks = listOf(music, voice),
+            autoDuckStrength = 0.5f
         )
-        val musicProcessor = musicGainProcessor(result)
+        val result = ProjectCompositionFactory.buildPreview(source, watermarkEnabled = false)
+        val musicProcessor = musicGainProcessor(source, result)
         val values = GainProbe.render(musicProcessor, seconds = 3)
 
         // Halfway through the voice the music sits at half its level.
@@ -245,27 +243,35 @@ class ProjectCompositionPlanTest {
             originalDurationMs = 2_000L,
             isVoiceover = true
         )
-        val result = ProjectCompositionFactory.buildPreview(
-            project(
-                listOf(clip("a")),
-                audioTracks = listOf(music, voice),
-                autoDuckEnabled = false
-            ),
-            watermarkEnabled = false
+        val source = project(
+            listOf(clip("a")),
+            audioTracks = listOf(music, voice),
+            autoDuckEnabled = false
         )
-        val values = GainProbe.render(musicGainProcessor(result), seconds = 3)
+        val result = ProjectCompositionFactory.buildPreview(source, watermarkEnabled = false)
+        val values = GainProbe.render(musicGainProcessor(source, result), seconds = 3)
 
         // The voice-over is audible, but the music keeps its level.
         assertEquals(1f, values[GainProbe.sampleAt(1.5f)], 0.02f)
     }
 
-    /** The gain processor of the music track inside a built composition. */
-    private fun musicGainProcessor(result: ProjectCompositionFactory.Result): GainProcessor {
-        val musicSequence = result.composition.sequences.first { sequence ->
-            sequence.trackTypes == setOf(C.TRACK_TYPE_AUDIO) &&
-                sequence.editedMediaItems.first().mediaItem.localConfiguration?.uri.toString() ==
-                "content://music"
+    /**
+     * The gain processor of the music track inside a built composition.
+     *
+     * The audio sequences follow the order of the render plan, and the plan
+     * keeps the audio clips, so the music track is found by its id instead of
+     * by its URI (android.net.Uri is a stub in plain JVM tests).
+     */
+    private fun musicGainProcessor(
+        project: VideoProject,
+        result: ProjectCompositionFactory.Result
+    ): GainProcessor {
+        val plan = ProjectCompositionFactory.plan(project, result.width, result.height, 30)
+        val musicIndex = plan.audio.indexOfFirst { (audio, _) -> audio.id == "music" }
+        val audioSequences = result.composition.sequences.filter { sequence ->
+            sequence.trackTypes == setOf(C.TRACK_TYPE_AUDIO)
         }
+        val musicSequence = audioSequences[musicIndex]
         return musicSequence.editedMediaItems.first().effects.audioProcessors
             .filterIsInstance<GainProcessor>()
             .first()
