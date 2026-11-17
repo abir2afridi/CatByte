@@ -90,6 +90,39 @@ internal object ClipPropertyFeature {
         }
     }
 
+    /**
+     * Fade in/out of the selected clip's own audio, in output-timeline
+     * milliseconds. Overlapping fades are scaled proportionally so the gain
+     * envelope never multiplies twice - the same rule the audio tracks use.
+     */
+    fun setClipAudioFades(vm: EditorViewModel, fadeInMs: Long, fadeOutMs: Long) {
+        val clipId = vm._selectedClipId.value ?: return
+        val project = vm._currentProject.value ?: return
+        val clip = project.allVideoClips.firstOrNull { it.id == clipId } ?: return
+        val duration = ClipTiming.presentationDurationMs(clip).coerceAtLeast(1L)
+        val fades = clampClipFades(duration, fadeInMs, fadeOutMs)
+        if (clip.audioFadeInMs == fades.first && clip.audioFadeOutMs == fades.second) return
+        vm.updateProject { proj ->
+            proj.withUpdatedClip(clipId) { current ->
+                current.copy(audioFadeInMs = fades.first, audioFadeOutMs = fades.second)
+            }
+        }
+    }
+
+    /** Keeps both fades inside the clip and scales them when they overlap. */
+    private fun clampClipFades(
+        durationMs: Long,
+        requestedFadeInMs: Long,
+        requestedFadeOutMs: Long
+    ): Pair<Long, Long> {
+        val duration = durationMs.coerceAtLeast(1L)
+        val fadeIn = requestedFadeInMs.coerceIn(0L, duration)
+        val fadeOut = requestedFadeOutMs.coerceIn(0L, duration)
+        if (fadeIn <= duration - fadeOut) return fadeIn to fadeOut
+        val scale = duration.toDouble() / (fadeIn.toDouble() + fadeOut.toDouble())
+        return (fadeIn * scale).toLong() to (fadeOut * scale).toLong()
+    }
+
     fun setClipTransition(vm: EditorViewModel, transition: TransitionType) {
         val clipId = vm._selectedClipId.value ?: return
         vm.updateProject { proj ->

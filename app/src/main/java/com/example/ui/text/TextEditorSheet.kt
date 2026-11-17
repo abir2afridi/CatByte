@@ -49,6 +49,7 @@ import com.example.model.TextAnimationType
 import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
 import com.example.ui.theme.PencilTheme
+import java.util.Locale
 
 /**
  * The text overlay editor sheet.
@@ -376,7 +377,7 @@ private fun TextKeyframeRow(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                if (inside) String.format("%.1fs", localMs / 1000f) else "Move the playhead over this text",
+                if (inside) String.format(Locale.US, "%.1fs", localMs / 1000f) else "Move the playhead over this text",
                 color = if (inside) colors.accentCyan else colors.textTertiary,
                 fontSize = 10.sp
             )
@@ -453,7 +454,7 @@ private fun TextKeyframeRow(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "${keyframeShortLabel(keyframe.property)} ${String.format("%.1fs", keyframe.timestampMs / 1000f)}",
+                            "${keyframeShortLabel(keyframe.property)} ${String.format(Locale.US, "%.1fs", keyframe.timestampMs / 1000f)}",
                             color = colors.textPrimary,
                             fontSize = 9.sp
                         )

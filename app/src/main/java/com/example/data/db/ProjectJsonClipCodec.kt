@@ -75,6 +75,8 @@ internal fun clipToJson(clip: MediaClip): JSONObject = JSONObject().apply {
     put("sourceHeight", clip.sourceHeight)
     put("isLoudnessAdjusted", clip.isLoudnessAdjusted)
     put("audioEffects", audioEffectsToJson(clip.audioEffects))
+    put("audioFadeInMs", clip.audioFadeInMs)
+    put("audioFadeOutMs", clip.audioFadeOutMs)
     put("chromaKey", JSONObject().apply {
         put("isEnabled", clip.chromaKey.isEnabled)
         put("keyColorHex", clip.chromaKey.keyColorHex)
@@ -133,6 +135,8 @@ internal fun clipFromJson(json: JSONObject): MediaClip = MediaClip(
     sourceHeight = json.optInt("sourceHeight", 0),
     isLoudnessAdjusted = json.optBoolean("isLoudnessAdjusted", false),
     audioEffects = audioEffectsFromJson(json.optJSONObject("audioEffects")),
+    audioFadeInMs = json.optLong("audioFadeInMs", 0L),
+    audioFadeOutMs = json.optLong("audioFadeOutMs", 0L),
     chromaKey = json.optJSONObject("chromaKey")?.let { cj ->
         com.example.model.ChromaKeyData(
             isEnabled = cj.optBoolean("isEnabled", false),

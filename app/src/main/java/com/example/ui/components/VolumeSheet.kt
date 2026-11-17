@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
@@ -26,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,12 +44,13 @@ import com.example.ui.theme.PencilTheme
 import kotlin.math.roundToInt
 
 /**
- * CapCut-style Volume panel: title + check, a 0-1000% gain slider, then the
- * Reduce noise and Loudness adjustment switches.
+ * CapCut-style Volume panel: title + check, a 0-1000% gain slider, the clip
+ * audio fades and then the Reduce noise and Loudness adjustment switches.
  *
  * Loudness adjustment is a real, waveform-driven normalisation
- * ([com.example.engine.AudioLoudness]); reduce noise needs a neural denoiser,
- * so its switch states that requirement instead of pretending to work.
+ * ([com.example.engine.AudioLoudness]); reduce noise runs the on-device
+ * peak gate from [com.example.engine.AudioDsp]; the fades are a real gain
+ * envelope in the shared composition, so preview and export match.
  */
 @Composable
 fun VolumeSheet(
@@ -53,18 +58,28 @@ fun VolumeSheet(
     isNoiseReductionEnabled: Boolean = false,
     isLoudnessAdjusted: Boolean = false,
     canNormaliseLoudness: Boolean = false,
+    /** The clip's own audio can be gated when the on-device DSP is available. */
+    canReduceNoise: Boolean = false,
+    /** Fade in/out of the clip's own audio, in output-timeline milliseconds. */
+    audioFadeInMs: Long = 0L,
+    audioFadeOutMs: Long = 0L,
+    /** Longest fade the clip can take (its output duration). */
+    maxFadeMs: Long = 0L,
     onVolumeChange: (Float) -> Unit,
     onToggleNoiseReduction: (Boolean) -> Unit = {},
     onToggleLoudnessAdjustment: (Boolean) -> Unit = {},
+    onAudioFadesChange: (Long, Long) -> Unit = { _, _ -> },
     onClose: () -> Unit
 ) {
     val colors = PencilTheme.colors
     var volume by remember(currentVolume) { mutableFloatStateOf(currentVolume) }
+    var fadeIn by remember(audioFadeInMs) { mutableStateOf(audioFadeInMs) }
+    var fadeOut by remember(audioFadeOutMs) { mutableStateOf(audioFadeOutMs) }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(252.dp)
+            .heightIn(min = 252.dp, max = 430.dp)
             .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .background(colors.surface)
             .border(1.dp, colors.borderSubtle.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
@@ -111,6 +126,11 @@ fun VolumeSheet(
 
         Spacer(modifier = Modifier.height(2.dp))
 
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+        ) {
         Text(
             text = "${(volume * 100).roundToInt()}",
             color = colors.textPrimary,
@@ -149,12 +169,46 @@ fun VolumeSheet(
 
         Spacer(modifier = Modifier.height(6.dp))
 
+        if (maxFadeMs > 0L) {
+            Text(
+                text = "Clip audio fades",
+                color = colors.accentCyan,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+            )
+            FadeSlider(
+                label = "Fade in",
+                valueMs = fadeIn,
+                maxMs = maxFadeMs,
+                tag = "volume_fade_in",
+                onValueChangeFinished = {
+                    fadeIn = it
+                    onAudioFadesChange(it, fadeOut)
+                }
+            )
+            FadeSlider(
+                label = "Fade out",
+                valueMs = fadeOut,
+                maxMs = maxFadeMs,
+                tag = "volume_fade_out",
+                onValueChangeFinished = {
+                    fadeOut = it
+                    onAudioFadesChange(fadeIn, it)
+                }
+            )
+        }
+
         VolumeToggleRow(
             title = "Reduce noise",
-            subtitle = "Needs a denoise model — a chat/image endpoint cannot do this",
+            subtitle = if (canReduceNoise) {
+                "Gates the quiet hiss between words (on-device)"
+            } else {
+                "Needs a denoise model — a chat/image endpoint cannot do this"
+            },
             checked = isNoiseReductionEnabled,
-            enabled = false,
-            badge = "Model",
+            enabled = canReduceNoise,
+            badge = if (canReduceNoise) null else "Model",
             onCheckedChange = onToggleNoiseReduction
         )
         VolumeToggleRow(
@@ -167,6 +221,52 @@ fun VolumeSheet(
             checked = isLoudnessAdjusted,
             enabled = canNormaliseLoudness,
             onCheckedChange = onToggleLoudnessAdjustment
+        )
+        }
+    }
+}
+
+/** One fade slider with its millisecond readout. */
+@Composable
+private fun FadeSlider(
+    label: String,
+    valueMs: Long,
+    maxMs: Long,
+    tag: String,
+    onValueChangeFinished: (Long) -> Unit
+) {
+    val colors = PencilTheme.colors
+    var draft by remember(valueMs) { mutableStateOf(valueMs.toFloat()) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = colors.textSecondary,
+            fontSize = 11.sp,
+            modifier = Modifier.width(58.dp)
+        )
+        Slider(
+            value = draft.coerceIn(0f, maxMs.toFloat()),
+            onValueChange = { draft = it.coerceIn(0f, maxMs.toFloat()) },
+            onValueChangeFinished = { onValueChangeFinished(draft.toLong()) },
+            colors = SliderDefaults.colors(
+                thumbColor = Color.White,
+                activeTrackColor = colors.accentCyan,
+                inactiveTrackColor = colors.surfaceElevated
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .testTag(tag)
+        )
+        Text(
+            text = "${draft.toLong()} ms",
+            color = colors.textPrimary,
+            fontSize = 10.sp,
+            modifier = Modifier.width(48.dp)
         )
     }
 }

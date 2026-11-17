@@ -2,7 +2,9 @@ package com.example.viewmodel
 
 import com.example.data.ProjectRepository
 import com.example.engine.AudioLoudness
+import com.example.model.AudioEffectSettings
 import com.example.model.MediaClip
+import com.example.model.VoiceEffectType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -124,5 +126,65 @@ class ClipAppearanceTest {
 
         vm.setClipMaintainPitch(true)
         assertTrue(vm.currentProject.value?.clips?.first()?.maintainPitch == true)
+    }
+
+    @Test
+    fun `clip audio fades are stored on the output timeline`() {
+        val vm = viewModel(clip())
+
+        vm.setClipAudioFades(600L, 900L)
+
+        val updated = vm.currentProject.value?.clips?.first()
+        assertEquals(600L, updated?.audioFadeInMs ?: -1L)
+        assertEquals(900L, updated?.audioFadeOutMs ?: -1L)
+    }
+
+    @Test
+    fun `overlapping clip fades are scaled to fit the clip`() {
+        val vm = viewModel(clip()) // 4 s long
+
+        vm.setClipAudioFades(3_000L, 3_000L)
+
+        val updated = vm.currentProject.value?.clips?.first()
+        val fadeIn = updated?.audioFadeInMs ?: -1L
+        val fadeOut = updated?.audioFadeOutMs ?: -1L
+        // Scaled proportionally, so both fades together fill the clip.
+        assertEquals(4_000L, fadeIn + fadeOut)
+        assertEquals(2_000L, fadeIn)
+    }
+
+    @Test
+    fun `clip fades are clamped to the clip duration and undo as one step`() {
+        val vm = viewModel(clip())
+
+        vm.setClipAudioFades(9_000L, 9_000L)
+
+        var updated = vm.currentProject.value?.clips?.first()
+        assertEquals(2_000L, updated?.audioFadeInMs ?: -1L)
+        assertEquals(2_000L, updated?.audioFadeOutMs ?: -1L)
+
+        vm.undo()
+        updated = vm.currentProject.value?.clips?.first()
+        assertEquals(0L, updated?.audioFadeInMs ?: -1L)
+        assertEquals(0L, updated?.audioFadeOutMs ?: -1L)
+    }
+
+    @Test
+    fun `clip audio effects persist and undo`() {
+        val vm = viewModel(clip())
+        val effects = AudioEffectSettings(
+            type = VoiceEffectType.REVERB,
+            intensity = 0.5f,
+            enhanceVoice = true
+        )
+
+        vm.setClipAudioEffects(effects)
+
+        val updated = vm.currentProject.value?.clips?.first()
+        assertEquals(VoiceEffectType.REVERB, updated?.audioEffects?.type)
+        assertTrue(updated?.audioEffects?.enhanceVoice == true)
+
+        vm.undo()
+        assertTrue(vm.currentProject.value?.clips?.first()?.audioEffects?.isNoOp == true)
     }
 }

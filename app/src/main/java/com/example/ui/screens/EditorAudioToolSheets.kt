@@ -162,15 +162,30 @@ internal fun VolumeToolSheet(
     viewModel: EditorViewModel,
     currentClip: MediaClip?
 ) {
+    val clip = currentClip
     VolumeSheet(
-        currentVolume = currentClip?.volume ?: 1.0f,
-        isLoudnessAdjusted = currentClip?.isLoudnessAdjusted == true,
-        canNormaliseLoudness = currentClip?.waveform?.isNotEmpty() == true,
+        currentVolume = clip?.volume ?: 1.0f,
+        isNoiseReductionEnabled = clip?.audioEffects?.reduceNoise == true,
+        isLoudnessAdjusted = clip?.isLoudnessAdjusted == true,
+        canNormaliseLoudness = clip?.waveform?.isNotEmpty() == true,
+        // The on-device peak gate is part of the clip's effect chain, so the
+        // switch really does something now.
+        canReduceNoise = clip != null,
+        audioFadeInMs = clip?.audioFadeInMs ?: 0L,
+        audioFadeOutMs = clip?.audioFadeOutMs ?: 0L,
+        maxFadeMs = clip?.let { com.example.data.ClipTiming.presentationDurationMs(it) } ?: 0L,
         onVolumeChange = { vol ->
             viewModel.setClipVolume(vol)
         },
+        onToggleNoiseReduction = { enabled ->
+            val current = currentClip ?: return@VolumeSheet
+            viewModel.setClipAudioEffects(current.audioEffects.copy(reduceNoise = enabled))
+        },
         onToggleLoudnessAdjustment = { enabled ->
             viewModel.setClipLoudnessAdjustment(enabled)
+        },
+        onAudioFadesChange = { fadeIn, fadeOut ->
+            viewModel.setClipAudioFades(fadeIn, fadeOut)
         },
         onClose = { viewModel.closeToolSheet() }
     )

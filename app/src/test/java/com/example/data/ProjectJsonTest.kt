@@ -96,7 +96,9 @@ class ProjectJsonTest {
                 intensity = 0.7f,
                 enhanceVoice = true,
                 reduceNoise = true
-            )
+            ),
+            audioFadeInMs = 250L,
+            audioFadeOutMs = 400L
         )
         val overlayClip = clip.copy(id = "pip_1", title = "PiP")
         return VideoProject(

@@ -51,7 +51,11 @@ data class MediaClip(
     /** Set when the loudness-adjustment switch normalised this clip's gain. */
     val isLoudnessAdjusted: Boolean = false,
     /** Per-clip audio processing (voice presets, enhance voice, noise gate). */
-    val audioEffects: AudioEffectSettings = AudioEffectSettings()
+    val audioEffects: AudioEffectSettings = AudioEffectSettings(),
+    /** Fade-in of the clip's own audio, in output-timeline milliseconds. */
+    val audioFadeInMs: Long = 0L,
+    /** Fade-out of the clip's own audio, in output-timeline milliseconds. */
+    val audioFadeOutMs: Long = 0L
 ) {
     /**
      * True when this clip has no real media behind it, e.g. the legacy

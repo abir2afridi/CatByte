@@ -115,12 +115,16 @@ internal fun ProjectCompositionFactory.buildVideoItem(
     // control on top of the effects. Preview and export both get this list.
     audioProcessors += AudioEffectProcessors.forSettings(clip.audioEffects)
     val gain = videoVoiceGain(project, clip, isOverlay)
-    if (!isOverlay || gain != 1f) {
-        if (abs(gain - 1f) > 0.001f) {
-            audioProcessors += GainProcessor(
-                ConstantGainProvider(gain, 0L, 0L, layer.durationUs / 1000L)
-            )
-        }
+    // The clip's own audio can fade in/out even at unity gain, so the gain
+    // processor is added for fades alone as well. Fade times live on the
+    // output timeline, exactly like the independent audio tracks.
+    val fadeInMs = clip.audioFadeInMs.coerceAtLeast(0L)
+    val fadeOutMs = clip.audioFadeOutMs.coerceAtLeast(0L)
+    val needsGain = abs(gain - 1f) > 0.001f || fadeInMs > 0L || fadeOutMs > 0L
+    if (needsGain) {
+        audioProcessors += GainProcessor(
+            ConstantGainProvider(gain, fadeInMs, fadeOutMs, layer.durationUs / 1000L)
+        )
     }
 
     val builder = EditedMediaItem.Builder(mediaItem)

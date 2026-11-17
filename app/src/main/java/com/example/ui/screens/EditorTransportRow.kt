@@ -244,10 +244,10 @@ internal fun EditorTransportRow(
                 modifier = Modifier
                     .padding(end = 4.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(if (magneticSnap) Color(0xFF26E5D7).copy(alpha = 0.15f) else Color.Transparent)
+                    .background(if (magneticSnap) Color(0xFF26E5D7).copy(alpha = 0.25f) else Color(0xFF1E1F24))
                     .border(
-                        width = if (magneticSnap) 1.dp else 0.dp,
-                        color = if (magneticSnap) Color(0xFF26E5D7) else Color.Transparent,
+                        width = 1.2.dp,
+                        color = if (magneticSnap) Color(0xFF26E5D7) else Color(0xFF33353E),
                         shape = RoundedCornerShape(16.dp)
                     )
             ) {

@@ -170,7 +170,7 @@ internal fun EditorTopBar(
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Rename project",
-                            tint = Color(0xFFA5A8B2),
+                            tint = Color(0xFF26E5D7),
                             modifier = Modifier.size(12.dp)
                         )
                     }

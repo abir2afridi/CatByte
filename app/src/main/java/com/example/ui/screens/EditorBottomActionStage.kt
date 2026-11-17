@@ -290,6 +290,17 @@ internal fun EditorBottomActionStage(
                         notify("Import or record an audio track first")
                     }
                 }
+                // The effects sheet edits the selected track. Without one the
+                // mixer is the better entry point, so the user can pick a
+                // track first instead of hitting a dead end.
+                "effects" -> {
+                    val selectedTrack = viewModel.selectedAudioId.value
+                    if (selectedTrack != null) {
+                        viewModel.setActiveSheet(ActiveToolSheet.AUDIO_EFFECTS)
+                    } else if (!viewModel.openAudioMixer()) {
+                        notify("Import or record an audio track first")
+                    }
+                }
                 "extract" -> withClip { viewModel.extractAudioFromSelectedClip() }
                 "sounds" -> onOpenAudioSheet(EditorAudioTabs.MUSIC)
                 "sound_fx" -> onOpenAudioSheet(EditorAudioTabs.SFX)

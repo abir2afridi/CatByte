@@ -909,6 +909,10 @@ class EditorViewModel(
     fun setClipAudioEffects(settings: AudioEffectSettings) =
         ClipPropertyFeature.setClipAudioEffects(this, settings)
 
+    /** Fade in/out of the selected clip's own audio (output milliseconds). */
+    fun setClipAudioFades(fadeInMs: Long, fadeOutMs: Long) =
+        ClipPropertyFeature.setClipAudioFades(this, fadeInMs, fadeOutMs)
+
     fun setClipTransition(transition: TransitionType) =
         ClipPropertyFeature.setClipTransition(this, transition)
 
