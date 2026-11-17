@@ -91,7 +91,11 @@ internal fun RenderClipVisual(
         }
 
         // Active visual effects
-        ClipEffectOverlays(activeEffects = activeEffects, pulseAlpha = pulseAlpha)
+        ClipEffectOverlays(
+            activeEffects = activeEffects,
+            pulseAlpha = pulseAlpha,
+            localMs = currentClipLocalMs
+        )
 
         // Render Mask preview overlay
         ClipMaskOverlay(maskType = clip.mask.type)

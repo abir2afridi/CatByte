@@ -61,13 +61,28 @@ fun EffectsSheet(
     var selectedTab by remember { mutableIntStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
 
-    val categories = listOf("Trending", "B.Duck", "Pumpkin Spice 🍁", "Classic", "✨ Magic", "Retro", "Lens", "Nightclub")
-    val effects = EffectType.values().toList()
+    val categories = listOf(
+        "Trending", "B.Duck", "Pumpkin Spice 🍁", "Classic",
+        "✨ Magic", "Retro", "Lens", "Nightclub"
+    )
+
+    // The sheet's tabs match EffectType.category exactly, so every tab shows
+    // its own library (30+ presets each) instead of repeating one list.
+    val categoryKeys = mapOf(
+        "Trending" to "Trending",
+        "B.Duck" to "B.Duck",
+        "Pumpkin Spice 🍁" to "Pumpkin Spice",
+        "Classic" to "Classic",
+        "✨ Magic" to "Magic",
+        "Retro" to "Retro",
+        "Lens" to "Lens",
+        "Nightclub" to "Nightclub"
+    )
 
     val filteredEffects = if (searchQuery.isBlank()) {
-        effects
+        EffectType.entries.filter { it.category == categoryKeys[categories[selectedTab]] }
     } else {
-        effects.filter { it.displayName.contains(searchQuery, ignoreCase = true) }
+        EffectType.entries.filter { it.displayName.contains(searchQuery, ignoreCase = true) }
     }
 
     Column(

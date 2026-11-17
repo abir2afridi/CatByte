@@ -521,6 +521,20 @@ class TimelineCanvasOverlay(
                 }
                 effectPaint.style = Paint.Style.FILL
             }
+            else -> {
+                // Every library preset: one shared op computation feeds both
+                // this export renderer and the Compose preview.
+                EffectOpsRenderer.draw(
+                    canvas,
+                    com.example.engine.EffectOps.compute(
+                        effect.effectType,
+                        effect.effectType.spec,
+                        localMs,
+                        width,
+                        height
+                    )
+                )
+            }
         }
     }
 
