@@ -304,10 +304,13 @@ object AudioDsp {
 
     fun dbToLinear(db: Float): Float = 10f.pow(db / 20f)
 
-    fun linearToDb(linear: Float): Float = 20f * log10Safe(linear)
-
-    private fun log10Safe(value: Float): Float =
-        if (value <= 0f) -999f else (ln(value) / ln(10f))
+    /**
+     * dB with a -999 "minus infinity" sentinel for silence and non-positive
+     * input, so callers can display and compare the result without handling
+     * NaN or -Infinity.
+     */
+    fun linearToDb(linear: Float): Float =
+        if (linear <= 0f) -999f else 20f * (ln(linear) / ln(10f))
 
     /** Rounds and clamps a float sample into the 16-bit range. */
     fun clampToShort(value: Float): Short =

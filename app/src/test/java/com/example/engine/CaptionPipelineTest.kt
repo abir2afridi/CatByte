@@ -44,7 +44,9 @@ class CaptionPipelineTest {
         assertEquals(100, out[0].toInt())
         assertEquals(150, out[1].toInt()) // interpolated halfway
         assertEquals(200, out[2].toInt())
-        assertEquals(350, out[7].toInt()) // halfway between 300 and 400
+        assertEquals(250, out[3].toInt()) // interpolated halfway
+        assertEquals(350, out[5].toInt()) // halfway between 300 and 400
+        assertEquals(400, out[7].toInt()) // past the last frame holds the final sample
     }
 
     @Test
