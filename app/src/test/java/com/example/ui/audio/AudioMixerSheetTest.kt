@@ -307,6 +307,34 @@ class AudioMixerSheetTest {
     }
 
     @Test
+    fun `loop buttons report the selected track and the repeat count`() {
+        val loops = mutableListOf<Pair<String, Int>>()
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onLoopCountChanged = { id, repeats -> loops += id to repeats },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        compose.onNodeWithTag("audio_mixer_loop_4").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        assertEquals(listOf("music" to 4), loops)
+    }
+
+    @Test
     fun `effects and split actions report the selected track`() {
         val effects = mutableListOf<String>()
         val splits = mutableListOf<String>()

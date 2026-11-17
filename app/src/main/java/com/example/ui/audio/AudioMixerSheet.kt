@@ -82,6 +82,7 @@ fun AudioMixerSheet(
     onTimelineStartChanged: (String, Long) -> Unit,
     onEffects: (String) -> Unit = {},
     onSplit: (String) -> Unit = {},
+    onLoopCountChanged: (String, Int) -> Unit = { _, _ -> },
     onReset: (String) -> Unit,
     onDelete: (String) -> Unit,
     onClose: () -> Unit
@@ -417,6 +418,37 @@ fun AudioMixerSheet(
                     tag = "audio_mixer_start",
                     onValueChangeFinished = { onTimelineStartChanged(selected.id, it.toLong()) }
                 )
+
+                // Loop: the source window repeats, so a short music bed can
+                // cover a long timeline without touching the source file.
+                MixerSectionTitle("Loop")
+                Text(
+                    text = "Repeats the trimmed window ${selected.loopCount}x on the timeline",
+                    color = colors.textSecondary,
+                    fontSize = 10.sp
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    listOf(1, 2, 4, 8).forEach { repeats ->
+                        val active = selected.loopCount == repeats
+                        OutlinedButton(
+                            onClick = { onLoopCountChanged(selected.id, repeats) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp)
+                                .testTag("audio_mixer_loop_$repeats")
+                        ) {
+                            Text(
+                                text = "${repeats}x",
+                                fontSize = 10.sp,
+                                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                                color = if (active) colors.accentCyan else colors.textPrimary
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(

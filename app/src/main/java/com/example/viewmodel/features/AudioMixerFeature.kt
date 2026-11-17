@@ -178,6 +178,30 @@ internal object AudioMixerFeature {
     }
 
     /**
+     * Sets how often the track's source window repeats. A looping track covers
+     * `count` times the window on the timeline, and the composition renders
+     * exactly that many repeats, so preview and export stay in sync.
+     */
+    fun setAudioLoopCount(vm: EditorViewModel, audioId: String, count: Int) {
+        val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
+            ?: return
+        val canonical = canonical(current)
+        val repeats = count.coerceIn(1, AudioTiming.MAX_LOOP_COUNT)
+        if (canonical.loopCount == repeats) return
+        vm.updateProject("audio-loop:$audioId") { project ->
+            project.copy(
+                audioTracks = project.audioTracks.map { audio ->
+                    if (audio.id == audioId) {
+                        canonical(canonical.copy(loopCount = repeats))
+                    } else {
+                        audio
+                    }
+                }
+            )
+        }
+    }
+
+    /**
      * Splits the selected independent audio track at the playhead, keeping the
      * playhead exactly on the cut. Returns false when the playhead is outside
      * the clip or too close to an edge, so the UI can explain instead of

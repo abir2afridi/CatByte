@@ -116,7 +116,7 @@ class ProjectJsonTest {
                     artist = "Test",
                     uriString = "content://media/audio/7",
                     startTimelineMs = 400L,
-                    durationMs = 7565L,
+                    durationMs = 22_695L,
                     originalDurationMs = 10000L,
                     trimStartMs = 150L,
                     trimEndMs = 8850L,
@@ -127,6 +127,7 @@ class ProjectJsonTest {
                         intensity = 0.5f,
                         enhanceVoice = true
                     ),
+                    loopCount = 3,
                     fadeInMs = 300L,
                     fadeOutMs = 250L,
                     isMuted = false,

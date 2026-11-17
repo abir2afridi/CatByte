@@ -13,6 +13,7 @@ import com.example.data.export.ConstantAudioSpeedProvider
 import com.example.data.export.ConstantGainProvider
 import com.example.data.export.DuckGainProvider
 import com.example.engine.AudioSpec
+import com.example.engine.AudioTiming
 import com.example.model.AudioClip
 import java.io.File
 import kotlin.math.abs
@@ -41,54 +42,75 @@ internal fun ProjectCompositionFactory.buildAudioSequence(
         .setUri(uri)
         .setClippingConfiguration(clippingBuilder.build())
         .build()
-    val outputDurationMs = ((spec.timelineOutUs - spec.timelineInUs) / 1_000L)
-        .coerceAtLeast(1L)
     val gain = spec.volume.coerceIn(0f, 2f)
-    val baseGain = ConstantGainProvider(
-        gain = gain,
-        fadeInMs = spec.fadeInUs / 1_000L,
-        fadeOutMs = spec.fadeOutUs / 1_000L,
-        durationMs = outputDurationMs
-    )
-    // Auto-ducking: only music ducks, a voice-over never ducks itself.
-    val gainProvider = if (!audio.isVoiceover && voiceRanges.isNotEmpty() && gain > 0f) {
-        DuckGainProvider(
-            base = baseGain,
-            startTimelineMs = spec.timelineInUs / 1_000L,
-            voiceRanges = voiceRanges
-        )
+    // A looping track repeats the same source window, so every repeat is one
+    // item of the sequence. The track covers loopCount times the window.
+    val repeats = spec.loopCount.coerceIn(1, AudioTiming.MAX_LOOP_COUNT)
+    val unitDurationMs = if (repeats > 1) {
+        (((spec.sourceOutUs - spec.sourceInUs) / 1_000L).toDouble() / spec.speed.toDouble())
+            .toLong()
+            .coerceAtLeast(1L)
     } else {
-        baseGain
+        ((spec.timelineOutUs - spec.timelineInUs) / 1_000L).coerceAtLeast(1L)
     }
+    // The fades belong to the whole track: the first repeat fades in, the last
+    // one fades out, and the repeats in between play at full level.
+    val fadeInMs = (spec.fadeInUs / 1_000L).coerceIn(0L, unitDurationMs)
+    val fadeOutMs = (spec.fadeOutUs / 1_000L).coerceIn(0L, unitDurationMs)
     // Per-track DSP chain (gate -> voice EQ -> creative preset -> pitch) runs
     // before the gain envelope, so the mixer's volume slider stays a pure
     // level control. No-op settings produce no processors at all.
-    val processors = AudioEffectProcessors.forSettings(audio.audioEffects) + GainProcessor(gainProvider)
-    val itemBuilder = EditedMediaItem.Builder(mediaItem)
-        // Media3 requires the ORIGINAL source duration here. Clipping and
-        // speed are applied afterwards to derive the presentation duration.
-        .setDurationUs(spec.sourceDurationUs.coerceAtLeast(1_000L))
-        .setRemoveVideo(true)
-        .setEffects(Effects(processors, emptyList()))
-    if (abs(spec.speed - 1f) > 0.001f && spec.speed > 0.01f) {
-        val clippedSourceDurationUs = (spec.sourceOutUs - spec.sourceInUs).coerceAtLeast(1L)
-        itemBuilder.setSpeed(
-            SpeedParameters(
-                ConstantAudioSpeedProvider(
-                    requestedSpeed = spec.speed,
-                    clippedSourceDurationUs = clippedSourceDurationUs,
-                    targetOutputDurationUs = outputDurationMs * 1_000L
-                ),
-                true
-            )
-        )
-    }
-    val item = itemBuilder.build()
+    val effectProcessors = AudioEffectProcessors.forSettings(audio.audioEffects)
 
     val builder = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_AUDIO))
     if (spec.timelineInUs > 0L) {
         builder.addGap(spec.timelineInUs)
     }
-    builder.addItem(item)
+
+    for (repeat in 0 until repeats) {
+        val isFirst = repeat == 0
+        val isLast = repeat == repeats - 1
+        val baseGain = ConstantGainProvider(
+            gain = gain,
+            fadeInMs = if (isFirst) fadeInMs else 0L,
+            fadeOutMs = if (isLast) fadeOutMs else 0L,
+            durationMs = unitDurationMs
+        )
+        // Auto-ducking: only music ducks, a voice-over never ducks itself.
+        // Each repeat knows its own timeline offset, so the duck follows the
+        // voice-over across the whole looping track.
+        val gainProvider = if (
+            !audio.isVoiceover && voiceRanges.isNotEmpty() && gain > 0f
+        ) {
+            DuckGainProvider(
+                base = baseGain,
+                startTimelineMs = (spec.timelineInUs / 1_000L) + repeat * unitDurationMs,
+                voiceRanges = voiceRanges
+            )
+        } else {
+            baseGain
+        }
+        val processors = effectProcessors + GainProcessor(gainProvider)
+        val itemBuilder = EditedMediaItem.Builder(mediaItem)
+            // Media3 requires the ORIGINAL source duration here. Clipping and
+            // speed are applied afterwards to derive the presentation duration.
+            .setDurationUs(spec.sourceDurationUs.coerceAtLeast(1_000L))
+            .setRemoveVideo(true)
+            .setEffects(Effects(processors, emptyList()))
+        if (abs(spec.speed - 1f) > 0.001f && spec.speed > 0.01f) {
+            val clippedSourceDurationUs = (spec.sourceOutUs - spec.sourceInUs).coerceAtLeast(1L)
+            itemBuilder.setSpeed(
+                SpeedParameters(
+                    ConstantAudioSpeedProvider(
+                        requestedSpeed = spec.speed,
+                        clippedSourceDurationUs = clippedSourceDurationUs,
+                        targetOutputDurationUs = unitDurationMs * 1_000L
+                    ),
+                    true
+                )
+            )
+        }
+        builder.addItem(itemBuilder.build())
+    }
     return builder.build()
 }

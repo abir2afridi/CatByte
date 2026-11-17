@@ -44,7 +44,13 @@ data class AudioClip(
      */
     val waveform: List<Float> = emptyList(),
     /** Per-track audio processing (voice presets, enhance voice, noise gate). */
-    val audioEffects: AudioEffectSettings = AudioEffectSettings()
+    val audioEffects: AudioEffectSettings = AudioEffectSettings(),
+    /**
+     * How often the trimmed source window repeats on the timeline. 1 plays the
+     * window once; 4 repeats it four times, so the track covers four times the
+     * window without touching the source file.
+     */
+    val loopCount: Int = 1
 )
 
 /** Stable ids for the two tracks that exist without a `VideoTrack` object. */

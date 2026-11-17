@@ -15,7 +15,8 @@ class AudioTimingTest {
         trimEndMs: Long = 0L,
         speed: Float = 1f,
         fadeInMs: Long = 0L,
-        fadeOutMs: Long = 0L
+        fadeOutMs: Long = 0L,
+        loopCount: Int = 1
     ) = AudioClip(
         id = "audio",
         title = "Audio",
@@ -27,8 +28,45 @@ class AudioTimingTest {
         trimEndMs = trimEndMs,
         speed = speed,
         fadeInMs = fadeInMs,
-        fadeOutMs = fadeOutMs
+        fadeOutMs = fadeOutMs,
+        loopCount = loopCount
     )
+
+    @Test
+    fun `loop repeats multiply the timeline duration`() {
+        val clip = audio(
+            durationMs = 2_000L,
+            trimStartMs = 2_000L,
+            trimEndMs = 6_000L,
+            speed = 2f,
+            loopCount = 4
+        )
+        // One pass is 2 s (4 s window at 2x); four passes cover 8 s.
+        assertEquals(2_000L, AudioTiming.unitDurationMs(clip))
+        assertEquals(8_000L, AudioTiming.presentationDurationMs(clip))
+        assertEquals(4, AudioTiming.loopCount(clip))
+    }
+
+    @Test
+    fun `loop count is clamped to the supported range`() {
+        assertEquals(1, AudioTiming.loopCount(audio(loopCount = 0)))
+        assertEquals(AudioTiming.MAX_LOOP_COUNT, AudioTiming.loopCount(audio(loopCount = 99)))
+    }
+
+    @Test
+    fun `legacy source inference uses one pass of a looping track`() {
+        val legacy = AudioClip(
+            id = "legacy",
+            title = "Legacy",
+            artist = "Test",
+            uriString = "content://audio/legacy",
+            durationMs = 8_000L,
+            originalDurationMs = 0L,
+            loopCount = 4
+        )
+        // 8 s of output over four repeats means a 2 s source window.
+        assertEquals(2_000L, AudioTiming.sourceDurationMs(legacy))
+    }
 
     @Test
     fun `whole source keeps its duration at normal speed`() {

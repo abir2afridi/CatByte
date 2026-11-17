@@ -108,6 +108,7 @@ internal fun AudioMixerToolSheet(
             viewModel.selectAudioClip(id)
             viewModel.setActiveSheet(ActiveToolSheet.AUDIO_EFFECTS)
         },
+        onLoopCountChanged = { id, repeats -> viewModel.setAudioLoopCount(id, repeats) },
         onSplit = { id ->
             viewModel.selectAudioClip(id)
             if (!viewModel.splitAudioAtPlayhead()) {

@@ -158,6 +158,32 @@ class ProjectCompositionPlanTest {
     }
 
     @Test
+    fun `looping audio track repeats the source window in the composition`() {
+        val audio = AudioClip(
+            id = "music",
+            title = "Music",
+            artist = "Artist",
+            uriString = "content://music",
+            startTimelineMs = 0L,
+            durationMs = 8_000L,
+            originalDurationMs = 10_000L,
+            trimStartMs = 0L,
+            trimEndMs = 2_000L,
+            loopCount = 4
+        )
+        val source = project(listOf(clip("a")), audioTracks = listOf(audio))
+        val result = ProjectCompositionFactory.buildPreview(source, watermarkEnabled = false)
+        val audioSequence = result.composition.sequences.last { sequence ->
+            sequence.trackTypes == setOf(androidx.media3.common.C.TRACK_TYPE_AUDIO)
+        }
+
+        // Four repeats of the two-second window.
+        assertEquals(4, audioSequence.editedMediaItems.size)
+        val item = audioSequence.editedMediaItems.first()
+        assertEquals(10_000_000L, item.durationUs)
+    }
+
+    @Test
     fun `placeholder clips become gaps with a warning`() {
         val plan = ProjectCompositionFactory.plan(
             project(listOf(clip("a"), clip("empty", uri = null))),

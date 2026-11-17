@@ -199,7 +199,8 @@ object RenderGraphBuilder {
             speed = AudioTiming.normalizedSpeed(speed),
             volume = if (isMuted) 0f else volume.coerceIn(0f, 2f),
             fadeInUs = fades.first * 1_000L,
-            fadeOutUs = fades.second * 1_000L
+            fadeOutUs = fades.second * 1_000L,
+            loopCount = AudioTiming.loopCount(this)
         )
     }
 

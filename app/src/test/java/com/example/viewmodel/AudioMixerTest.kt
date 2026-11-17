@@ -348,4 +348,30 @@ class AudioMixerTest {
         viewModel.redo()
         assertEquals(VoiceEffectType.ECHO, viewModel.currentProject.value!!.audioTracks.single().audioEffects.type)
     }
+
+    @Test
+    fun `loop count repeats the source window and covers the timeline`() {
+        val (viewModel, _) = viewModel()
+        viewModel.setAudioTrim("music", 0L, 2_000L) // a two-second window
+
+        viewModel.setAudioLoopCount("music", 4)
+
+        val audio = viewModel.currentProject.value!!.audioTracks.single()
+        assertEquals(4, audio.loopCount)
+        assertEquals(8_000L, audio.durationMs)
+
+        viewModel.undo()
+        val restored = viewModel.currentProject.value!!.audioTracks.single()
+        assertEquals(1, restored.loopCount)
+        assertEquals(2_000L, restored.durationMs)
+    }
+
+    @Test
+    fun `loop count is clamped to the supported range`() {
+        val (viewModel, _) = viewModel()
+
+        viewModel.setAudioLoopCount("music", 99)
+
+        assertEquals(16, viewModel.currentProject.value!!.audioTracks.single().loopCount)
+    }
 }

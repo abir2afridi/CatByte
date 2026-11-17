@@ -65,7 +65,9 @@ data class AudioSpec(
     val speed: Float,
     val volume: Float,
     val fadeInUs: Long,
-    val fadeOutUs: Long
+    val fadeOutUs: Long,
+    /** How often the source window repeats (1 = play it once). */
+    val loopCount: Int = 1
 )
 
 data class TextSpec(

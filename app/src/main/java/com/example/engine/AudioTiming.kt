@@ -17,9 +17,15 @@ object AudioTiming {
     const val MIN_SPEED = 0.1f
     const val MAX_SPEED = 32f
 
+    /** The loudest repeat count the editor renders (keeps the graph sane). */
+    const val MAX_LOOP_COUNT = 16
+
     /** Clamps a requested speed to the range supported by the editor/export. */
     fun normalizedSpeed(speed: Float): Float =
         if (!speed.isFinite()) 1f else speed.coerceIn(MIN_SPEED, MAX_SPEED)
+
+    /** How often the trimmed source window repeats (1 = play it once). */
+    fun loopCount(audio: AudioClip): Int = audio.loopCount.coerceIn(1, MAX_LOOP_COUNT)
 
     /**
      * Full, untrimmed source duration.
@@ -35,8 +41,11 @@ object AudioTiming {
         }
         val trimStart = audio.trimStartMs.coerceAtLeast(0L)
         val speed = normalizedSpeed(audio.speed)
+        // The stored duration covers every repeat, so the inference has to
+        // look at ONE pass of the window.
+        val onePassMs = (audio.durationMs / loopCount(audio)).coerceAtLeast(MIN_AUDIO_DURATION_MS)
         val scaledOutput = scaleDurationMs(
-            durationMs = audio.durationMs.coerceAtLeast(MIN_AUDIO_DURATION_MS),
+            durationMs = onePassMs,
             speed = speed
         )
         val inferredFromOutput = saturatingAdd(trimStart, scaledOutput)
@@ -65,10 +74,23 @@ object AudioTiming {
     fun sourceWindowMs(audio: AudioClip): Long =
         (sourceEndMs(audio) - sourceStartMs(audio)).coerceAtLeast(MIN_AUDIO_DURATION_MS)
 
-    /** Duration on the output timeline after trim and speed. */
-    fun presentationDurationMs(audio: AudioClip): Long {
+    /** Duration of ONE pass of the selected source window before looping. */
+    fun unitDurationMs(audio: AudioClip): Long {
         val speed = normalizedSpeed(audio.speed)
         return (sourceWindowMs(audio).toDouble() / speed.toDouble())
+            .roundToLong()
+            .coerceAtLeast(MIN_AUDIO_DURATION_MS)
+    }
+
+    /**
+     * Duration on the output timeline after trim, speed and loop repeats.
+     *
+     * A looping track covers `loopCount` times the source window, so the
+     * timeline, the mixer and the export agree on its length.
+     */
+    fun presentationDurationMs(audio: AudioClip): Long {
+        val unit = unitDurationMs(audio).toDouble()
+        return (unit * loopCount(audio).toDouble())
             .roundToLong()
             .coerceAtLeast(MIN_AUDIO_DURATION_MS)
     }
@@ -140,6 +162,7 @@ object AudioTiming {
             trimEndMs = trimEnd,
             speed = speed,
             volume = if (audio.volume.isFinite()) audio.volume.coerceIn(0f, 2f) else 1f,
+            loopCount = loopCount(audio),
             waveform = sanitizedWaveform(audio.waveform)
         )
         val duration = presentationDurationMs(canonical)

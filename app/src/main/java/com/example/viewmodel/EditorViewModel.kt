@@ -1096,6 +1096,10 @@ class EditorViewModel(
     fun setAudioEffects(audioId: String, settings: AudioEffectSettings) =
         AudioMixerFeature.setAudioEffects(this, audioId, settings)
 
+    /** Sets how often the track's source window repeats (1 = play it once). */
+    fun setAudioLoopCount(audioId: String, count: Int) =
+        AudioMixerFeature.setAudioLoopCount(this, audioId, count)
+
     /**
      * Splits the selected independent audio track at the playhead. Returns
      * false when the playhead is outside the track or too close to an edge, so
