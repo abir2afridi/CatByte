@@ -32,10 +32,16 @@ class CloudAssetManager(private val context: Context) {
     val assetLibrary: List<CloudAsset> = listOf(
         CloudAsset("bgm_1", "Upbeat Pop Loop", "BGM", "https://cdn.catbyte.app/bgm/upbeat_pop.mp3"),
         CloudAsset("bgm_2", "Cinematic Trailer", "BGM", "https://cdn.catbyte.app/bgm/cinematic.mp3"),
+        CloudAsset("bgm_3", "Lo-Fi Chill Wave", "BGM", "https://cdn.catbyte.app/bgm/lofi_chill.mp3"),
+        CloudAsset("bgm_4", "Electronic Synthwave", "BGM", "https://cdn.catbyte.app/bgm/synthwave.mp3"),
         CloudAsset("sfx_1", "Whoosh Transition", "SFX", "https://cdn.catbyte.app/sfx/whoosh.mp3"),
         CloudAsset("sfx_2", "Applause Crowd", "SFX", "https://cdn.catbyte.app/sfx/applause.mp3"),
+        CloudAsset("sfx_3", "Camera Shutter Click", "SFX", "https://cdn.catbyte.app/sfx/shutter.mp3"),
+        CloudAsset("sfx_4", "Glitch Hit", "SFX", "https://cdn.catbyte.app/sfx/glitch.mp3"),
         CloudAsset("sticker_1", "🔥 Fire Emoji", "STICKER", "https://cdn.catbyte.app/stickers/fire.png"),
-        CloudAsset("sticker_2", "💯 Hundred Points", "STICKER", "https://cdn.catbyte.app/stickers/100.png")
+        CloudAsset("sticker_2", "💯 Hundred Points", "STICKER", "https://cdn.catbyte.app/stickers/100.png"),
+        CloudAsset("sticker_3", "⭐ Gold Star", "STICKER", "https://cdn.catbyte.app/stickers/star.png"),
+        CloudAsset("sticker_4", "🚀 Rocket Launch", "STICKER", "https://cdn.catbyte.app/stickers/rocket.png")
     )
 
     /** Flow of cached asset IDs for offline mode. */

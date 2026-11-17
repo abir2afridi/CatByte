@@ -132,6 +132,39 @@ fun FiltersSheet(
             }
         }
 
+        // Custom 3D .CUBE LUT Import row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Custom 3D LUTs (.cube)",
+                color = Color(0xFFA5A8B2),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF22242B))
+                    .border(1.dp, Color(0xFF33353E), RoundedCornerShape(6.dp))
+                    .clickable {
+                        // Import .cube LUT callback stub / action
+                    }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "📥 Import .cube LUT",
+                    color = Color(0xFF26E5D7),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(4.dp))
 
         // Filters Horizontal Scroll or Grid

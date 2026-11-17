@@ -98,6 +98,7 @@ object TransitionMath {
             EasingCurve.EASE_IN_OUT ->
                 if (x < 0.5f) 2f * x * x else 1f - 2f * (1f - x) * (1f - x)
             EasingCurve.BOUNCE -> bounceOut(x)
+            EasingCurve.CUSTOM_BEZIER -> 3f * (1f - x) * (1f - x) * x * 0.42f + 3f * (1f - x) * x * x * 0.58f + x * x * x
         }
     }
 

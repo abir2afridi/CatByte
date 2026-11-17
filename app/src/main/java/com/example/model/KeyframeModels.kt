@@ -16,7 +16,8 @@ enum class EasingCurve(val displayName: String) {
     EASE_IN("Ease In"),
     EASE_OUT("Ease Out"),
     EASE_IN_OUT("Ease In-Out"),
-    BOUNCE("Bounce")
+    BOUNCE("Bounce"),
+    CUSTOM_BEZIER("Custom Bezier")
 }
 
 // Phase 1 Data Models

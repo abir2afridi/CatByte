@@ -70,14 +70,16 @@ class ConstantGainProvider(
      * The gain is unity from the end of the fade-in to the start of the
      * fade-out. Media3 uses this to copy unity samples in bulk, so the answer
      * has to be the exact frame where the fade-out begins.
+     *
+     * The answer is always at least one frame ahead: Media3 copies the unity
+     * region and re-evaluates the gain afterwards, so an end that equals the
+     * current position would spin in an endless loop.
      */
     override fun isUnityUntil(samplePosition: Long, sampleRate: Int): Long {
         if (fadeOutMs <= 0L) return C.TIME_END_OF_SOURCE
         val unityEndMs = (durationMs - fadeOutMs).coerceAtLeast(0L)
         val unityEnd = AudioMath.msToSamplePosition(unityEndMs, sampleRate)
-        // Never report an end before the current position: Media3 would try to
-        // shrink the input buffer below its position.
-        return maxOf(unityEnd, samplePosition)
+        return maxOf(unityEnd, samplePosition + 1L)
     }
 }
 
@@ -118,16 +120,23 @@ class DuckGainProvider(
     override fun isUnityUntil(samplePosition: Long, sampleRate: Int): Long {
         val timelineMs = startTimelineMs + AudioMath.samplePositionToMs(samplePosition, sampleRate)
         // The duck starts ramping up ATTACK_MS before the voice-over begins.
+        // The very first millisecond of the attack still has full gain, so the
+        // unity region ends one millisecond later - otherwise the processor
+        // would treat the whole rest of the track as unity and skip the duck.
         val nextAttackMs = voiceRanges
             .map { it.first - AudioMath.DUCK_ATTACK_MS }
-            .firstOrNull { it > timelineMs }
+            .filter { it >= timelineMs }
+            .minOrNull()
         val duckEnd = if (nextAttackMs == null) {
             C.TIME_END_OF_SOURCE
         } else {
-            AudioMath.msToSamplePosition(nextAttackMs - startTimelineMs, sampleRate)
+            AudioMath.msToSamplePosition(nextAttackMs + 1L - startTimelineMs, sampleRate)
         }
         val baseEnd = base.isUnityUntil(samplePosition, sampleRate)
-        return earlierUnityEnd(duckEnd, baseEnd)
+        val end = earlierUnityEnd(duckEnd, baseEnd)
+        // The end always moves forward, otherwise Media3 would copy zero
+        // samples and ask again forever.
+        return if (end == C.TIME_END_OF_SOURCE) end else maxOf(end, samplePosition + 1L)
     }
 }
 

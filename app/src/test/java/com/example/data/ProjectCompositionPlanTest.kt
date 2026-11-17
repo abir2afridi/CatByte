@@ -3,8 +3,7 @@ package com.example.data
 import androidx.media3.common.C
 import androidx.media3.common.audio.GainProcessor
 import androidx.media3.common.util.UnstableApi
-import com.example.data.export.ConstantGainProvider
-import com.example.data.export.DuckGainProvider
+import com.example.data.export.GainProbe
 import com.example.engine.RenderGraphBuilder
 import com.example.model.AudioClip
 import com.example.model.MediaClip
@@ -218,17 +217,13 @@ class ProjectCompositionPlanTest {
             ),
             watermarkEnabled = false
         )
-        val musicSequence = result.composition.sequences.first { sequence ->
-            sequence.trackTypes == setOf(C.TRACK_TYPE_AUDIO) &&
-                sequence.editedMediaItems.first().mediaItem.localConfiguration?.uri.toString() ==
-                "content://music"
-        }
-        val gain = musicSequence.editedMediaItems.first().effects.audioProcessors
-            .filterIsInstance<GainProcessor>()
-            .first()
-        val duck = gain.gainProvider as DuckGainProvider
-        assertEquals(1, duck.voiceRanges.size)
-        assertEquals(0.5f, duck.duckAmount, 0.0001f)
+        val musicProcessor = musicGainProcessor(result)
+        val values = GainProbe.render(musicProcessor, seconds = 3)
+
+        // Halfway through the voice the music sits at half its level.
+        assertEquals(0.5f, values[GainProbe.sampleAt(1.5f)], 0.02f)
+        // After the voice the music is back at full level.
+        assertEquals(1f, values[GainProbe.sampleAt(2.8f)], 0.02f)
     }
 
     @Test
@@ -258,15 +253,22 @@ class ProjectCompositionPlanTest {
             ),
             watermarkEnabled = false
         )
+        val values = GainProbe.render(musicGainProcessor(result), seconds = 3)
+
+        // The voice-over is audible, but the music keeps its level.
+        assertEquals(1f, values[GainProbe.sampleAt(1.5f)], 0.02f)
+    }
+
+    /** The gain processor of the music track inside a built composition. */
+    private fun musicGainProcessor(result: ProjectCompositionFactory.Result): GainProcessor {
         val musicSequence = result.composition.sequences.first { sequence ->
             sequence.trackTypes == setOf(C.TRACK_TYPE_AUDIO) &&
                 sequence.editedMediaItems.first().mediaItem.localConfiguration?.uri.toString() ==
                 "content://music"
         }
-        val gain = musicSequence.editedMediaItems.first().effects.audioProcessors
+        return musicSequence.editedMediaItems.first().effects.audioProcessors
             .filterIsInstance<GainProcessor>()
             .first()
-        assertTrue(gain.gainProvider is ConstantGainProvider)
     }
 
     @Test

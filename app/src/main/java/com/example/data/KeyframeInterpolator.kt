@@ -76,6 +76,13 @@ object KeyframeInterpolator {
             EasingCurve.EASE_OUT -> fraction * (2f - fraction)
             EasingCurve.EASE_IN_OUT -> if (fraction < 0.5f) 2f * fraction * fraction else -1f + (4f - 2f * fraction) * fraction
             EasingCurve.BOUNCE -> bounceEasing(fraction)
+            EasingCurve.CUSTOM_BEZIER -> {
+                // Smooth cubic bezier (p1 = 0.42, 0.0; p2 = 0.58, 1.0)
+                val t = fraction
+                val p1 = 0.42f
+                val p2 = 0.58f
+                3f * (1f - t).pow(2) * t * p1 + 3f * (1f - t) * t.pow(2) * p2 + t.pow(3)
+            }
         }
     }
 

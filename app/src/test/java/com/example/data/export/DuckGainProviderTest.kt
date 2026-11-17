@@ -1,5 +1,6 @@
 package com.example.data.export
 
+import com.example.engine.AudioMath
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -21,7 +22,7 @@ class DuckGainProviderTest {
     )
 
     private fun DuckGainProvider.gainAt(positionMs: Long): Float =
-        getGainFactorAtSamplePosition(positionMs * 1000L, 44_100)
+        getGainFactorAtSamplePosition(AudioMath.msToSamplePosition(positionMs, 44_100), 44_100)
 
     @Test
     fun musicDucksWhileVoiceoverIsAudible() {
