@@ -10,6 +10,7 @@ import com.example.model.MediaClip
 import com.example.model.TextOverlay
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
+import com.example.ui.components.BodyEffectTabs
 import com.example.ui.components.EffectsSheet
 import com.example.ui.components.FiltersSheet
 import com.example.ui.components.StickersSheet
@@ -93,6 +94,21 @@ internal fun EffectsToolSheet(viewModel: EditorViewModel) {
             viewModel.setActiveSheet(ActiveToolSheet.NONE)
         },
         onClose = { viewModel.closeToolSheet() }
+    )
+}
+
+@Composable
+internal fun BodyEffectsToolSheet(viewModel: EditorViewModel) {
+    EffectsSheet(
+        onAddEffect = { fx ->
+            if (fx != null) {
+                viewModel.addTimelineEffect(fx)
+            }
+            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+        },
+        onClose = { viewModel.closeToolSheet() },
+        tabs = BodyEffectTabs,
+        title = "Body effects"
     )
 }
 

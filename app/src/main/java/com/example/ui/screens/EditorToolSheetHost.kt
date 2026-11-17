@@ -117,6 +117,9 @@ internal fun BoxScope.EditorToolSheetHost(
             ActiveToolSheet.EFFECTS_LIBRARY -> {
                 EffectsToolSheet(viewModel = viewModel)
             }
+            ActiveToolSheet.BODY_EFFECTS -> {
+                BodyEffectsToolSheet(viewModel = viewModel)
+            }
             ActiveToolSheet.FILTERS_LIBRARY -> {
                 FiltersToolSheet(viewModel = viewModel, currentClip = currentClip)
             }

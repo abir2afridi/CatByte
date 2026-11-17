@@ -324,7 +324,7 @@ internal fun EditorBottomActionStage(
                 "video_effects" -> viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY)
                 "photo_effects" -> viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY)
                 "ai_effects" -> viewModel.setActiveSheet(ActiveToolSheet.AI_TOOLS)
-                "body_effects" -> notAvailable("Body effects")
+                "body_effects" -> viewModel.setActiveSheet(ActiveToolSheet.BODY_EFFECTS)
                 else -> notify("${subFeature.label} is not available yet")
             }
 

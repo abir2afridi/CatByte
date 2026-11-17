@@ -12,7 +12,7 @@ import org.junit.Test
  */
 class EffectLibraryTest {
 
-    /** The sheet's tab labels -> EffectType.category keys. */
+    /** The sheets' tab labels -> EffectType.category keys. */
     private val sheetTabs = mapOf(
         "Trending" to "Trending",
         "B.Duck" to "B.Duck",
@@ -21,7 +21,11 @@ class EffectLibraryTest {
         "✨ Magic" to "Magic",
         "Retro" to "Retro",
         "Lens" to "Lens",
-        "Nightclub" to "Nightclub"
+        "Nightclub" to "Nightclub",
+        "Body: Glow" to "Body Glow",
+        "Body: Aura" to "Body Aura",
+        "Body: Sparkle" to "Body Sparkle",
+        "Body: Neon" to "Body Neon"
     )
 
     @Test

@@ -153,7 +153,9 @@ enum class ActiveToolSheet {
     /** Timeline marker management (rename / recolour / delete). */
     MARKERS,
     /** Freehand drawing sheet (Text → Draw). */
-    DRAW
+    DRAW,
+    /** Body effects library (Effect → Body effects). */
+    BODY_EFFECTS
 }
 
 /**

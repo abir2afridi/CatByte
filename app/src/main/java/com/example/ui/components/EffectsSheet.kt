@@ -53,34 +53,45 @@ import com.example.model.EffectType
  * - Horizontal scrollable category tabs (Trending, B.Duck, Pumpkin Spice, Classic, Magic, etc.)
  * - 3-column grid of video effect cards with thumbnails, download badge, and diamond badge
  */
+/** The video-effects tabs: label shown in the sheet -> EffectType.category. */
+val VideoEffectTabs: List<Pair<String, String>> = listOf(
+    "Trending" to "Trending",
+    "B.Duck" to "B.Duck",
+    "Pumpkin Spice 🍁" to "Pumpkin Spice",
+    "Classic" to "Classic",
+    "✨ Magic" to "Magic",
+    "Retro" to "Retro",
+    "Lens" to "Lens",
+    "Nightclub" to "Nightclub"
+)
+
+/** The body-effects tabs (same drawer, own libraries). */
+val BodyEffectTabs: List<Pair<String, String>> = listOf(
+    "Glow" to "Body Glow",
+    "Aura" to "Body Aura",
+    "Sparkle" to "Body Sparkle",
+    "Neon" to "Body Neon"
+)
+
 @Composable
 fun EffectsSheet(
     onAddEffect: (EffectType?) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    /** label -> EffectType.category; defaults to the video-effects tabs. */
+    tabs: List<Pair<String, String>> = VideoEffectTabs,
+    title: String = "Video effects"
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
 
-    val categories = listOf(
-        "Trending", "B.Duck", "Pumpkin Spice 🍁", "Classic",
-        "✨ Magic", "Retro", "Lens", "Nightclub"
-    )
+    val categories = tabs.map { it.first }
 
-    // The sheet's tabs match EffectType.category exactly, so every tab shows
-    // its own library (30+ presets each) instead of repeating one list.
-    val categoryKeys = mapOf(
-        "Trending" to "Trending",
-        "B.Duck" to "B.Duck",
-        "Pumpkin Spice 🍁" to "Pumpkin Spice",
-        "Classic" to "Classic",
-        "✨ Magic" to "Magic",
-        "Retro" to "Retro",
-        "Lens" to "Lens",
-        "Nightclub" to "Nightclub"
-    )
+    // Tabs match EffectType.category exactly, so every tab shows its own
+    // library (30+ presets each) instead of repeating one list.
+    val selectedCategory = tabs[selectedTab.coerceIn(0, tabs.lastIndex)].second
 
     val filteredEffects = if (searchQuery.isBlank()) {
-        EffectType.entries.filter { it.category == categoryKeys[categories[selectedTab]] }
+        EffectType.entries.filter { it.category == selectedCategory }
     } else {
         EffectType.entries.filter { it.displayName.contains(searchQuery, ignoreCase = true) }
     }
