@@ -13,6 +13,23 @@ data class StickerOverlay(
     val keyframes: List<Keyframe> = emptyList()
 )
 
+/**
+ * A freehand drawing stroke ("Text → Draw"). Points are normalised 0..1 canvas
+ * coordinates so the stroke scales with the canvas in preview and export.
+ */
+data class StrokeOverlay(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    /** Flat x,y pairs in 0..1 canvas space. */
+    val points: List<Float> = emptyList(),
+    val colorArgb: Long = 0xFFFF3B30,
+    /** Stroke width as a fraction of the canvas width. */
+    val widthFraction: Float = 0.010f,
+    val startTimelineMs: Long = 0L,
+    val durationMs: Long = 3000L
+) {
+    val isEmpty: Boolean get() = points.size < 4
+}
+
 data class TimelineEffect(
     val id: String,
     val name: String,

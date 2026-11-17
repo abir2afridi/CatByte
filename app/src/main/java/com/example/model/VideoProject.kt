@@ -9,6 +9,8 @@ data class VideoProject(
     val audioTracks: List<AudioClip> = emptyList(),
     val textOverlays: List<TextOverlay> = emptyList(),
     val stickers: List<StickerOverlay> = emptyList(),
+    /** Freehand drawing strokes (Text → Draw). */
+    val strokes: List<StrokeOverlay> = emptyList(),
     val effects: List<TimelineEffect> = emptyList(),
     val thumbnailResId: Int? = null,
     /** Timeline position of the frame used as the project cover (home thumbnail). */

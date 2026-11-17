@@ -1,5 +1,11 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,6 +14,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import com.example.model.MediaClip
 import com.example.model.TextOverlay
 import com.example.model.VideoProject
@@ -15,20 +22,7 @@ import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
 
 /**
- * Hosts the editor's bottom tool sheet.
- *
- * This file only decides WHICH sheet is shown; each sheet family lives in its
- * own file:
- *  - `EditorClipToolSheets.kt`: clip actions, speed, animations, adjustments,
- *    crop, opacity.
- *  - `EditorOverlayToolSheets.kt`: text, stickers, effects, filters,
- *    transitions.
- *  - `EditorAudioToolSheets.kt`: the Audio & Foley studio and the volume
- *    boost.
- *  - `EditorLookToolSheets.kt`: canvas ratio, background, keyframes, blend
- *    mode, mask, chroma key.
- *  - `EditorTimelineToolSheets.kt`: timeline tools, captions, AI tools and
- *    the cover editor.
+ * Hosts the editor's bottom tool sheet with smooth slide-up / slide-down animations.
  */
 @Composable
 internal fun BoxScope.EditorToolSheetHost(
@@ -53,18 +47,30 @@ internal fun BoxScope.EditorToolSheetHost(
     onLaunchCaptionImport: () -> Unit,
     onOpenSettings: () -> Unit = {}
 ) {
-    if (activeSheet == ActiveToolSheet.NONE || activeSheet == ActiveToolSheet.EXPORT_MODAL) return
-    Box(
+    val visible = activeSheet != ActiveToolSheet.NONE && activeSheet != ActiveToolSheet.EXPORT_MODAL
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(
+            initialOffsetY = { fullHeight -> fullHeight },
+            animationSpec = tween(durationMillis = 280)
+        ) + fadeIn(animationSpec = tween(280)),
+        exit = slideOutVertically(
+            targetOffsetY = { fullHeight -> fullHeight },
+            animationSpec = tween(durationMillis = 220)
+        ) + fadeOut(animationSpec = tween(220)),
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
             .navigationBarsPadding()
+            .zIndex(120f)
     ) {
-        when (activeSheet) {
-            ActiveToolSheet.TTS_VOICEOVER -> {
-                Box(modifier = Modifier.fillMaxSize())
-            }
-            ActiveToolSheet.EDIT_CLIP -> {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            when (activeSheet) {
+                ActiveToolSheet.TTS_VOICEOVER -> {
+                    Box(modifier = Modifier.fillMaxSize())
+                }
+                ActiveToolSheet.EDIT_CLIP -> {
                 EditClipToolSheet(
                     viewModel = viewModel,
                     currentClip = currentClip,
@@ -176,6 +182,9 @@ internal fun BoxScope.EditorToolSheetHost(
                     onMultiSelectChange = onMultiSelectChange
                 )
             }
+            ActiveToolSheet.DRAW -> {
+                DrawToolSheet(viewModel = viewModel)
+            }
             ActiveToolSheet.MARKERS -> {
                 MarkerToolSheet(viewModel = viewModel, project = project)
             }
@@ -191,5 +200,8 @@ internal fun BoxScope.EditorToolSheetHost(
             ActiveToolSheet.EXPORT_MODAL -> {}
             ActiveToolSheet.NONE -> {}
         }
+      }
     }
 }
+
+

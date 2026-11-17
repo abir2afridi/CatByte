@@ -130,7 +130,6 @@ internal fun EditorBottomActionStage(
     val onMainTabSelected: (EditorMainTab) -> Unit = { tab ->
         when (tab) {
             // Features that open their tool sheet directly.
-            EditorMainTab.TEXT -> viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR)
             EditorMainTab.FILTER -> withClip {
                 viewModel.setActiveSheet(ActiveToolSheet.FILTERS_LIBRARY)
             }
@@ -206,6 +205,31 @@ internal fun EditorBottomActionStage(
                     } else {
                         notify("Audio detached - it now has its own track")
                     }
+                }
+                else -> notify("${subFeature.label} is not available yet")
+            }
+
+            EditorMainTab.TEXT -> when (subFeature.id) {
+                "add_text" -> viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR)
+                "auto_caption" -> scope.launch {
+                    notify("Generating captions...")
+                    notify(viewModel.addAutoCaptions())
+                }
+                "stickers" -> viewModel.setActiveSheet(ActiveToolSheet.STICKERS_PICKER)
+                "draw" -> viewModel.setActiveSheet(ActiveToolSheet.DRAW)
+                "text_template" -> viewModel.setActiveSheet(ActiveToolSheet.TEMPLATES)
+                "text_to_audio" -> onShowTts()
+                "auto_lyric" -> scope.launch {
+                    notify("AI lyrics: writing...")
+                    notify(AiFeature.generateLyrics(viewModel))
+                }
+                "ai_writer" -> scope.launch {
+                    notify("AI writer: writing...")
+                    notify(AiFeature.writeScript(viewModel))
+                }
+                "ai_packaging" -> scope.launch {
+                    notify("AI packaging: thinking...")
+                    notify(AiFeature.packagingTitles(viewModel))
                 }
                 else -> notify("${subFeature.label} is not available yet")
             }

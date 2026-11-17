@@ -67,6 +67,17 @@ internal object AiFeature {
         return runText(vm, prompt, "AI translate", replaceExisting = true)
     }
 
+    /** "Text → AI writer": writes a short script/hook from the project topic. */
+    suspend fun writeScript(vm: EditorViewModel): String {
+        val topic = vm._currentProject.value?.title?.ifBlank { "my video" } ?: "my video"
+        val prompt = """
+            Write a ${MAX_LINES}-line script for a vertical short video about "$topic".
+            Each line must be short enough to read on screen. Return ONLY the lines,
+            one per line, no numbering and no quotes.
+        """.trimIndent()
+        return runText(vm, prompt, "AI writer")
+    }
+
     /** Three packaging titles for the video. */
     suspend fun packagingTitles(vm: EditorViewModel): String {
         val topic = vm._currentProject.value?.title?.ifBlank { "my video" } ?: "my video"

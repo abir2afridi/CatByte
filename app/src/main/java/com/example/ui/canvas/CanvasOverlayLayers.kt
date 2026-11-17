@@ -143,3 +143,39 @@ internal fun BoxScope.CanvasWatermarkOverlay() {
         )
     }
 }
+
+/**
+ * Freehand drawing strokes ("Text → Draw"). Same normalised points and width
+ * fraction as the exported file, so the drawing lands in the same place.
+ */
+@Composable
+internal fun CanvasStrokeOverlayLayers(
+    strokes: List<com.example.model.StrokeOverlay>,
+    positionMs: Long
+) {
+    if (strokes.isEmpty()) return
+    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+        strokes.forEach { stroke ->
+            if (stroke.points.size < 4) return@forEach
+            if (positionMs < stroke.startTimelineMs) return@forEach
+            if (positionMs > stroke.startTimelineMs + stroke.durationMs) return@forEach
+
+            val path = androidx.compose.ui.graphics.Path()
+            path.moveTo(stroke.points[0] * size.width, stroke.points[1] * size.height)
+            var index = 2
+            while (index + 1 < stroke.points.size) {
+                path.lineTo(stroke.points[index] * size.width, stroke.points[index + 1] * size.height)
+                index += 2
+            }
+            drawPath(
+                path = path,
+                color = Color(stroke.colorArgb),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = (stroke.widthFraction * size.width).coerceAtLeast(1.5f),
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    join = androidx.compose.ui.graphics.StrokeJoin.Round
+                )
+            )
+        }
+    }
+}

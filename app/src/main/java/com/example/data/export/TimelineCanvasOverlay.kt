@@ -61,6 +61,7 @@ class TimelineCanvasOverlay(
     private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val backgroundImagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val effectPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = overlaySettings
 
@@ -79,6 +80,7 @@ class TimelineCanvasOverlay(
         drawTimelineEffects(canvas, timeMs, width, height)
         project.textOverlays.forEach { drawText(canvas, it, timeMs, width, height) }
         project.stickers.forEach { drawSticker(canvas, it, timeMs, width, height) }
+        project.strokes.forEach { drawStroke(canvas, it, timeMs, width, height) }
         if (watermarkEnabled) drawWatermark(canvas, width, height)
     }
 
@@ -305,6 +307,36 @@ class TimelineCanvasOverlay(
     // ------------------------------------------------------------------
     // Stickers
     // ------------------------------------------------------------------
+
+    /** Freehand drawing strokes (Text → Draw), normalised to the canvas. */
+    private fun drawStroke(
+        canvas: Canvas,
+        stroke: com.example.model.StrokeOverlay,
+        timeMs: Long,
+        width: Float,
+        height: Float
+    ) {
+        if (stroke.points.size < 4) return
+        if (timeMs < stroke.startTimelineMs) return
+        if (timeMs > stroke.startTimelineMs + stroke.durationMs) return
+
+        val path = android.graphics.Path()
+        path.moveTo(stroke.points[0] * width, stroke.points[1] * height)
+        var index = 2
+        while (index + 1 < stroke.points.size) {
+            path.lineTo(stroke.points[index] * width, stroke.points[index + 1] * height)
+            index += 2
+        }
+        strokePaint.apply {
+            color = stroke.colorArgb.toInt()
+            style = Paint.Style.STROKE
+            strokeWidth = (stroke.widthFraction * width).coerceAtLeast(1.5f)
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+            isAntiAlias = true
+        }
+        canvas.drawPath(path, strokePaint)
+    }
 
     private fun drawSticker(
         canvas: Canvas,

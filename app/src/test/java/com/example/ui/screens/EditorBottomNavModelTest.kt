@@ -118,8 +118,9 @@ class EditorBottomNavModelTest {
 
     @Test
     fun `tabs that open a sheet directly have no sub-feature row`() {
+        // Text now owns a sub-feature row (Add Text ... AI Packaging); the
+        // tabs below are the ones that still open their sheet directly.
         listOf(
-            EditorMainTab.TEXT,
             EditorMainTab.FILTER,
             EditorMainTab.ADJUST,
             EditorMainTab.STICKER,
@@ -127,6 +128,51 @@ class EditorBottomNavModelTest {
             EditorMainTab.TEMPLATE
         ).forEach { tab ->
             assertTrue("${tab.label} should open its sheet directly", tab.subFeatures().isEmpty())
+        }
+    }
+
+    @Test
+    fun `text row lists every text tool`() {
+        assertEquals(
+            listOf(
+                "Add Text", "Auto Caption", "Stickers", "Draw", "Text template",
+                "Text to audio", "Auto lyric", "AI writer", "AI Packaging"
+            ),
+            EditorMainTab.TEXT.subFeatures().map { it.label }
+        )
+    }
+
+    @Test
+    fun `every tab exposes the agreed sub-feature count`() {
+        // Guards the whole workspace map: a tab that silently loses or gains a
+        // chip fails here instead of shipping an empty row.
+        val expected = mapOf(
+            EditorMainTab.EDIT to 39,
+            EditorMainTab.AUDIO to 8,
+            EditorMainTab.TEXT to 9,
+            EditorMainTab.EFFECT to 4,
+            EditorMainTab.OVERLAY to 1,
+            EditorMainTab.CAPTIONS to 7,
+            EditorMainTab.GENERATE_MEDIA to 4,
+            EditorMainTab.AI_AVATAR to 9,
+            EditorMainTab.ASPECT_RATIO to 11,
+            EditorMainTab.BACKGROUND to 4
+        )
+        expected.forEach { (tab, count) ->
+            assertEquals("${tab.label} sub-feature count", count, tab.subFeatures().size)
+        }
+    }
+
+    @Test
+    fun `tabs that open their sheet directly have no sub-feature row`() {
+        listOf(
+            EditorMainTab.FILTER,
+            EditorMainTab.ADJUST,
+            EditorMainTab.STICKER,
+            EditorMainTab.TRANSCRIPT,
+            EditorMainTab.TEMPLATE
+        ).forEach { tab ->
+            assertTrue("${tab.label} must open its sheet directly", tab.subFeatures().isEmpty())
         }
     }
 }

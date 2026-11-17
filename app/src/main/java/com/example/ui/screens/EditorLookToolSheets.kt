@@ -10,6 +10,7 @@ import com.example.ui.components.BackgroundSheet
 import com.example.ui.components.BlendModeSheet
 import com.example.ui.components.CanvasRatioSheet
 import com.example.ui.components.ChromaKeySheet
+import com.example.ui.components.DrawSheet
 import com.example.ui.components.MarkerSheet
 import com.example.ui.components.KeyframeSheet
 import com.example.ui.components.MaskSheet
@@ -138,6 +139,15 @@ internal fun MarkerToolSheet(
         onRename = { id, label -> viewModel.renameMarker(id, label) },
         onColor = { id, color -> viewModel.setMarkerColor(id, color) },
         onDelete = { viewModel.removeMarker(it) },
+        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+    )
+}
+
+@Composable
+internal fun DrawToolSheet(viewModel: EditorViewModel) {
+    DrawSheet(
+        onApply = { points, color, width -> viewModel.addStroke(points, color, width) },
+        onClearAll = { viewModel.clearStrokes() },
         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
     )
 }

@@ -82,6 +82,10 @@ object ProjectJson {
             JSONArray().also { array -> project.stickers.forEach { array.put(stickerToJson(it)) } }
         )
         put(
+            "strokes",
+            JSONArray().also { array -> project.strokes.forEach { array.put(strokeToJson(it)) } }
+        )
+        put(
             "effects",
             JSONArray().also { array -> project.effects.forEach { array.put(effectToJson(it)) } }
         )
@@ -107,6 +111,7 @@ object ProjectJson {
         textOverlays = json.optJSONArray("textOverlays").mapObjects { textFromJson(it) },
         markers = json.optJSONArray("markers").mapObjects { markerFromJson(it) },
         stickers = json.optJSONArray("stickers").mapObjects { stickerFromJson(it) },
+        strokes = json.optJSONArray("strokes").mapObjects { strokeFromJson(it) },
         effects = json.optJSONArray("effects").mapObjects { effectFromJson(it) },
         thumbnailResId = if (json.isNull("thumbnailResId")) null else json.optInt("thumbnailResId"),
         coverFrameMs = json.optLong("coverFrameMs", 0L),

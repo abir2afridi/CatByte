@@ -3,6 +3,7 @@ package com.example.data.db
 import com.example.model.AudioClip
 import com.example.model.EffectType
 import com.example.model.StickerOverlay
+import com.example.model.StrokeOverlay
 import com.example.model.TextAnimationType
 import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
@@ -111,6 +112,26 @@ internal fun stickerFromJson(json: JSONObject): StickerOverlay = StickerOverlay(
     posY = json.optDouble("posY", 0.3).toFloat(),
     scale = json.optDouble("scale", 1.0).toFloat(),
     keyframes = json.optJSONArray("keyframes").mapObjects { keyframeFromJson(it) }
+)
+
+internal fun strokeToJson(stroke: StrokeOverlay): JSONObject = JSONObject().apply {
+    put("id", stroke.id)
+    put("points", JSONArray().also { array -> stroke.points.forEach { array.put(it.toDouble()) } })
+    put("colorArgb", stroke.colorArgb)
+    put("widthFraction", stroke.widthFraction.toDouble())
+    put("startTimelineMs", stroke.startTimelineMs)
+    put("durationMs", stroke.durationMs)
+}
+
+internal fun strokeFromJson(json: JSONObject): StrokeOverlay = StrokeOverlay(
+    id = json.optString("id"),
+    points = json.optJSONArray("points")?.let { array ->
+        (0 until array.length()).map { array.optDouble(it, 0.0).toFloat() }
+    }.orEmpty(),
+    colorArgb = json.optLong("colorArgb", 0xFFFF3B30),
+    widthFraction = json.optDouble("widthFraction", 0.010).toFloat(),
+    startTimelineMs = json.optLong("startTimelineMs"),
+    durationMs = json.optLong("durationMs", 3000L)
 )
 
 internal fun effectToJson(effect: TimelineEffect): JSONObject = JSONObject().apply {

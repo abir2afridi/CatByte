@@ -70,6 +70,7 @@ import com.example.engine.UndoJournal
 import com.example.viewmodel.features.AudioFeature
 import com.example.viewmodel.features.TextFeature
 import com.example.viewmodel.features.StickerFeature
+import com.example.viewmodel.features.StrokeFeature
 import com.example.viewmodel.features.TimelineEffectFeature
 import com.example.viewmodel.features.CanvasFeature
 import com.example.viewmodel.features.MarkerFeature
@@ -143,7 +144,9 @@ enum class ActiveToolSheet {
     COVER_EDITOR,
     TEMPLATES,
     /** Timeline marker management (rename / recolour / delete). */
-    MARKERS
+    MARKERS,
+    /** Freehand drawing sheet (Text → Draw). */
+    DRAW
 }
 
 /**
@@ -743,6 +746,13 @@ class EditorViewModel(
     /** Recolours a timeline marker pin. */
     fun setMarkerColor(markerId: String, colorArgb: Long) =
         MarkerFeature.setMarkerColor(this, markerId, colorArgb)
+
+    /** Adds a freehand drawing stroke at the playhead (Text → Draw). */
+    fun addStroke(points: List<Float>, colorArgb: Long, widthFraction: Float): Boolean =
+        StrokeFeature.addStroke(this, points, colorArgb, widthFraction)
+
+    /** Removes every drawing stroke. */
+    fun clearStrokes() = StrokeFeature.clearStrokes(this)
 
     fun moveMarkerToPlayhead(markerId: String) =
         MarkerFeature.moveMarkerToPlayhead(this, markerId)

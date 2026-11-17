@@ -102,6 +102,18 @@ internal fun EditorMainTab.subFeatures(): List<EditorSubFeature> = when (this) {
         EditorSubFeature("transcript", "Transcript")
     )
 
+    EditorMainTab.TEXT -> listOf(
+        EditorSubFeature("add_text", "Add Text"),
+        EditorSubFeature("auto_caption", "Auto Caption"),
+        EditorSubFeature("stickers", "Stickers"),
+        EditorSubFeature("draw", "Draw"),
+        EditorSubFeature("text_template", "Text template"),
+        EditorSubFeature("text_to_audio", "Text to audio"),
+        EditorSubFeature("auto_lyric", "Auto lyric"),
+        EditorSubFeature("ai_writer", "AI writer"),
+        EditorSubFeature("ai_packaging", "AI Packaging")
+    )
+
     EditorMainTab.AUDIO -> listOf(
         EditorSubFeature("extract", "Extract"),
         EditorSubFeature("sounds", "Sounds", audioTab = EditorAudioTabs.MUSIC),
@@ -174,7 +186,6 @@ internal fun EditorMainTab.subFeatures(): List<EditorSubFeature> = when (this) {
         EditorSubFeature("brand_background", "Brand Background")
     )
 
-    EditorMainTab.TEXT,
     EditorMainTab.FILTER,
     EditorMainTab.ADJUST,
     EditorMainTab.STICKER,

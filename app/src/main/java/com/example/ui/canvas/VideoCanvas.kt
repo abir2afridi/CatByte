@@ -327,6 +327,10 @@ fun VideoCanvas(
                     pulseAlpha = pulseAlphaState.value
                 )
                 CanvasStickerOverlayLayer(activeStickers)
+                CanvasStrokeOverlayLayers(
+                    strokes = project.strokes,
+                    positionMs = positionMs
+                )
                 if (watermarkEnabled) {
                     CanvasWatermarkOverlay()
                 }
@@ -358,10 +362,10 @@ fun VideoCanvas(
                 CanvasPlayHud()
             }
 
-            // Top Status Overlay (Active Filter only).
+            // Top Status Overlay (Active Filter & Stereo Audio Meter).
             // Canvas ratio is shown in the transport row below the preview, never
             // on top of the video frame itself.
-            CanvasTopStatusRow(activeClip)
+            CanvasTopStatusRow(activeClip, isPlaying)
 
             // Render-fidelity notice.
             CanvasPreviewNotice(
