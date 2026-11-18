@@ -16,6 +16,24 @@ class VoiceRecorder(private val context: Context) {
 
     val isRecording: Boolean get() = recorder != null
 
+    /**
+     * Current microphone level, 0..1.
+     *
+     * MediaRecorder reports the peak amplitude of the newest audio buffer.
+     * The raw value is linear, so it is mapped through a decibel curve: the
+     * meter then behaves like a level meter instead of jumping between 0 and
+     * 100 % on every syllable.
+     */
+    val level: Float
+        get() {
+            val active = recorder ?: return 0f
+            val amplitude = runCatching { active.maxAmplitude }.getOrDefault(0)
+            if (amplitude <= 0) return 0f
+            // 0..32767 -> -60..0 dB -> 0..1
+            val db = 20f * kotlin.math.log10(amplitude / 32767f)
+            return ((db + 60f) / 60f).coerceIn(0f, 1f)
+        }
+
     /** Starts recording. Returns true when the recorder is running. */
     fun start(): Boolean {
         if (recorder != null) return false

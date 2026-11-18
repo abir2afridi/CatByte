@@ -15,7 +15,9 @@ object ExportServiceScheduler {
         resolution: String,
         fps: Int,
         watermark: Boolean,
-        bitrateMbps: Int = 10
+        bitrateMbps: Int = 10,
+        /** Gain applied to the exported mix (1 = untouched). */
+        audioBoost: Float = 1f
     ) {
         val intent = Intent(context, ExportForegroundService::class.java).apply {
             action = ExportForegroundService.ACTION_START
@@ -24,6 +26,7 @@ object ExportServiceScheduler {
             putExtra(ExportForegroundService.EXTRA_FPS, fps)
             putExtra(ExportForegroundService.EXTRA_WATERMARK, watermark)
             putExtra(ExportForegroundService.EXTRA_BITRATE_MBPS, bitrateMbps)
+            putExtra(ExportForegroundService.EXTRA_AUDIO_BOOST, audioBoost)
             putExtra(ExportForegroundService.EXTRA_PROJECT_ID, project.id)
         }
 

@@ -6,6 +6,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.transformer.Transformer
 import com.example.data.export.querySupportedCodecMimeTypes
 import com.example.data.export.runExportPipeline
+import com.example.data.export.singleTrackProject
 import com.example.data.export.validateExportFile
 import com.example.export.ExportOutput
 import com.example.export.ExportProgress
@@ -54,13 +55,16 @@ class ExportManager(context: Context) {
         fps: Int,
         watermarkEnabled: Boolean = false,
         /** Requested video bitrate in bits per second, 0 = encoder default. */
-        videoBitrateBps: Int = 0
+        videoBitrateBps: Int = 0,
+        /** Gain applied to the exported mix (1 = untouched). */
+        audioBoost: Float = 1f
     ): ExportOutput? = runExportPipeline(
         project = project,
         resolution = resolution,
         fps = fps,
         watermarkEnabled = watermarkEnabled,
-        videoBitrateBps = videoBitrateBps
+        videoBitrateBps = videoBitrateBps,
+        audioBoost = audioBoost
     )
 
     /**
@@ -71,15 +75,42 @@ class ExportManager(context: Context) {
         project: VideoProject,
         resolution: String = "1080P",
         fps: Int = 30,
-        watermarkEnabled: Boolean = false
+        watermarkEnabled: Boolean = false,
+        /** Gain applied to the exported mix (1 = untouched). */
+        audioBoost: Float = 1f
     ): ExportOutput? = runExportPipeline(
         project = project,
         resolution = resolution,
         fps = fps,
         watermarkEnabled = watermarkEnabled,
         videoBitrateBps = 0,
-        audioOnly = true
+        audioOnly = true,
+        audioBoost = audioBoost
     )
+
+    /**
+     * Renders one audio track on its own (.m4a).
+     *
+     * The track keeps its own volume, fades, speed and effects; everything
+     * else (video, music, voice-over) is left out of the file.
+     */
+    suspend fun exportAudioTrack(
+        project: VideoProject,
+        audioId: String,
+        /** Gain applied to the exported mix (1 = untouched). */
+        audioBoost: Float = 1f
+    ): ExportOutput? {
+        val trackProject = singleTrackProject(project, audioId) ?: return null
+        return runExportPipeline(
+            project = trackProject,
+            resolution = "1080P",
+            fps = 30,
+            watermarkEnabled = false,
+            videoBitrateBps = 0,
+            audioOnly = true,
+            audioBoost = audioBoost
+        )
+    }
 
     /** Cancels an in-flight render. */
     fun cancel() {

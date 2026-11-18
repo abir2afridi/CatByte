@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
@@ -84,6 +85,7 @@ fun AudioMixerSheet(
     onEffects: (String) -> Unit = {},
     onSplit: (String) -> Unit = {},
     onLoopCountChanged: (String, Int) -> Unit = { _, _ -> },
+    onExportTrack: (String) -> Unit = {},
     onReset: (String) -> Unit,
     onDelete: (String) -> Unit,
     onClose: () -> Unit
@@ -530,6 +532,31 @@ fun AudioMixerSheet(
                         Text("Delete", fontSize = 11.sp)
                     }
                 }
+
+                // One-track export: the file holds this track only, so the
+                // result can be handed off without the rest of the timeline.
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = { onExportTrack(selected.id) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(38.dp)
+                        .testTag("audio_mixer_export_track")
+                ) {
+                    Icon(
+                        Icons.Default.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Export this track (.m4a)", fontSize = 11.sp)
+                }
+                Text(
+                    text = "Writes this track on its own: the video and the other tracks stay out of the file.",
+                    color = colors.textSecondary,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
+                )
             }
         }
     }

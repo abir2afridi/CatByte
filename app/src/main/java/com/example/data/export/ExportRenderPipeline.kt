@@ -7,6 +7,7 @@ import com.example.data.CanvasBackgroundLoader
 import com.example.data.ExportManager
 import com.example.data.MediaStoreSaver
 import com.example.data.ProjectCompositionFactory
+import com.example.engine.AudioBoost
 import com.example.export.ExportOutput
 import com.example.export.ExportProgress
 import com.example.model.VideoProject
@@ -32,12 +33,27 @@ internal suspend fun ExportManager.runExportPipeline(
     /** Requested video bitrate in bits per second, 0 = encoder default. */
     videoBitrateBps: Int = 0,
     /** Render audio only (.m4a): every video track is dropped. */
-    audioOnly: Boolean = false
+    audioOnly: Boolean = false,
+    /** Gain applied to the whole mix (1 = untouched, see `AudioBoost`). */
+    audioBoost: Float = 1f
 ): ExportOutput? = withContext(Dispatchers.Main) {
     val mediaClips = project.allVideoClips.filter { !it.uriString.isNullOrBlank() }
-    if (mediaClips.isEmpty()) {
-        _progress.value = ExportProgress(error = "No video clips with media to export.")
-        AppLog.error("ExportManager", "Export aborted: project has no media backed clips")
+    val audioSources = project.audioTracks.filter { !it.uriString.isNullOrBlank() }
+    // An audio-only export only needs audio: a project that holds just a
+    // voice-over or a music bed can still be written to an .m4a file.
+    val canExport = if (audioOnly) {
+        mediaClips.isNotEmpty() || audioSources.isNotEmpty()
+    } else {
+        mediaClips.isNotEmpty()
+    }
+    if (!canExport) {
+        val message = if (audioOnly) {
+            "No audio to export. Add a music track or record a voice-over first."
+        } else {
+            "No video clips with media to export."
+        }
+        _progress.value = ExportProgress(error = message)
+        AppLog.error("ExportManager", "Export aborted: $message")
         return@withContext null
     }
 
@@ -104,10 +120,12 @@ internal suspend fun ExportManager.runExportPipeline(
 
     // Build the exact same render graph the preview uses. A failure here is
     // surfaced to the user instead of silently exporting a plain, effects-
-    // free video.
+    // free video. The loudness boost is applied to this throw-away copy, so
+    // the project the user edits keeps its own levels.
+    val renderProject = AudioBoost.boosted(project, audioBoost)
     val built = try {
         ProjectCompositionFactory.build(
-            project = project,
+            project = renderProject,
             width = outWidth,
             height = outHeight,
             fps = target.fps,

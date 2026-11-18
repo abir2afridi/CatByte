@@ -4,11 +4,11 @@ import android.content.Context
 import androidx.lifecycle.viewModelScope
 import com.example.data.ExportServiceScheduler
 import com.example.data.GifExporter
+import com.example.engine.AudioBoost
 import com.example.export.ExportSettings
 import com.example.export.ExportUiState
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -26,6 +26,7 @@ internal object ExportFeature {
      */
     fun startSelectedExport(vm: EditorViewModel) {
         val settings = vm._exportSettings.value
+        val boost = AudioBoost.gainFor(settings.boostLoudness)
         if (settings.tab == "gif") {
             // Real GIF: render the timeline, then encode the frames into a
             // GIF89a file (the quality chip picks the render resolution).
@@ -34,13 +35,14 @@ internal object ExportFeature {
                 "640P" -> "1080P"
                 else -> "480P"
             }
-            startGifExport(vm, resolution = resolution)
+            startGifExport(vm, resolution = resolution, audioBoost = boost)
         } else {
             startExport(
                 vm,
                 resolution = settings.resolution,
                 fps = settings.fps,
-                bitrateMbps = settings.bitrateMbps
+                bitrateMbps = settings.bitrateMbps,
+                audioBoost = boost
             )
         }
     }
@@ -50,7 +52,7 @@ internal object ExportFeature {
      * stickers and the watermark are included), then encodes the frames into a
      * real animated GIF and publishes it to Pictures/CatByte.
      */
-    fun startGifExport(vm: EditorViewModel, resolution: String = "480P") {
+    fun startGifExport(vm: EditorViewModel, resolution: String = "480P", audioBoost: Float = 1f) {
         val project = vm._currentProject.value ?: return
         val manager = vm.exportManager
         if (manager == null) {
@@ -84,7 +86,8 @@ internal object ExportFeature {
                 resolution = resolution,
                 fps = 30,
                 watermarkEnabled = vm._watermarkEnabled.value,
-                videoBitrateBps = 8_000_000
+                videoBitrateBps = 8_000_000,
+                audioBoost = audioBoost
             )
             progressJob.cancel()
             if (rendered == null) {
@@ -133,7 +136,9 @@ internal object ExportFeature {
         vm: EditorViewModel,
         resolution: String,
         fps: Int,
-        bitrateMbps: Int = 10
+        bitrateMbps: Int = 10,
+        /** Gain applied to the exported mix (1 = untouched). */
+        audioBoost: Float = 1f
     ) {
         val project = vm._currentProject.value ?: return
         vm.pausePlayback()
@@ -168,7 +173,8 @@ internal object ExportFeature {
                     resolution,
                     fps,
                     vm._watermarkEnabled.value,
-                    (bitrateMbps.coerceIn(1, 100) * 1_000_000)
+                    (bitrateMbps.coerceIn(1, 100) * 1_000_000),
+                    audioBoost
                 )
                 progressJob.cancel()
                 val renderWarnings = exportManager.progress.value.warnings
@@ -194,34 +200,13 @@ internal object ExportFeature {
                     )
                 }
             } else {
-                // Fallback simulated export (kept for compatibility)
-                val stages = listOf(
-                    "Analyzing clips & keyframes..." to 0.20f,
-                    "Rendering transitions & color grading..." to 0.50f,
-                    "Synthesizing audio tracks & voiceover..." to 0.75f,
-                    "Encoding MP4 (${resolution} ${fps}fps)..." to 0.95f,
-                    "Finalizing video file..." to 1.0f
-                )
-
-                for ((stageText, targetProgress) in stages) {
-                    val startProgress = vm._exportState.value.progress
-                    val steps = 8
-                    for (s in 1..steps) {
-                        delay(80L)
-                        val p = startProgress + (targetProgress - startProgress) * (s.toFloat() / steps)
-                        vm._exportState.value = vm._exportState.value.copy(
-                            progress = p,
-                            stage = stageText
-                        )
-                    }
-                }
-
+                // No renderer on this device: report the failure honestly.
+                // A simulated "export complete" would point at a file that
+                // was never written.
                 vm._exportState.value = vm._exportState.value.copy(
                     isExporting = false,
-                    isCompleted = true,
-                    progress = 1.0f,
-                    stage = "Export complete!",
-                    videoPath = "/storage/emulated/0/Movies/CatByte/Export_${System.currentTimeMillis()}.mp4"
+                    stage = "Export is not available on this device",
+                    error = "Export is not available on this device"
                 )
             }
         }
@@ -262,7 +247,8 @@ internal object ExportFeature {
             val result = exportManager.exportAudioOnly(
                 project = project,
                 resolution = vm._defaultResolution.value,
-                fps = vm._defaultFps.value
+                fps = vm._defaultFps.value,
+                audioBoost = AudioBoost.gainFor(vm._exportSettings.value.boostLoudness)
             )
             progressJob.cancel()
             if (result != null) {
@@ -276,6 +262,72 @@ internal object ExportFeature {
                 )
             } else {
                 val message = exportManager.progress.value.error ?: "Audio export failed"
+                vm._exportState.value = vm._exportState.value.copy(
+                    isExporting = false,
+                    stage = message,
+                    error = message
+                )
+            }
+        }
+    }
+
+    /**
+     * Exports one audio track on its own (.m4a). The track keeps its volume,
+     * fades, speed, loop count and effects, while the video and every other
+     * track are left out of the file.
+     */
+    fun startAudioTrackExport(vm: EditorViewModel, audioId: String) {
+        val project = vm._currentProject.value ?: return
+        val track = project.audioTracks.firstOrNull { it.id == audioId }
+        if (track == null) {
+            vm._exportState.value = ExportUiState(error = "That audio track no longer exists")
+            return
+        }
+        vm.pausePlayback()
+        vm.exportJob?.cancel()
+        vm.setActiveSheet(ActiveToolSheet.NONE)
+        vm._exportState.value = ExportUiState(
+            isExporting = true,
+            progress = 0f,
+            stage = "Preparing ${track.title}...",
+            resolution = vm._defaultResolution.value,
+            fps = vm._defaultFps.value
+        )
+
+        val exportManager = vm.exportManager
+        vm.exportJob = vm.viewModelScope.launch {
+            if (exportManager == null) {
+                vm._exportState.value = ExportUiState(error = "Export is not available")
+                return@launch
+            }
+            val progressJob = launch {
+                exportManager.progress.collect { renderProgress ->
+                    if (vm._exportState.value.isExporting) {
+                        vm._exportState.value = vm._exportState.value.copy(
+                            progress = renderProgress.progress.coerceIn(0f, 1f),
+                            stage = renderProgress.stage.ifBlank { vm._exportState.value.stage }
+                        )
+                    }
+                }
+            }
+            val result = exportManager.exportAudioTrack(
+                project = project,
+                audioId = audioId,
+                audioBoost = AudioBoost.gainFor(vm._exportSettings.value.boostLoudness)
+            )
+            progressJob.cancel()
+            if (result != null) {
+                vm._exportState.value = vm._exportState.value.copy(
+                    isExporting = false,
+                    isCompleted = true,
+                    progress = 1.0f,
+                    stage = "Audio exported!",
+                    videoPath = result.file.absolutePath,
+                    galleryUri = result.galleryUri?.toString() ?: ""
+                )
+            } else {
+                val message = exportManager.progress.value.error
+                    ?: "Could not export this audio track"
                 vm._exportState.value = vm._exportState.value.copy(
                     isExporting = false,
                     stage = message,
@@ -317,7 +369,8 @@ internal object ExportFeature {
             resolution,
             fps,
             vm._watermarkEnabled.value,
-            bitrateMbps.coerceIn(1, 100)
+            bitrateMbps.coerceIn(1, 100),
+            AudioBoost.gainFor(vm._exportSettings.value.boostLoudness)
         )
     }
 

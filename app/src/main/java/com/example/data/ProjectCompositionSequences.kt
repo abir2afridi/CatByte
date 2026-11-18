@@ -66,9 +66,14 @@ internal fun ProjectCompositionFactory.buildSequences(
     // 1. Primary video sequence. Placeholder clips become real timeline gaps
     // so the main track always occupies the same absolute time as the editor.
     val mainBuilder = EditedMediaItemSequence.Builder(
-        setOf(C.TRACK_TYPE_VIDEO, C.TRACK_TYPE_AUDIO)
+        if (removeVideo) {
+            setOf(C.TRACK_TYPE_AUDIO)
+        } else {
+            setOf(C.TRACK_TYPE_VIDEO, C.TRACK_TYPE_AUDIO)
+        }
     )
     var cursorUs = 0L
+    var mainHasMedia = false
     renderPlan.main.forEach { planned ->
         val gapUs = planned.layer.timelineInUs - cursorUs
         if (gapUs > 0L) {
@@ -80,6 +85,7 @@ internal fun ProjectCompositionFactory.buildSequences(
             }
         } else {
             mainBuilder.addItem(buildVideoItem(project, planned, fps, warnings, removeVideo))
+            mainHasMedia = true
         }
         cursorUs = planned.layer.timelineOutUs
     }
@@ -89,7 +95,11 @@ internal fun ProjectCompositionFactory.buildSequences(
         // off by a shorter primary track.
         mainBuilder.addGap(totalDurationUs - cursorUs)
     }
-    sequences += mainBuilder.build()
+    // A project that only holds audio tracks has no primary sequence at all:
+    // an empty video sequence would make the encoder reject the file.
+    if (!removeVideo || mainHasMedia) {
+        sequences += mainBuilder.build()
+    }
 
     // 2. Every PIP / overlay clip gets its own sequence. Sequence index is
     // exactly the video compositor input index; the graph supplies its start.
@@ -98,7 +108,11 @@ internal fun ProjectCompositionFactory.buildSequences(
             return@forEach
         }
         val builder = EditedMediaItemSequence.Builder(
-            setOf(C.TRACK_TYPE_VIDEO, C.TRACK_TYPE_AUDIO)
+            if (removeVideo) {
+                setOf(C.TRACK_TYPE_AUDIO)
+            } else {
+                setOf(C.TRACK_TYPE_VIDEO, C.TRACK_TYPE_AUDIO)
+            }
         )
         if (planned.layer.timelineInUs > 0L) {
             builder.addGap(planned.layer.timelineInUs)

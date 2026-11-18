@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -58,6 +59,8 @@ import kotlinx.coroutines.launch
 internal fun AudioVoiceTab(
     isRecordingVoice: Boolean,
     voiceDurationMs: Long,
+    /** Live microphone level (0..1) - the meter follows the real input. */
+    voiceLevel: Float = 0f,
     onStartVoiceRecord: () -> Unit,
     onStopVoiceRecord: () -> Unit,
     onTtsVoiceover: (() -> Unit)? = null,
@@ -85,22 +88,28 @@ internal fun AudioVoiceTab(
 
         if (isRecordingVoice) {
             Spacer(modifier = Modifier.height(8.dp))
-            // Animated Audio Level dB Meter (8 Animated Level Bars)
+            // Audio level meter (8 bars) driven by the real microphone level.
+            // The bars show the last eight samples, oldest on the left.
+            val history = remember { mutableStateListOf<Float>() }
+            LaunchedEffect(voiceLevel, isRecordingVoice) {
+                if (!isRecordingVoice) {
+                    history.clear()
+                } else {
+                    history.add(voiceLevel.coerceIn(0f, 1f))
+                    while (history.size > 8) history.removeAt(0)
+                }
+            }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.Bottom,
                 modifier = Modifier
                     .height(24.dp)
                     .padding(horizontal = 16.dp)
+                    .testTag("voice_level_meter")
             ) {
-                val barHeights = remember { listOf(12.dp, 20.dp, 16.dp, 24.dp, 18.dp, 22.dp, 14.dp, 19.dp) }
-                barHeights.forEachIndexed { index, defaultHeight ->
-                    var activeHeight by remember { mutableStateOf(defaultHeight) }
-                    LaunchedEffect(isRecordingVoice, voiceDurationMs) {
-                        // Vary bar height dynamically to simulate live mic input
-                        val factor = ((voiceDurationMs + index * 150) % 500) / 500f
-                        activeHeight = (10 + (factor * 14)).dp
-                    }
+                repeat(8) { index ->
+                    val sample = history.getOrNull(index)
+                    val activeHeight = (4f + (sample ?: 0f) * 20f).dp
                     Box(
                         modifier = Modifier
                             .width(4.dp)

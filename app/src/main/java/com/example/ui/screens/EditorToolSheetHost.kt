@@ -43,6 +43,8 @@ internal fun BoxScope.EditorToolSheetHost(
     splitAtPlayhead: () -> Unit,
     isRecordingVoice: Boolean,
     voiceRecordingDurationMs: Long,
+    /** Live microphone level (0..1) while recording. */
+    voiceRecordingLevel: Float,
     audioSheetTab: Int,
     onShowTts: () -> Unit,
     onLaunchCaptionImport: () -> Unit,
@@ -86,6 +88,7 @@ internal fun BoxScope.EditorToolSheetHost(
                     viewModel = viewModel,
                     isRecordingVoice = isRecordingVoice,
                     voiceRecordingDurationMs = voiceRecordingDurationMs,
+                    voiceRecordingLevel = voiceRecordingLevel,
                     initialTab = audioSheetTab,
                     onShowTts = onShowTts
                 )

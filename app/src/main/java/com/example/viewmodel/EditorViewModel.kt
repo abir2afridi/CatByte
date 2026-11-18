@@ -342,6 +342,9 @@ class EditorViewModel(
     val isRecordingVoice: StateFlow<Boolean> = _isRecordingVoice.asStateFlow()
     internal val _voiceRecordingDurationMs = MutableStateFlow(0L)
     val voiceRecordingDurationMs: StateFlow<Long> = _voiceRecordingDurationMs.asStateFlow()
+    /** Live microphone level (0..1) while a voice-over is being recorded. */
+    internal val _voiceRecordingLevel = MutableStateFlow(0f)
+    val voiceRecordingLevel: StateFlow<Float> = _voiceRecordingLevel.asStateFlow()
 
     // Undo / Redo history stacks
     internal val undoStack = mutableListOf<EditorHistoryEntry>()
@@ -1371,6 +1374,9 @@ class EditorViewModel(
 
     /** Renders the audio only (.m4a) with the current mix. */
     fun startAudioOnlyExport() = ExportFeature.startAudioOnlyExport(this)
+
+    /** Renders a single audio track (.m4a) without the video or other tracks. */
+    fun exportAudioTrack(audioId: String) = ExportFeature.startAudioTrackExport(this, audioId)
 
     fun dismissExport() = ExportFeature.dismissExport(this)
 

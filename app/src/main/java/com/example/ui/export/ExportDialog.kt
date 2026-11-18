@@ -57,7 +57,8 @@ fun ExportDialog(
         ExportDoneScreen(
             videoPath = exportState.videoPath,
             onDone = onDismiss,
-            onSharePlatform = onShareExport
+            onSharePlatform = onShareExport,
+            boostApplied = settings.boostLoudness
         )
     } else if (exportState.isExporting) {
         // Fullscreen Exporting Page (Screenshot 2)

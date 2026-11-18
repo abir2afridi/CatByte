@@ -57,6 +57,8 @@ import com.example.ui.theme.PencilTheme
 fun AudioSheet(
     isRecordingVoice: Boolean,
     voiceDurationMs: Long,
+    /** Live microphone level (0..1) - the meter follows the real input. */
+    voiceLevel: Float = 0f,
     onAddAudio: (AudioClip) -> Unit,
     onImportAudio: (() -> Unit)? = null,
     onExtractAudio: (() -> Unit)? = null,
@@ -173,6 +175,7 @@ fun AudioSheet(
                 3 -> AudioVoiceTab(
                     isRecordingVoice = isRecordingVoice,
                     voiceDurationMs = voiceDurationMs,
+                    voiceLevel = voiceLevel,
                     onStartVoiceRecord = onStartVoiceRecord,
                     onStopVoiceRecord = onStopVoiceRecord,
                     onTtsVoiceover = onTtsVoiceover,

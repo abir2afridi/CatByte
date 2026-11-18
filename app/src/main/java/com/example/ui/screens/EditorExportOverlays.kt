@@ -214,6 +214,10 @@ internal fun BoxScope.EditorExportOverlays(
                 ExportOptionsBottomSheet(
                     watermarkEnabled = watermarkEnabled,
                     onToggleWatermark = { viewModel.toggleWatermark(it) },
+                    boostLoudness = exportSettings.boostLoudness,
+                    onToggleBoost = { enabled ->
+                        viewModel.updateExportSettings(exportSettings.copy(boostLoudness = enabled))
+                    },
                     onSaveToDevice = {
                         onDismissExportOptions()
                         viewModel.startSelectedExport()

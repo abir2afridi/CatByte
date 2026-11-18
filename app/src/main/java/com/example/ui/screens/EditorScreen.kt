@@ -92,6 +92,7 @@ fun EditorScreen(
     val exportState by viewModel.exportState.collectAsState()
     val isRecordingVoice by viewModel.isRecordingVoice.collectAsState()
     val voiceRecordingDurationMs by viewModel.voiceRecordingDurationMs.collectAsState()
+    val voiceRecordingLevel by viewModel.voiceRecordingLevel.collectAsState()
     val canUndo by viewModel.canUndo.collectAsState()
     val canRedo by viewModel.canRedo.collectAsState()
     val magneticSnap by viewModel.magneticSnap.collectAsState()
@@ -476,6 +477,7 @@ fun EditorScreen(
             splitAtPlayhead = splitAtPlayhead,
             isRecordingVoice = isRecordingVoice,
             voiceRecordingDurationMs = voiceRecordingDurationMs,
+            voiceRecordingLevel = voiceRecordingLevel,
             audioSheetTab = audioSheetTab,
             onShowTts = { showTtsDialog = true },
             onLaunchCaptionImport = { importCaptionsLauncher.launch(arrayOf("*/*")) },

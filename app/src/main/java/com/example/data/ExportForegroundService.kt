@@ -37,6 +37,7 @@ class ExportForegroundService : Service() {
         const val EXTRA_FPS = "fps"
         const val EXTRA_WATERMARK = "watermark"
         const val EXTRA_BITRATE_MBPS = "bitrate_mbps"
+        const val EXTRA_AUDIO_BOOST = "audio_boost"
         const val EXTRA_PROJECT_ID = "project_id"
     }
 
@@ -66,6 +67,7 @@ class ExportForegroundService : Service() {
         val fps = intent?.getIntExtra(EXTRA_FPS, 30) ?: 30
         val watermark = intent?.getBooleanExtra(EXTRA_WATERMARK, false) ?: false
         val bitrateMbps = intent?.getIntExtra(EXTRA_BITRATE_MBPS, 10) ?: 10
+        val audioBoost = intent?.getFloatExtra(EXTRA_AUDIO_BOOST, 1f) ?: 1f
         currentProjectId = intent?.getStringExtra(EXTRA_PROJECT_ID) ?: ""
 
         val project = com.example.data.db.ProjectJson.fromJson(projectJson) ?: return START_NOT_STICKY
@@ -116,7 +118,8 @@ class ExportForegroundService : Service() {
                     resolution,
                     fps,
                     watermark,
-                    bitrateMbps.coerceIn(1, 100) * 1_000_000
+                    bitrateMbps.coerceIn(1, 100) * 1_000_000,
+                    audioBoost
                 )
 
                 progressJob?.cancel()

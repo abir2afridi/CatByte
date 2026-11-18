@@ -609,11 +609,14 @@ internal object AudioFeature {
         if (ok) {
             vm._isRecordingVoice.value = true
             vm._voiceRecordingDurationMs.value = 0L
+            vm._voiceRecordingLevel.value = 0f
             vm.voiceRecordJob?.cancel()
             vm.voiceRecordJob = vm.viewModelScope.launch {
                 while (isActive && vm._isRecordingVoice.value) {
                     delay(100L)
                     vm._voiceRecordingDurationMs.value += 100L
+                    // The meter follows the real microphone level.
+                    vm._voiceRecordingLevel.value = recorder.level
                 }
             }
         }
@@ -624,6 +627,7 @@ internal object AudioFeature {
         val recorder = vm.voiceRecorder ?: return
         val file = recorder.stop()
         vm._isRecordingVoice.value = false
+        vm._voiceRecordingLevel.value = 0f
         vm.voiceRecordJob?.cancel()
         vm.voiceRecordJob = null
 
@@ -654,6 +658,7 @@ internal object AudioFeature {
         vm.voiceRecorder?.cancel()
         vm._isRecordingVoice.value = false
         vm._voiceRecordingDurationMs.value = 0L
+        vm._voiceRecordingLevel.value = 0f
         vm.voiceRecordJob?.cancel()
         vm.voiceRecordJob = null
     }

@@ -16,16 +16,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,13 +34,13 @@ import com.example.ui.components.CapCutIconPlayTriangle
 import com.example.ui.components.CapCutMeadowCanvas
 
 /**
- * Result card: video preview, the TikTok boost option, Share to TikTok,
- * Create template and the social share row.
+ * Result card: video preview, what the export did to the audio, Share to
+ * TikTok, Create template and the social share row.
  */
 @Composable
 internal fun ExportDoneResultCard(
-    boostOnTikTok: Boolean,
-    onToggleBoost: () -> Unit,
+    /** True when this export was rendered with the +3 dB loudness boost. */
+    boostApplied: Boolean,
     onSharePlatform: (String) -> Unit,
     onDone: () -> Unit
 ) {
@@ -80,28 +81,32 @@ internal fun ExportDoneResultCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Boost on TikTok radio option
+            // What the renderer did to the audio. The file is already written,
+            // so this is a status line - not a switch that would change a
+            // finished export.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onToggleBoost() }
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = 4.dp)
+                    .testTag("export_boost_status"),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                RadioButton(
-                    selected = boostOnTikTok,
-                    onClick = { onToggleBoost() },
-                    colors = RadioButtonDefaults.colors(
-                        selectedColor = Color(0xFF26E5D7),
-                        unselectedColor = Color(0xFFA0ADB8)
-                    )
+                Icon(
+                    imageVector = if (boostApplied) Icons.Default.CheckCircle else Icons.Default.Info,
+                    contentDescription = null,
+                    tint = if (boostApplied) Color(0xFF26E5D7) else Color(0xFFA0ADB8),
+                    modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Boost your video on TikTok ⓘ",
+                    text = if (boostApplied) {
+                        "Loudness boosted (+3 dB) for this export"
+                    } else {
+                        "Tip: enable \"Boost loudness\" before exporting for louder social uploads"
+                    },
                     color = Color(0xFFA0ADB8),
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
                 )
             }

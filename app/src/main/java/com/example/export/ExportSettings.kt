@@ -11,6 +11,8 @@ package com.example.export
  * - [gifQuality] drives the GIF tab (rendered through the video pipeline
  *   until a dedicated GIF encoder lands in ExportManager).
  * - [watermarkPosition] drives the watermark sub-panel.
+ * - [boostLoudness] raises the exported mix by +3 dB (real gain, applied to
+ *   the rendered file - see `com.example.engine.AudioBoost`).
  */
 data class ExportSettings(
     /** "video" or "gif" - which tab is active in the dropdown. */
@@ -19,5 +21,7 @@ data class ExportSettings(
     val fps: Int = 30,
     val bitrateMbps: Int = 10,
     val gifQuality: String = "240P",
-    val watermarkPosition: String = "Upper left"
+    val watermarkPosition: String = "Upper left",
+    /** +3 dB on the exported audio mix. */
+    val boostLoudness: Boolean = false
 )

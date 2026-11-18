@@ -24,10 +24,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +42,9 @@ import androidx.compose.ui.unit.sp
 fun ExportOptionsBottomSheet(
     watermarkEnabled: Boolean,
     onToggleWatermark: (Boolean) -> Unit,
+    /** +3 dB on the exported mix - applied while the file is rendered. */
+    boostLoudness: Boolean = false,
+    onToggleBoost: (Boolean) -> Unit = {},
     onSaveToDevice: () -> Unit,
     onSaveAudioOnly: () -> Unit = {},
     onShareTikTok: () -> Unit,
@@ -53,7 +52,6 @@ fun ExportOptionsBottomSheet(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var boostOnTikTok by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -250,27 +248,32 @@ fun ExportOptionsBottomSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { boostOnTikTok = !boostOnTikTok }
-                    .padding(vertical = 4.dp),
+                    .clickable { onToggleBoost(!boostLoudness) }
+                    .padding(vertical = 4.dp)
+                    .testTag("export_boost_loudness"),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 RadioButton(
-                    selected = boostOnTikTok,
-                    onClick = { boostOnTikTok = !boostOnTikTok },
+                    selected = boostLoudness,
+                    onClick = { onToggleBoost(!boostLoudness) },
                     colors = RadioButtonDefaults.colors(
                         selectedColor = Color(0xFF26E5D7),
                         unselectedColor = Color(0xFFA5A8B2)
                     )
                 )
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Boost your video on TikTok",
+                        text = "Boost loudness (+3 dB)",
                         color = Color.White,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
                     )
-                    Text("ⓘ", color = Color(0xFFA5A8B2), fontSize = 12.sp)
+                    Text(
+                        text = "Makes the exported mix louder for social uploads",
+                        color = Color(0xFFA5A8B2),
+                        fontSize = 10.sp
+                    )
                 }
             }
 

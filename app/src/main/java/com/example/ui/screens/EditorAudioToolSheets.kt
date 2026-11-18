@@ -26,6 +26,8 @@ internal fun AudioToolSheet(
     viewModel: EditorViewModel,
     isRecordingVoice: Boolean,
     voiceRecordingDurationMs: Long,
+    /** Live microphone level (0..1) while recording. */
+    voiceRecordingLevel: Float,
     initialTab: Int = 0,
     onShowTts: () -> Unit
 ) {
@@ -54,6 +56,7 @@ internal fun AudioToolSheet(
     AudioSheet(
         isRecordingVoice = isRecordingVoice,
         voiceDurationMs = voiceRecordingDurationMs,
+        voiceLevel = voiceRecordingLevel,
         initialTab = initialTab,
         onAddAudio = { track ->
             // Library metadata has no media URI. Generate a real WAV first;
@@ -114,6 +117,7 @@ internal fun AudioMixerToolSheet(
             viewModel.setActiveSheet(ActiveToolSheet.AUDIO_EFFECTS)
         },
         onLoopCountChanged = { id, repeats -> viewModel.setAudioLoopCount(id, repeats) },
+        onExportTrack = { id -> viewModel.exportAudioTrack(id) },
         onSplit = { id ->
             viewModel.selectAudioClip(id)
             if (!viewModel.splitAudioAtPlayhead()) {

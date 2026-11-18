@@ -395,6 +395,34 @@ class AudioMixerSheetTest {
         assertEquals(listOf("music"), splits)
     }
 
+    @Test
+    fun `the per-track export button reports the selected track`() {
+        val exported = mutableListOf<String>()
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onExportTrack = { exported += it },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        compose.onNodeWithTag("audio_mixer_export_track").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        assertEquals(listOf("music"), exported)
+    }
+
     private fun dragSlider(tag: String, towardEnd: Boolean) {
         val slider = compose.onNodeWithTag(tag).performScrollTo()
         slider.performTouchInput {
