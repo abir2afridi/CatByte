@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -152,6 +153,7 @@ fun EditClipSheet(
     onExtractAudio: () -> Unit = {},
     onFreeze: () -> Unit = {},
     onReverse: () -> Unit = {},
+    onKenBurns: () -> Unit = {},
     onOpenVolume: () -> Unit = {},
     onOpenChroma: () -> Unit = {},
     onClose: () -> Unit
@@ -218,6 +220,13 @@ fun EditClipSheet(
                 accentColor = CapCutPink,
                 testTag = "action_reverse_button",
                 onClick = onReverse
+            )
+            ToolButton(
+                icon = Icons.Default.ZoomIn,
+                label = "Slow zoom",
+                accentColor = CapCutCyan,
+                testTag = "action_ken_burns_button",
+                onClick = onKenBurns
             )
             ToolButton(
                 icon = Icons.Default.VolumeUp,

@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
+import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import com.example.model.ClipAnimation
 import com.example.model.MediaClip
 import com.example.ui.components.AdjustmentsSheet
@@ -32,6 +34,7 @@ internal fun EditClipToolSheet(
     currentClip: MediaClip?,
     splitAtPlayhead: () -> Unit
 ) {
+    val context = LocalContext.current
     EditClipSheet(
         clip = currentClip,
         onSplit = splitAtPlayhead,
@@ -47,6 +50,9 @@ internal fun EditClipToolSheet(
         onExtractAudio = { viewModel.extractAudioFromSelectedClip() },
         onFreeze = { viewModel.freezeFrameAtPlayhead() },
         onReverse = { viewModel.reverseSelectedClip() },
+        onKenBurns = {
+            Toast.makeText(context, viewModel.toggleKenBurns(), Toast.LENGTH_SHORT).show()
+        },
         onOpenVolume = { viewModel.setActiveSheet(ActiveToolSheet.VOLUME_BOOST) },
         onOpenChroma = { viewModel.setActiveSheet(ActiveToolSheet.CHROMA_KEY) },
         onClose = { viewModel.closeToolSheet() }

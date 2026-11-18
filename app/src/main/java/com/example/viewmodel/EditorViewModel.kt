@@ -1411,6 +1411,12 @@ class EditorViewModel(
     fun toggleKeyframeAtPlayhead() = KeyframeFeature.toggleKeyframeAtPlayhead(this)
 
     /**
+     * Toggles a slow push-in (Ken Burns) on the selected clip. Returns a short
+     * status for the toast so a blocked toggle is explained, not silent.
+     */
+    fun toggleKenBurns(): String = KeyframeFeature.toggleKenBurns(this)
+
+    /**
      * Adds a PIP/overlay clip. The source duration is probed from the real
      * media file instead of assuming four seconds, otherwise the overlay would
      * be cut short (or stretched into black) in both preview and export.

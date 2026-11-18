@@ -270,6 +270,13 @@ internal fun EditorFeatureSearch(
                 if (selectedClipId != null) viewModel.reverseSelectedClip()
                 else Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
             },
+            EditorSearchEntry("Slow zoom", "Add a Ken Burns push-in to the clip", "ken burns photo motion") {
+                if (selectedClipId != null) {
+                    Toast.makeText(context, viewModel.toggleKenBurns(), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
+                }
+            },
             EditorSearchEntry("Beat sync", "Cut to detected beats", "music rhythm") {
                 viewModel.autoCutToBeat()
             },

@@ -1,5 +1,6 @@
 package com.example.viewmodel.features
 
+import com.example.engine.KenBurns
 import com.example.model.EasingCurve
 import com.example.model.Keyframe
 import com.example.model.KeyframeProperty
@@ -66,5 +67,53 @@ internal object KeyframeFeature {
         } else {
             addKeyframe(vm, clipId, KeyframeProperty.SCALE, 1.0f)
         }
+    }
+
+    /**
+     * Toggles the slow "Ken Burns" push-in on the selected clip.
+     *
+     * The move is two ordinary SCALE keyframes, so preview and export
+     * evaluate the same motion. The status string explains every outcome, so
+     * the UI never shows a silent no-op.
+     */
+    fun toggleKenBurns(vm: EditorViewModel): String {
+        val clipId = vm._selectedClipId.value ?: return "Select a clip first"
+        val project = vm._currentProject.value ?: return "Select a clip first"
+        val clip = project.clips.firstOrNull { it.id == clipId }
+            ?: project.overlayTracks
+                .asSequence()
+                .flatMap { it.clips.asSequence() }
+                .firstOrNull { it.id == clipId }
+            ?: return "Select a clip first"
+
+        if (clip.durationMs < KenBurns.MIN_DURATION_MS) {
+            return "This clip is too short for a slow zoom"
+        }
+
+        if (KenBurns.isApplied(clip.keyframes, clip.durationMs)) {
+            vm.updateProject { proj ->
+                proj.withUpdatedClip(clipId) { updated ->
+                    updated.copy(
+                        keyframes = updated.keyframes.filterNot {
+                            it.property == KeyframeProperty.SCALE
+                        }
+                    )
+                }
+            }
+            return "Slow zoom removed"
+        }
+
+        if (KenBurns.hasConflictingKeyframes(clip.keyframes)) {
+            return "Remove the existing scale/position keyframes first"
+        }
+
+        vm.updateProject { proj ->
+            proj.withUpdatedClip(clipId) { updated ->
+                updated.copy(
+                    keyframes = updated.keyframes + KenBurns.keyframes(updated.durationMs)
+                )
+            }
+        }
+        return "Slow zoom added (1.00x to 1.12x)"
     }
 }
