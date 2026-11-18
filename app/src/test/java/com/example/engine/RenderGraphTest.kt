@@ -171,6 +171,30 @@ class RenderGraphTest {
     }
 
     @Test
+    fun `a soloed audio track silences every other audio track`() {
+        val music = com.example.model.AudioClip(
+            id = "music",
+            title = "Music",
+            artist = "Artist",
+            durationMs = 2_000L,
+            originalDurationMs = 2_000L,
+            volume = 0.8f
+        )
+        val voice = music.copy(id = "voice", title = "Voice", isSoloed = true)
+        val soloed = RenderGraphBuilder.build(
+            project(listOf(clip("a"))).copy(audioTracks = listOf(music, voice))
+        )
+        assertEquals(0f, soloed.audio.first { it.clipId == "music" }.volume, 0.0001f)
+        assertEquals(0.8f, soloed.audio.first { it.clipId == "voice" }.volume, 0.0001f)
+
+        // Without a soloed track every track keeps its own level again.
+        val mixed = RenderGraphBuilder.build(
+            project(listOf(clip("a"))).copy(audioTracks = listOf(music, voice.copy(isSoloed = false)))
+        )
+        assertEquals(0.8f, mixed.audio.first { it.clipId == "music" }.volume, 0.0001f)
+    }
+
+    @Test
     fun `paper style sets the background`() {
         val graph = RenderGraphBuilder.build(project(listOf(clip("a")), paperStyle = "Blueprint"))
         assertEquals(0xFF0B1E33, graph.backgroundArgb)

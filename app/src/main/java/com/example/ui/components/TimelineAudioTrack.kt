@@ -255,9 +255,27 @@ fun TimelineAudioTrack(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
+                        // Solo is visible on the timeline too: the user must be
+                        // able to see why the other tracks fell silent.
+                        if (audio.isSoloed) {
+                            Text(
+                                text = "S",
+                                color = Color(0xFFFFD600),
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
                         Text(
-                            text = if (audio.isMuted) "🔇 Muted" else "🔊 ${(audio.volume * 100).toInt()}%",
-                            color = if (audio.isMuted) Color.LightGray else Color(0xFF26E5D7),
+                            text = when {
+                                audio.isMuted -> "🔇 Muted"
+                                audio.isSoloed -> "🎧 Solo"
+                                else -> "🔊 ${(audio.volume * 100).toInt()}%"
+                            },
+                            color = when {
+                                audio.isMuted -> Color.LightGray
+                                audio.isSoloed -> Color(0xFFFFD600)
+                                else -> Color(0xFF26E5D7)
+                            },
                             fontSize = 8.5.sp,
                             fontWeight = FontWeight.Bold
                         )

@@ -791,6 +791,13 @@ class EditorViewModel(
     /** Mutes or unmutes every audio clip at once (the "Audio" row header). */
     fun setAllAudioMuted(muted: Boolean) = TrackControlFeature.setAllAudioMuted(this, muted)
 
+    /**
+     * Soloes one audio track: while it is soloed every other audio track drops
+     * out of the mix, in the preview and in the exported file alike.
+     */
+    fun setAudioSolo(audioId: String, soloed: Boolean) =
+        AudioMixerFeature.setAudioSolo(this, audioId, soloed)
+
     /** Adds a marker at the playhead. */
     fun addMarker(label: String = "") = MarkerFeature.addMarker(this, label)
 

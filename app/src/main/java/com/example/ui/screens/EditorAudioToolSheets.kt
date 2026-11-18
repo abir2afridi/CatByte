@@ -102,6 +102,7 @@ internal fun AudioMixerToolSheet(
         onVolumeChanged = { id, value -> viewModel.setAudioVolume(id, value) },
         onNormaliseVolume = { id -> viewModel.normaliseAudioVolume(id) },
         onMuteChanged = { id, muted -> viewModel.setAudioClipMuted(id, muted) },
+        onSoloChanged = { id, soloed -> viewModel.setAudioSolo(id, soloed) },
         onFadesChanged = { id, fadeIn, fadeOut ->
             viewModel.setAudioFades(id, fadeIn, fadeOut)
         },

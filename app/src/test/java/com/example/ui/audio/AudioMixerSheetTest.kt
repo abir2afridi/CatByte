@@ -73,6 +73,35 @@ class AudioMixerSheetTest {
     }
 
     @Test
+    fun `solo reports the selected track and the next state`() {
+        val soloed = mutableListOf<Pair<String, Boolean>>()
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio.copy(isSoloed = true)),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onMuteChanged = { _, _ -> },
+                onSoloChanged = { id, value -> soloed += id to value },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        compose.onNodeWithTag("audio_mixer_solo").performClick()
+        compose.waitForIdle()
+
+        // The track is already soloed, so the button asks for "not soloed".
+        assertEquals(listOf("music" to false), soloed)
+    }
+
+    @Test
     fun `auto volume stays disabled while the waveform is not decoded`() {
         compose.setContent {
             AudioMixerSheet(

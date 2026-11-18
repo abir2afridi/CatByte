@@ -131,6 +131,7 @@ class ProjectJsonTest {
                     fadeInMs = 300L,
                     fadeOutMs = 250L,
                     isMuted = false,
+                    isSoloed = true,
                     waveform = listOf(0.2f, 0.4f)
                 )
             ),

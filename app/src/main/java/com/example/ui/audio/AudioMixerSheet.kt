@@ -76,6 +76,7 @@ fun AudioMixerSheet(
     onVolumeChanged: (String, Float) -> Unit,
     onNormaliseVolume: (String) -> Unit = {},
     onMuteChanged: (String, Boolean) -> Unit,
+    onSoloChanged: (String, Boolean) -> Unit = { _, _ -> },
     onFadesChanged: (String, Long, Long) -> Unit,
     onSpeedChanged: (String, Float) -> Unit,
     onTrimChanged: (String, Long, Long) -> Unit,
@@ -179,13 +180,26 @@ fun AudioMixerSheet(
                         .padding(horizontal = 10.dp, vertical = 7.dp)
                         .testTag("audio_mixer_track_${audio.id}")
                 ) {
-                    Text(
-                        text = audio.title,
-                        color = if (active) colors.accentCyan else colors.textPrimary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // A soloed track is marked on its chip, so the mix
+                        // state is visible without opening the track.
+                        if (audio.isSoloed) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(Color(0xFFFFD600))
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                        Text(
+                            text = audio.title,
+                            color = if (active) colors.accentCyan else colors.textPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         }
@@ -218,16 +232,18 @@ fun AudioMixerSheet(
                             Box(modifier = Modifier.size(width = 4.dp, height = 18.dp).background(Color(0xFFFF3D00), RoundedCornerShape(1.dp)))
                         }
 
-                        // [S] Solo and [M] Mute buttons
-                        var soloActive by remember { mutableStateOf(false) }
+                        // [S] Solo and [M] Mute buttons. Solo is real: the
+                        // render graph silences every other audio track while
+                        // this one is soloed.
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(if (soloActive) Color(0xFFFFD600) else colors.surfaceElevated)
-                                .clickable { soloActive = !soloActive }
+                                .background(if (selected.isSoloed) Color(0xFFFFD600) else colors.surfaceElevated)
+                                .clickable { onSoloChanged(selected.id, !selected.isSoloed) }
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .testTag("audio_mixer_solo")
                         ) {
-                            Text("S", color = if (soloActive) Color.Black else colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                            Text("S", color = if (selected.isSoloed) Color.Black else colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Black)
                         }
                         Box(
                             modifier = Modifier
@@ -235,10 +251,19 @@ fun AudioMixerSheet(
                                 .background(if (selected.isMuted) Color(0xFFFF4D4D) else colors.surfaceElevated)
                                 .clickable { onMuteChanged(selected.id, !selected.isMuted) }
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .testTag("audio_mixer_mute_button")
                         ) {
                             Text("M", color = if (selected.isMuted) Color.White else colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Black)
                         }
                     }
+                }
+
+                if (selected.isSoloed) {
+                    Text(
+                        text = "Solo is on: every other audio track is silenced in the preview and in the export.",
+                        color = Color(0xFFFFD600),
+                        fontSize = 10.sp
+                    )
                 }
 
                 MixerSlider(

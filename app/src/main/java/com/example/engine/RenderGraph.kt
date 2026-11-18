@@ -46,7 +46,14 @@ object RenderGraphBuilder {
         // Clamp transitions once all the neighbours are known.
         val clamped = layers.map { layer -> layer.copy(transitionIn = clampedTransition(layer, layers)) }
 
-        val audio = project.audioTracks.map { it.toSpec() }
+        // Solo: while any track is soloed, every other audio track drops out
+        // of the mix. Resolving it here means preview and export obey the
+        // same rule - the mixer button is not a decorative toggle.
+        val soloActive = project.audioTracks.any { it.isSoloed }
+        val audio = project.audioTracks.map { clip ->
+            val spec = clip.toSpec()
+            if (soloActive && !clip.isSoloed) spec.copy(volume = 0f) else spec
+        }
         val texts = project.textOverlays.map { it.toSpec() }
         val globalEffects = project.effects.map {
             EffectSpec(

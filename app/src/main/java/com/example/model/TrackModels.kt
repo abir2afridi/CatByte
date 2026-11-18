@@ -35,6 +35,12 @@ data class AudioClip(
     val volume: Float = 1.0f,
     val isVoiceover: Boolean = false,
     val isMuted: Boolean = false,
+    /**
+     * Solo: while any track is soloed, every other audio track drops out of
+     * the mix - preview and export alike. The soloed track keeps its own
+     * volume, so the mixer still has the final say.
+     */
+    val isSoloed: Boolean = false,
     val fadeInMs: Long = 0L,
     val fadeOutMs: Long = 0L,
     /**

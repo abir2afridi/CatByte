@@ -107,6 +107,35 @@ class AudioMixerTest {
     }
 
     @Test
+    fun `solo is stored on the track and supports undo redo`() {
+        val (viewModel, _) = viewModel()
+        viewModel.setAudioSolo("music", true)
+        assertTrue(viewModel.currentProject.value!!.audioTracks.single().isSoloed)
+
+        viewModel.undo()
+        assertFalse(viewModel.currentProject.value!!.audioTracks.single().isSoloed)
+
+        viewModel.redo()
+        assertTrue(viewModel.currentProject.value!!.audioTracks.single().isSoloed)
+    }
+
+    @Test
+    fun `soloed track drops the other tracks out of the rendered mix`() {
+        val (viewModel, project) = viewModel()
+        val voice = project.audioTracks.single().copy(
+            id = "voice",
+            title = "Voice",
+            isVoiceover = true,
+            isSoloed = true
+        )
+        viewModel.openProject(project.copy(audioTracks = project.audioTracks + voice))
+
+        val graph = com.example.engine.RenderGraphBuilder.build(viewModel.currentProject.value!!)
+        assertEquals(0f, graph.audio.first { it.clipId == "music" }.volume, 0.0001f)
+        assertEquals(1f, graph.audio.first { it.clipId == "voice" }.volume, 0.0001f)
+    }
+
+    @Test
     fun `fades are stored on the output timeline`() {
         val (viewModel, _) = viewModel()
         viewModel.setAudioFades("music", 400L, 700L)

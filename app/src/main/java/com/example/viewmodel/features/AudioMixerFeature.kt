@@ -283,6 +283,26 @@ internal object AudioMixerFeature {
         return true
     }
 
+    /**
+     * Soloes one audio track.
+     *
+     * While a track is soloed, every other audio track drops out of the mix.
+     * The rule lives in the render graph, so the preview and the exported file
+     * always agree - the mixer's "S" button is not a decorative toggle.
+     */
+    fun setAudioSolo(vm: EditorViewModel, audioId: String, soloed: Boolean) {
+        val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
+            ?: return
+        if (current.isSoloed == soloed) return
+        vm.updateProject("audio-solo:$audioId") { project ->
+            project.copy(
+                audioTracks = project.audioTracks.map { audio ->
+                    if (audio.id == audioId) audio.copy(isSoloed = soloed) else audio
+                }
+            )
+        }
+    }
+
     /** Restores gain, mute, fades, speed and trim without moving the clip. */
     fun resetAudioMixer(vm: EditorViewModel, audioId: String) {
         val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
@@ -298,6 +318,7 @@ internal object AudioMixerFeature {
                             base.copy(
                                 volume = 1f,
                                 isMuted = false,
+                                isSoloed = false,
                                 fadeInMs = 0L,
                                 fadeOutMs = 0L,
                                 speed = 1f,
