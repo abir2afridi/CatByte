@@ -366,17 +366,13 @@ fun EditorScreen(
                 onExitFullscreen = { isPreviewFullscreen = false }
             )
 
-            // 3. CapCut transport row: fullscreen, play, snap, undo, redo, split, timecode.
+            // 3. CapCut transport row: play, snap, undo, redo, split, timecode.
             if (!isPreviewFullscreen) {
                 EditorTransportRow(
                     isPlaying = isPlaying,
                     canUndo = canUndo,
                     canRedo = canRedo,
                     magneticSnap = magneticSnap,
-                    aspectRatioLabel = project!!.aspectRatio.label,
-                    currentPositionMs = positionState.value,
-                    totalDurationMs = project!!.totalDurationMs,
-                    onAspectRatioClick = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
                     onTogglePlay = { viewModel.togglePlayback() },
                     onSplit = splitAtPlayhead,
                     onStepBackward = {
@@ -385,14 +381,25 @@ fun EditorScreen(
                     onStepForward = {
                         viewModel.seekTo((positionState.value + 33L).coerceAtMost(project!!.totalDurationMs))
                     },
-                    onFullscreen = { isPreviewFullscreen = true },
                     onToggleMagneticSnap = { viewModel.toggleMagneticSnap() },
-                    markerCount = project!!.markers.size,
-                    onPreviousMarker = { viewModel.jumpToMarker(-1) },
-                    onNextMarker = { viewModel.jumpToMarker(1) },
                     onUndo = { viewModel.undo() },
-                    onRedo = { viewModel.redo() },
-                    onSeek = { viewModel.seekTo(it) }
+                    onRedo = { viewModel.redo() }
+                )
+
+                // The fullscreen button, the aspect ratio chip and the live
+                // timecode sit in their own strip below the bar: inside the
+                // bar they ran into the split button on a narrow phone.
+                EditorTransportInfoRow(
+                    aspectRatioLabel = project!!.aspectRatio.label,
+                    currentPositionMs = positionState.value,
+                    totalDurationMs = project!!.totalDurationMs,
+                    markers = project!!.markers,
+                    onAspectRatioClick = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
+                    onFullscreen = { isPreviewFullscreen = true },
+                    onSeek = { viewModel.seekTo(it) },
+                    onJumpToMarker = { markerId -> viewModel.seekToMarker(markerId) },
+                    onPreviousMarker = { viewModel.jumpToMarker(-1) },
+                    onNextMarker = { viewModel.jumpToMarker(1) }
                 )
             }
 
