@@ -7,6 +7,7 @@ import com.example.model.KeyframeProperty
 import com.example.viewmodel.EditorViewModel
 import com.example.viewmodel.localTimeForClip
 import com.example.viewmodel.withUpdatedClip
+import java.util.Locale
 
 /** Clip keyframes: add at the playhead, remove, and toggle. */
 internal object KeyframeFeature {
@@ -90,7 +91,7 @@ internal object KeyframeFeature {
             return "This clip is too short for a slow zoom"
         }
 
-        if (KenBurns.isApplied(clip.keyframes, clip.durationMs)) {
+        if (KenBurns.isApplied(clip.keyframes, clip.durationMs, clip.scale)) {
             vm.updateProject { proj ->
                 proj.withUpdatedClip(clipId) { updated ->
                     updated.copy(
@@ -107,13 +108,20 @@ internal object KeyframeFeature {
             return "Remove the existing scale/position keyframes first"
         }
 
+        val endScale = KenBurns.endScale(clip.scale)
         vm.updateProject { proj ->
             proj.withUpdatedClip(clipId) { updated ->
                 updated.copy(
-                    keyframes = updated.keyframes + KenBurns.keyframes(updated.durationMs)
+                    keyframes = updated.keyframes + KenBurns.keyframes(
+                        durationMs = updated.durationMs,
+                        startScale = updated.scale
+                    )
                 )
             }
         }
-        return "Slow zoom added (1.00x to 1.12x)"
+        return "Slow zoom added (${formatScale(clip.scale)} to ${formatScale(endScale)})"
     }
+
+    private fun formatScale(scale: Float): String =
+        String.format(Locale.US, "%.2fx", scale)
 }

@@ -32,6 +32,16 @@ class KenBurnsTest {
     }
 
     @Test
+    fun `the move starts from the clip's own scale`() {
+        val frames = KenBurns.keyframes(4_000L, startScale = 1.3f)
+
+        assertEquals(1.3f, frames[0].value, 0.0001f)
+        assertEquals(1.3f * 1.12f, frames[1].value, 0.0001f)
+        assertTrue(KenBurns.isApplied(frames, 4_000L, startScale = 1.3f))
+        assertFalse(KenBurns.isApplied(frames, 4_000L, startScale = 1f))
+    }
+
+    @Test
     fun `edited scale or position keyframes block the automatic move`() {
         val opacityOnly = Keyframe(
             timestampMs = 1_000L,

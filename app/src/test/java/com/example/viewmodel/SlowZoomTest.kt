@@ -21,12 +21,17 @@ class SlowZoomTest {
         clips = listOf(clip)
     )
 
-    private fun clip(durationMs: Long = 4_000L, keyframes: List<Keyframe> = emptyList()) = MediaClip(
+    private fun clip(
+        durationMs: Long = 4_000L,
+        keyframes: List<Keyframe> = emptyList(),
+        scale: Float = 1f
+    ) = MediaClip(
         id = "clip",
         title = "Clip",
         durationMs = durationMs,
         originalDurationMs = durationMs,
-        keyframes = keyframes
+        keyframes = keyframes,
+        scale = scale
     )
 
     private fun viewModel(project: VideoProject): EditorViewModel {
@@ -67,6 +72,19 @@ class SlowZoomTest {
 
         viewModel.redo()
         assertTrue(viewModel.currentProject.value!!.clips.single().keyframes.isEmpty())
+    }
+
+    @Test
+    fun `a manually scaled clip keeps its framing`() {
+        val viewModel = viewModel(project(clip(scale = 1.3f)))
+        viewModel.selectClip("clip")
+
+        assertEquals("Slow zoom added (1.30x to 1.46x)", viewModel.toggleKenBurns())
+
+        val scaled = viewModel.currentProject.value!!.clips.single()
+        assertEquals(1.3f, KeyframeInterpolator.getScale(scaled, 0L), 0.0001f)
+        assertEquals(1.3f * 1.12f, KeyframeInterpolator.getScale(scaled, 4_000L), 0.0001f)
+        assertEquals("Slow zoom removed", viewModel.toggleKenBurns())
     }
 
     @Test
