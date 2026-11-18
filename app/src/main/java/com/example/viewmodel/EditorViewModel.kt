@@ -172,15 +172,7 @@ private data class BeatSource(
     val trimEndMs: Long,
     val speed: Float,
     val durationMs: Long
-) {
-    /** Source-media length the clip actually consumes. */
-    val sourceWindowMs: Long
-        get() = if (trimEndMs > trimStartMs) {
-            (trimEndMs - trimStartMs).coerceAtLeast(1L)
-        } else {
-            (durationMs * speed.coerceAtLeast(0.01f)).toLong().coerceAtLeast(1L)
-        }
-}
+)
 
 @androidx.media3.common.util.UnstableApi
 class EditorViewModel(
@@ -511,11 +503,7 @@ class EditorViewModel(
                         _snapBeats.value = emptyList()
                         return@collectLatest
                     }
-                    val sourceBeats = BeatDetector.detectBeats(
-                        ctx,
-                        source.uri,
-                        source.sourceWindowMs
-                    )
+                    val sourceBeats = BeatDetector.detectBeats(ctx, source.uri)
                     _snapBeats.value = BeatGrid.timelineBeats(
                         sourceBeats = sourceBeats,
                         startTimelineMs = source.startTimelineMs,
@@ -1443,11 +1431,11 @@ class EditorViewModel(
         ClipEffectFeature.setClipHslAdjustments(this, clipId, adjustments)
 
     /**
-     * Beat-sync: splits clips at detected musical beats (energy onset detection
-     * with a BPM-based synthetic fallback).
+     * Beat-sync: splits clips at musical beats measured from the decoded audio.
+     * Returns the result for the calling screen's toast; an unreadable file or
+     * a beatless track is reported honestly instead of cutting at made-up beats.
      */
-    fun autoCutToBeat(beatsPerMinute: Int = 120) =
-        BeatSyncFeature.autoCutToBeat(this, beatsPerMinute)
+    suspend fun autoCutToBeat(): String = BeatSyncFeature.autoCutToBeat(this)
 
     /** Exports a real MP4 and reports where it can be shared. */
     fun shareExportMessage(platform: String): String =

@@ -195,7 +195,7 @@ internal fun EditorBottomActionStage(
                 "effect" -> viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY)
                 "delete" -> withClip { viewModel.deleteSelectedClip() }
                 "speed" -> withClip { viewModel.setActiveSheet(ActiveToolSheet.SPEED) }
-                "beats" -> viewModel.autoCutToBeat()
+                "beats" -> scope.launch { notify(viewModel.autoCutToBeat()) }
                 "crop" -> withClip { viewModel.setActiveSheet(ActiveToolSheet.CROP) }
                 "duplicate" -> withClip { viewModel.duplicateSelectedClip() }
                 "replace" -> withClip {
@@ -470,7 +470,7 @@ internal fun EditorBottomActionStage(
                 onEffects = { viewModel.setActiveSheet(ActiveToolSheet.EFFECTS_LIBRARY) },
                 onDelete = { viewModel.deleteSelectedClip() },
                 onSpeed = { viewModel.setActiveSheet(ActiveToolSheet.SPEED) },
-                onBeats = { viewModel.autoCutToBeat() },
+                onBeats = { scope.launch { notify(viewModel.autoCutToBeat()) } },
                 onCrop = { viewModel.setActiveSheet(ActiveToolSheet.CROP) },
                 onDuplicate = { viewModel.duplicateSelectedClip() },
                 onReplace = {

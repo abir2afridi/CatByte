@@ -38,6 +38,8 @@ internal fun TimelineToolsToolSheet(
     selectedClipId: String?,
     onMultiSelectChange: (Boolean) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val safeAreaGuides by viewModel.showSafeAreaGuides.collectAsState()
     TimelineToolsSheet(
         isMultiSelect = isMultiSelect,
@@ -46,7 +48,11 @@ internal fun TimelineToolsToolSheet(
         markerCount = project?.markers?.size ?: 0,
         hasSelectedClip = selectedClipId != null,
         safeAreaGuides = safeAreaGuides,
-        onBeatSync = { viewModel.autoCutToBeat() },
+        onBeatSync = {
+            scope.launch {
+                Toast.makeText(context, viewModel.autoCutToBeat(), Toast.LENGTH_LONG).show()
+            }
+        },
         onAddMarker = { viewModel.addMarker() },
         onPreviousMarker = { viewModel.jumpToMarker(-1) },
         onNextMarker = { viewModel.jumpToMarker(1) },

@@ -149,6 +149,7 @@ import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
 import com.example.data.MediaDurationFallback
 import com.example.data.ScrubPreviewFrame
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun EditorFeatureSearch(
@@ -161,6 +162,7 @@ internal fun EditorFeatureSearch(
     onDismiss: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
         val searchEntries = listOf(
             EditorSearchEntry("Split clip", "Cut at the playhead", "cut scissors") { splitAtPlayhead() },
             EditorSearchEntry("Volume", "Gain, loudness, reduce noise", "audio sound loud") {
@@ -278,7 +280,9 @@ internal fun EditorFeatureSearch(
                 }
             },
             EditorSearchEntry("Beat sync", "Cut to detected beats", "music rhythm") {
-                viewModel.autoCutToBeat()
+                scope.launch {
+                    Toast.makeText(context, viewModel.autoCutToBeat(), Toast.LENGTH_LONG).show()
+                }
             },
             EditorSearchEntry("Add marker", "Drop a labelled timeline marker", "flag") {
                 viewModel.addMarker()
