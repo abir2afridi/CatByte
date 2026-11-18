@@ -4,7 +4,10 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import com.example.data.player.PlaybackAudioMeter
 import com.example.model.AudioEffectSettings
 import com.example.model.MediaClip
 import com.example.model.VideoProject
@@ -97,6 +100,8 @@ internal fun AudioMixerToolSheet(
     selectedAudioId: String?
 ) {
     val context = LocalContext.current
+    val outputLevels by PlaybackAudioMeter.levels.collectAsState()
+    val isPlaying by viewModel.isPlaying.collectAsState()
     AudioMixerSheet(
         audioTracks = project.audioTracks,
         selectedAudioId = selectedAudioId,
@@ -130,7 +135,9 @@ internal fun AudioMixerToolSheet(
         },
         onReset = { viewModel.resetAudioMixer(it) },
         onDelete = { viewModel.deleteAudioTrack(it) },
-        onClose = { viewModel.closeToolSheet() }
+        onClose = { viewModel.closeToolSheet() },
+        leftLevel = if (isPlaying) outputLevels.left else 0f,
+        rightLevel = if (isPlaying) outputLevels.right else 0f
     )
 }
 

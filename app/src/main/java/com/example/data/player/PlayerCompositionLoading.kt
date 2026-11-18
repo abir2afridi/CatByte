@@ -33,6 +33,9 @@ internal fun PlayerManager.buildCompositionPlayer() {
             .setLooper(Looper.getMainLooper())
             .setVideoGraphFactory(MultipleInputVideoGraph.Factory())
             .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
+            // The meter taps the real sink output, so the on-canvas level is
+            // measured audio rather than a decorative animation.
+            .setAudioSink(buildMeteredAudioSink(appContext))
             .build()
             .also { it.addListener(playerListener) }
     } catch (error: Throwable) {
@@ -46,7 +49,7 @@ internal fun PlayerManager.buildCompositionPlayer() {
 internal fun PlayerManager.buildFallbackPlayer(): ExoPlayer? {
     if (released) return null
     return fallbackPlayer ?: try {
-        ExoPlayer.Builder(appContext)
+        ExoPlayer.Builder(appContext, meteredRenderersFactory(appContext))
             .build()
             .apply {
                 setAudioAttributes(audioAttributes, true)

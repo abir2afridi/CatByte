@@ -110,6 +110,7 @@ internal fun PlayerManager.pausePlayer() {
     _activePlayer.value?.pause()
     // Never let an async player callback resurrect "playing" after a pause.
     _isPlayingInternal.value = false
+    PlaybackAudioMeter.reset()
 }
 
 /** Seeks to a position on the *project* timeline. */
@@ -117,6 +118,9 @@ internal fun PlayerManager.seekPlayerTo(positionMs: Long) {
     val clamped = positionMs.coerceIn(0L, totalDurationMs.coerceAtLeast(0L))
     val previous = _currentPositionMs.value
     _currentPositionMs.value = clamped
+    // The sink's flush drops the meter too; clear it here for the window
+    // before the player delivers the first buffer at the new position.
+    PlaybackAudioMeter.reset()
     val player = _activePlayer.value ?: return
     // CompositionPlayer flushes its audio graph on a same-position seek
     // while paused, and the following play() then starts silent
@@ -179,6 +183,9 @@ internal fun PlayerManager.syncPlayerPosition() {
 /** Sets the preview volume (0..1). */
 internal fun PlayerManager.setPlayerVolume(volume: Float) {
     _activePlayer.value?.volume = volume.coerceIn(0f, 1f)
+    // The tap sits before the player volume, so a muted preview (scrub mode)
+    // would still measure; silence the meter with it.
+    if (volume <= 0f) PlaybackAudioMeter.reset()
 }
 
 /** Rebuilds the preview because the watermark is burned into the graph. */
@@ -200,4 +207,5 @@ internal fun PlayerManager.releasePlayers() {
     fallbackPlayer = null
     _activePlayer.value = null
     _isPlayingInternal.value = false
+    PlaybackAudioMeter.reset()
 }

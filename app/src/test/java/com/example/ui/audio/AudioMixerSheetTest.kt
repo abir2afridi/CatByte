@@ -423,6 +423,35 @@ class AudioMixerSheetTest {
         assertEquals(listOf("music"), exported)
     }
 
+    @Test
+    fun `the output meter is shown with the live levels`() {
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {},
+                leftLevel = 0.8f,
+                rightLevel = 0.4f
+            )
+        }
+
+        assertTrue(
+            compose.onAllNodesWithTag("audio_mixer_output_meter")
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        )
+    }
+
     private fun dragSlider(tag: String, towardEnd: Boolean) {
         val slider = compose.onNodeWithTag(tag).performScrollTo()
         slider.performTouchInput {

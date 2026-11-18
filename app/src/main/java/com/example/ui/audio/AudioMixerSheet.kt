@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import com.example.engine.AudioLoudness
 import com.example.engine.AudioTiming
 import com.example.model.AudioClip
+import com.example.ui.components.PlaybackLevelBar
 import com.example.ui.theme.PencilTheme
 import com.example.viewmodel.features.TrackControlFeature
 import java.util.Locale
@@ -88,7 +89,10 @@ fun AudioMixerSheet(
     onExportTrack: (String) -> Unit = {},
     onReset: (String) -> Unit,
     onDelete: (String) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    /** Live peak levels of the real preview output (0..1). */
+    leftLevel: Float = 0f,
+    rightLevel: Float = 0f
 ) {
     val colors = PencilTheme.colors
     val selected = audioTracks.firstOrNull { it.id == selectedAudioId }
@@ -223,15 +227,40 @@ fun AudioMixerSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Live VU Peak Meter visualization
+                        // Live output meter: the bars follow the PCM leaving
+                        // the preview sink, so they move with the mix instead
+                        // of running a decorative animation.
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            modifier = Modifier.testTag("audio_mixer_output_meter")
                         ) {
-                            Box(modifier = Modifier.size(width = 4.dp, height = 12.dp).background(Color(0xFF00E676), RoundedCornerShape(1.dp)))
-                            Box(modifier = Modifier.size(width = 4.dp, height = 16.dp).background(Color(0xFF00E676), RoundedCornerShape(1.dp)))
-                            Box(modifier = Modifier.size(width = 4.dp, height = 14.dp).background(Color(0xFFFFD600), RoundedCornerShape(1.dp)))
-                            Box(modifier = Modifier.size(width = 4.dp, height = 18.dp).background(Color(0xFFFF3D00), RoundedCornerShape(1.dp)))
+                            Text(
+                                "OUT",
+                                color = colors.textSecondary,
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                PlaybackLevelBar(
+                                    level = leftLevel,
+                                    color = Color(0xFF00E676),
+                                    modifier = Modifier
+                                        .width(34.dp)
+                                        .height(3.dp)
+                                        .background(colors.surfaceElevated)
+                                )
+                                PlaybackLevelBar(
+                                    level = rightLevel,
+                                    color = Color(0xFF00E676),
+                                    modifier = Modifier
+                                        .width(34.dp)
+                                        .height(3.dp)
+                                        .background(colors.surfaceElevated)
+                                )
+                            }
                         }
 
                         // [S] Solo and [M] Mute buttons. Solo is real: the

@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,6 +19,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,8 +28,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.player.PlaybackAudioMeter
 import com.example.model.MediaClip
 import com.example.model.VideoFilter
+import com.example.ui.components.PlaybackLevelBar
 import com.example.ui.theme.PencilTheme
 import com.example.ui.theme.sketchPencilBorder
 
@@ -125,9 +131,10 @@ internal fun BoxScope.CanvasPreviewNotice(
     }
 }
 
-/** The top status row (the active-filter pill & stereo audio peak meter). */
+/** The top status row (the active-filter pill & the real output peak meter). */
 @Composable
 internal fun BoxScope.CanvasTopStatusRow(activeClip: MediaClip?, isPlaying: Boolean = false) {
+    val levels by PlaybackAudioMeter.levels.collectAsState()
     Row(
         modifier = Modifier
             .align(Alignment.TopCenter)
@@ -136,7 +143,7 @@ internal fun BoxScope.CanvasTopStatusRow(activeClip: MediaClip?, isPlaying: Bool
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Stereo Audio Peak Meter (L / R) shown during playback
+        // Output peak meter (L / R) fed by the audio that is really playing.
         if (isPlaying && activeClip != null && !activeClip.isMuted) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
@@ -147,18 +154,22 @@ internal fun BoxScope.CanvasTopStatusRow(activeClip: MediaClip?, isPlaying: Bool
                     .padding(horizontal = 6.dp, vertical = 3.dp)
             ) {
                 Text("L", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                Box(
+                PlaybackLevelBar(
+                    level = levels.left,
+                    color = Color(0xFF26E5D7),
                     modifier = Modifier
-                        .size(width = 20.dp, height = 3.dp)
-                        .clip(RoundedCornerShape(1.5.dp))
-                        .background(Color(0xFF26E5D7))
+                        .width(44.dp)
+                        .height(3.dp)
+                        .background(Color.White.copy(alpha = 0.18f))
                 )
                 Text("R", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                Box(
+                PlaybackLevelBar(
+                    level = levels.right,
+                    color = Color(0xFFFFC107),
                     modifier = Modifier
-                        .size(width = 24.dp, height = 3.dp)
-                        .clip(RoundedCornerShape(1.5.dp))
-                        .background(Color(0xFFFFC107))
+                        .width(44.dp)
+                        .height(3.dp)
+                        .background(Color.White.copy(alpha = 0.18f))
                 )
             }
         } else {
