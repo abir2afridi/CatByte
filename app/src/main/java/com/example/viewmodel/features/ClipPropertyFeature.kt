@@ -126,8 +126,37 @@ internal object ClipPropertyFeature {
 
     fun setClipTransition(vm: EditorViewModel, transition: TransitionType) {
         val clipId = vm._selectedClipId.value ?: return
+        setClipTransitionForClip(vm, clipId, transition)
+    }
+
+    /**
+     * Applies a transition to one specific clip.
+     *
+     * The transition picker can be opened for a clip that is not the selected
+     * one, so the transition must never fall back to the selection - that
+     * would put the effect on the wrong clip.
+     */
+    fun setClipTransitionForClip(vm: EditorViewModel, clipId: String, transition: TransitionType) {
+        if (clipId.isBlank()) return
         vm.updateProject { proj ->
             proj.withUpdatedClip(clipId) { clip -> clip.copy(transition = transition) }
+        }
+    }
+
+    /**
+     * Length of one clip's transition.
+     *
+     * The value is clamped to the range the render graph draws and the
+     * slider drags share one coalescing key, so a continuous drag collapses
+     * into a single undo step.
+     */
+    fun setClipTransitionDuration(vm: EditorViewModel, clipId: String, durationMs: Long) {
+        if (clipId.isBlank()) return
+        val canonical = TransitionType.sanitizeDuration(durationMs)
+        vm.updateProject(coalesceKey = "transition-duration:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(transitionDurationMs = canonical)
+            }
         }
     }
 

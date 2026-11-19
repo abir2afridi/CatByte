@@ -586,6 +586,49 @@ class ProjectJsonTest {
     }
 
     @Test
+    fun `the transition length survives the round trip`() {
+        val clip = MediaClip(
+            id = "trans",
+            title = "Transition",
+            durationMs = 2_000L,
+            originalDurationMs = 2_000L,
+            transition = com.example.model.TransitionType.PAGE_FLIP,
+            transitionDurationMs = 1_200L
+        )
+
+        val restored = clipFromJson(clipToJson(clip))
+
+        assertEquals(1_200L, restored.transitionDurationMs)
+        assertEquals(com.example.model.TransitionType.PAGE_FLIP, restored.transition)
+    }
+
+    @Test
+    fun `a malformed transition length is clamped during json decode`() {
+        val clip = JSONObject()
+            .put("id", "trans")
+            .put("title", "Transition")
+            .put("durationMs", 2_000L)
+            .put("originalDurationMs", 2_000L)
+            .put("transitionDurationMs", 900_000L)
+
+        assertEquals(
+            com.example.model.TransitionType.MAX_DURATION_MS,
+            clipFromJson(clip).transitionDurationMs
+        )
+    }
+
+    @Test
+    fun `a legacy clip without a transition length decodes with the default`() {
+        val legacy = JSONObject()
+            .put("id", "legacy_trans")
+            .put("title", "Legacy")
+            .put("durationMs", 2_000L)
+            .put("originalDurationMs", 2_000L)
+
+        assertEquals(400L, clipFromJson(legacy).transitionDurationMs)
+    }
+
+    @Test
     fun `a legacy clip without an animation duration decodes with the default`() {
         val legacy = JSONObject()
             .put("id", "legacy_anim")

@@ -50,6 +50,11 @@ internal class GlQuadProgram(vertexSource: String, fragmentSource: String) {
 
     fun use() {
         GLES30.glUseProgram(programId)
+        // Media3's own shader programs upload both transformation matrices;
+        // without them the quad collapses to the origin and the effect
+        // renders nothing at all.
+        setMat4("uTransformationMatrix", IDENTITY_MATRIX)
+        setMat4("uTexTransformationMatrix", IDENTITY_MATRIX)
         if (positionAttrib >= 0) {
             quad.position(0)
             GLES30.glEnableVertexAttribArray(positionAttrib)
@@ -66,6 +71,10 @@ internal class GlQuadProgram(vertexSource: String, fragmentSource: String) {
 
     fun setFloat(name: String, value: Float) {
         GLES30.glUniform1f(location(name), value)
+    }
+
+    fun setMat4(name: String, values: FloatArray) {
+        GLES30.glUniformMatrix4fv(location(name), 1, /* transpose= */ false, values, 0)
     }
 
     fun setInt(name: String, value: Int) {
@@ -101,6 +110,17 @@ internal class GlQuadProgram(vertexSource: String, fragmentSource: String) {
     private fun location(name: String): Int = GLES30.glGetUniformLocation(programId, name)
 
     companion object {
+        /**
+         * The identity transformation matrix, built in Kotlin so it does not
+         * depend on the native [android.opengl.Matrix] helper.
+         */
+        private val IDENTITY_MATRIX = floatArrayOf(
+            1f, 0f, 0f, 0f,
+            0f, 1f, 0f, 0f,
+            0f, 0f, 1f, 0f,
+            0f, 0f, 0f, 1f
+        )
+
         /** Shared fullscreen quad vertex shader (ES3 twin of Media3's ES2 one). */
         const val VERTEX_SOURCE = """
             #version 300 es

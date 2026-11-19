@@ -111,7 +111,9 @@ internal fun clipFromJson(json: JSONObject): MediaClip = MediaClip(
     isMuted = json.optBoolean("isMuted", false),
     filter = parseEnum(json.optString("filter"), VideoFilter.NONE),
     transition = parseEnum(json.optString("transition"), TransitionType.NONE),
-    transitionDurationMs = json.optLong("transitionDurationMs", 400L),
+    transitionDurationMs = TransitionType.sanitizeDuration(
+        json.optLong("transitionDurationMs", 400L)
+    ),
     animationIn = parseEnum(json.optString("animationIn"), ClipAnimation.NONE),
     animationDurationMs = ClipAnimationMath.sanitizeDuration(
         json.optLong("animationDurationMs", ClipAnimationMath.DURATION_MS)

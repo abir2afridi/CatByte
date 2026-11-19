@@ -8,6 +8,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.MediaClip
 import com.example.model.TextOverlay
+import com.example.model.TransitionType
 import com.example.model.VideoFilter
 import com.example.model.VideoProject
 import com.example.ui.components.BodyEffectTabs
@@ -148,10 +149,19 @@ internal fun TransitionsToolSheet(
     viewModel: EditorViewModel,
     activeTransitionClipId: String?
 ) {
+    val clipId = activeTransitionClipId ?: return
+    val clip = viewModel.currentProject.value?.allVideoClips?.firstOrNull { it.id == clipId }
     TransitionsPickerSheet(
-        clipId = activeTransitionClipId ?: "",
-        onSelectTransition = { trans ->
-            viewModel.setClipTransition(trans)
+        clipId = clipId,
+        currentTransition = clip?.transition ?: TransitionType.NONE,
+        currentDurationMs = clip?.transitionDurationMs ?: 400L,
+        onSelectTransition = { targetClipId, transition ->
+            // The transition belongs to the clip the picker was opened for,
+            // not to whatever clip happens to be selected.
+            viewModel.setClipTransitionForClip(targetClipId, transition)
+        },
+        onDurationChanged = { targetClipId, durationMs ->
+            viewModel.setClipTransitionDuration(targetClipId, durationMs)
         },
         onClose = { viewModel.closeToolSheet() }
     )

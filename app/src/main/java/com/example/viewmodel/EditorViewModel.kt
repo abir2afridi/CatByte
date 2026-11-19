@@ -992,6 +992,21 @@ class EditorViewModel(
     fun setClipTransition(transition: TransitionType) =
         ClipPropertyFeature.setClipTransition(this, transition)
 
+    /**
+     * Applies a transition to one specific clip. The transition picker can
+     * be opened for a clip that is not the selected one, so the transition
+     * must never fall back to the selection.
+     */
+    fun setClipTransitionForClip(clipId: String, transition: TransitionType) =
+        ClipPropertyFeature.setClipTransitionForClip(this, clipId, transition)
+
+    /**
+     * Length of one clip's transition. The render graph draws the
+     * transition with this value, so the slider really changes it.
+     */
+    fun setClipTransitionDuration(clipId: String, durationMs: Long) =
+        ClipPropertyFeature.setClipTransitionDuration(this, clipId, durationMs)
+
     fun setClipAnimation(animation: ClipAnimation) =
         ClipPropertyFeature.setClipAnimation(this, animation)
 

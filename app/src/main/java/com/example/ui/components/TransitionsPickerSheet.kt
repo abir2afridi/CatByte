@@ -24,15 +24,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,30 +45,39 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.TransitionCategory
 import com.example.model.TransitionType
+import java.util.Locale
 
 /**
- * CapCut-exact Transitions modal matching the CapCut UI:
- * - Search bar with checkmark (✓) confirmation button
- * - Horizontal category tabs (Trending, Basic, Camera, MG, Slide, Glitch, Distort)
- * - Grid of video transition cards with meadow thumbnail and duration slider
+ * The transition picker.
+ *
+ * The category tabs really filter the offered transitions - every transition
+ * belongs to the category the render graph draws it in - and the duration
+ * slider writes the clip's real transition length. The clip id travels with
+ * every callback, so a transition can never land on a different clip than
+ * the one the picker was opened for.
  */
 @Composable
 fun TransitionsPickerSheet(
     clipId: String,
-    onSelectTransition: (TransitionType) -> Unit,
+    /** The transition the clip currently uses. */
+    currentTransition: TransitionType = TransitionType.NONE,
+    /** The clip's current transition length, in milliseconds. */
+    currentDurationMs: Long = 400L,
+    onSelectTransition: (clipId: String, transition: TransitionType) -> Unit,
+    onDurationChanged: (clipId: String, durationMs: Long) -> Unit,
     onClose: () -> Unit
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedCategory by remember { mutableStateOf<TransitionCategory?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
-    val categories = listOf("Trending", "Basic", "Camera", "MG", "Slide", "Glitch", "Distort", "Social")
-    val transitions = TransitionType.values().toList()
-
-    val filtered = if (searchQuery.isBlank()) {
-        transitions
-    } else {
-        transitions.filter { it.displayName.contains(searchQuery, ignoreCase = true) }
+    val transitions = TransitionType.entries.filter { it.isRenderable }
+    val filtered = transitions.filter { transition ->
+        val inCategory = selectedCategory == null || transition.category == selectedCategory
+        val matchesSearch = searchQuery.isBlank() ||
+            transition.displayName.contains(searchQuery, ignoreCase = true)
+        inCategory && matchesSearch
     }
 
     Column(
@@ -153,37 +162,14 @@ fun TransitionsPickerSheet(
             }
         }
 
-        // Transition Duration Control (0.1s to 3.0s)
-        var transitionDurationSec by remember { androidx.compose.runtime.mutableFloatStateOf(0.5f) }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Duration: ${String.format(java.util.Locale.US, "%.1fs", transitionDurationSec)}",
-                color = Color.White,
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.Bold
-            )
-            androidx.compose.material3.Slider(
-                value = transitionDurationSec,
-                onValueChange = { transitionDurationSec = it },
-                valueRange = 0.1f..3.0f,
-                colors = androidx.compose.material3.SliderDefaults.colors(
-                    thumbColor = Color.White,
-                    activeTrackColor = Color(0xFF26E5D7),
-                    inactiveTrackColor = Color(0xFF22242B)
-                ),
-                modifier = Modifier
-                    .width(180.dp)
-                    .height(24.dp)
-            )
-        }
+        // Transition duration: the value is written to the clip, so the
+        // slider really changes how long the transition takes.
+        TransitionDurationRow(
+            durationMs = currentDurationMs,
+            onDurationChanged = { durationMs -> onDurationChanged(clipId, durationMs) }
+        )
 
-        // Category Tabs
+        // Category tabs - every tab filters the grid below it.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -192,29 +178,17 @@ fun TransitionsPickerSheet(
             horizontalArrangement = Arrangement.spacedBy(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            categories.forEachIndexed { index, category ->
-                val isSelected = selectedTab == index
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clickable { selectedTab = index }
-                        .padding(vertical = 6.dp)
-                ) {
-                    Text(
-                        text = category,
-                        color = if (isSelected) Color.White else Color(0xFFA5A8B2),
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .width(22.dp)
-                            .height(2.5.dp)
-                            .clip(RoundedCornerShape(1.5.dp))
-                            .background(if (isSelected) Color(0xFF26E5D7) else Color.Transparent)
-                    )
-                }
+            CategoryTab(
+                label = "All",
+                selected = selectedCategory == null,
+                onClick = { selectedCategory = null }
+            )
+            TransitionCategory.entries.forEach { category ->
+                CategoryTab(
+                    label = category.displayName,
+                    selected = selectedCategory == category,
+                    onClick = { selectedCategory = category }
+                )
             }
         }
 
@@ -228,7 +202,7 @@ fun TransitionsPickerSheet(
                 .fillMaxWidth()
                 .weight(1f)
         ) {
-            items(filtered) { trans ->
+            items(filtered, key = { it.name }) { trans ->
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
@@ -236,10 +210,11 @@ fun TransitionsPickerSheet(
                         .background(Color(0xFF1E2026))
                         .border(1.dp, Color(0xFF2D303B), RoundedCornerShape(8.dp))
                         .clickable {
-                            onSelectTransition(trans)
+                            onSelectTransition(clipId, trans)
                             onClose()
                         }
                         .padding(8.dp)
+                        .testTag("transition_${trans.name.lowercase()}")
                 ) {
                     Box(
                         modifier = Modifier
@@ -278,5 +253,88 @@ fun TransitionsPickerSheet(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CategoryTab(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable { onClick() }
+            .padding(vertical = 6.dp)
+            .testTag("transition_tab_${label.lowercase()}")
+    ) {
+        Text(
+            text = label,
+            color = if (selected) Color.White else Color(0xFFA5A8B2),
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .width(22.dp)
+                .height(2.5.dp)
+                .clip(RoundedCornerShape(1.5.dp))
+                .background(if (selected) Color(0xFF26E5D7) else Color.Transparent)
+        )
+    }
+}
+
+/**
+ * The duration slider.
+ *
+ * The draft value follows the committed one while the sheet is idle, and the
+ * gesture itself is the source of truth - the ViewModel coalesces the whole
+ * drag into a single undo step.
+ */
+@Composable
+private fun TransitionDurationRow(
+    durationMs: Long,
+    onDurationChanged: (Long) -> Unit
+) {
+    val range = TransitionType.MIN_DURATION_MS.toFloat()..TransitionType.MAX_DURATION_MS.toFloat()
+    val committed = durationMs.toFloat().coerceIn(range.start, range.endInclusive)
+    var draft by remember { mutableFloatStateOf(committed) }
+
+    LaunchedEffect(committed) {
+        draft = committed
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = "Duration: ${String.format(Locale.US, "%.1fs", draft / 1000f)}",
+            color = Color.White,
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.Bold
+        )
+        androidx.compose.material3.Slider(
+            value = draft.coerceIn(range.start, range.endInclusive),
+            onValueChange = {
+                draft = it.coerceIn(range.start, range.endInclusive)
+                onDurationChanged(draft.toLong())
+            },
+            valueRange = range,
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = Color.White,
+                activeTrackColor = Color(0xFF26E5D7),
+                inactiveTrackColor = Color(0xFF22242B)
+            ),
+            modifier = Modifier
+                .width(180.dp)
+                .height(24.dp)
+                .testTag("transition_duration")
+        )
     }
 }

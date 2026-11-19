@@ -16,18 +16,48 @@ enum class VideoFilter(val displayName: String, val description: String) {
     GLITCH_ART("Glitch Art", "RGB split & scanlines")
 }
 
-enum class TransitionType(val displayName: String) {
-    NONE("None"),
-    PAGE_FLIP("Page Turn"),
-    PAPER_TEAR("Paper Tear"),
-    PENCIL_WIPE("Pencil Wipe"),
-    INK_BLEED("Ink Bleed"),
-    FADE_BLACK("Fade Black"),
-    WHIP_PAN("Whip Pan"),
-    ZOOM_IN("Zoom In"),
+/**
+ * The categories the transition picker offers.
+ *
+ * Every category maps to a group of transitions that the render graph draws
+ * differently, so switching the tab really changes the offered transitions.
+ */
+enum class TransitionCategory(val displayName: String) {
+    BASIC("Basic"),
+    CAMERA("Camera"),
+    MOTION("Motion"),
     GLITCH("Glitch"),
-    FLASH_WHITE("Flash White"),
-    DISSOLVE("Dissolve")
+    STYLE("Style")
+}
+
+enum class TransitionType(val displayName: String, val category: TransitionCategory?) {
+    NONE("None", null),
+    DISSOLVE("Dissolve", TransitionCategory.BASIC),
+    FADE_BLACK("Fade Black", TransitionCategory.BASIC),
+    FLASH_WHITE("Flash White", TransitionCategory.BASIC),
+    PAGE_FLIP("Page Turn", TransitionCategory.CAMERA),
+    WHIP_PAN("Whip Pan", TransitionCategory.MOTION),
+    ZOOM_IN("Zoom In", TransitionCategory.MOTION),
+    GLITCH("Glitch", TransitionCategory.GLITCH),
+    PAPER_TEAR("Paper Tear", TransitionCategory.STYLE),
+    PENCIL_WIPE("Pencil Wipe", TransitionCategory.STYLE),
+    INK_BLEED("Ink Bleed", TransitionCategory.STYLE);
+
+    /** The picker only offers the transitions that the renderer can draw. */
+    val isRenderable: Boolean
+        get() = this != NONE
+
+    companion object {
+        /** The shortest transition the render graph draws. */
+        const val MIN_DURATION_MS = 100L
+
+        /** The longest transition the render graph draws. */
+        const val MAX_DURATION_MS = 3_000L
+
+        /** Clamps a transition length into the range the renderer supports. */
+        fun sanitizeDuration(durationMs: Long): Long =
+            durationMs.coerceIn(MIN_DURATION_MS, MAX_DURATION_MS)
+    }
 }
 
 enum class ClipAnimation(val displayName: String) {

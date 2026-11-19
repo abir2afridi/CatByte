@@ -16,6 +16,11 @@ object TransitionMapper {
      * are clip-local (they start at zero), so every transition is evaluated against
      * [clipDurationUs] rather than absolute timeline positions. This is what makes
      * the live CompositionPlayer preview match Transformer's export.
+     *
+     * Every transition draws something of its own: the fade, the flash, the
+     * whip pan, the zoom and the glitch use the colour and transform
+     * effects, while the dissolve, the page turn and the three torn-edge
+     * wipes use the reveal shader.
      */
     fun effectsFor(
         transition: TransitionType,
@@ -24,14 +29,30 @@ object TransitionMapper {
     ): List<GlEffect> {
         if (transition == TransitionType.NONE) return emptyList()
         val clipUs = clipDurationUs.coerceAtLeast(1L)
-        val durationUs = (transitionDurationMs.coerceIn(80L, 2000L) * 1000L)
+        // The same range the picker offers and the model stores, so the
+        // slider cannot promise a length the renderer refuses to draw.
+        val durationUs = (TransitionType.sanitizeDuration(transitionDurationMs) * 1000L)
             .coerceAtMost(clipUs / 2L)
             .coerceAtLeast(1L)
 
         return when (transition) {
-            TransitionType.FADE_BLACK, TransitionType.DISSOLVE, TransitionType.PAGE_FLIP,
-            TransitionType.PAPER_TEAR, TransitionType.PENCIL_WIPE, TransitionType.INK_BLEED ->
+            TransitionType.FADE_BLACK ->
                 listOf(fadeEffect(clipUs, durationUs, flashToWhite = false))
+
+            TransitionType.DISSOLVE ->
+                listOf(revealEffect(TransitionRevealShaderProgram.KIND_DISSOLVE, clipUs, durationUs))
+
+            TransitionType.PAGE_FLIP ->
+                listOf(revealEffect(TransitionRevealShaderProgram.KIND_PAGE_FLIP, clipUs, durationUs))
+
+            TransitionType.PAPER_TEAR ->
+                listOf(revealEffect(TransitionRevealShaderProgram.KIND_PAPER_TEAR, clipUs, durationUs))
+
+            TransitionType.PENCIL_WIPE ->
+                listOf(revealEffect(TransitionRevealShaderProgram.KIND_PENCIL_WIPE, clipUs, durationUs))
+
+            TransitionType.INK_BLEED ->
+                listOf(revealEffect(TransitionRevealShaderProgram.KIND_INK_BLEED, clipUs, durationUs))
 
             TransitionType.FLASH_WHITE ->
                 listOf(fadeEffect(clipUs, durationUs, flashToWhite = true))
@@ -57,6 +78,13 @@ object TransitionMapper {
             TransitionType.NONE -> emptyList()
         }
     }
+
+    /** Reveals the clip through the transition shader. */
+    private fun revealEffect(
+        kind: Int,
+        clipDurationUs: Long,
+        durationUs: Long
+    ): GlEffect = TransitionRevealEffect(kind, clipDurationUs, durationUs)
 
     /** Fade the clip towards black at the start and back at the end. */
     private fun fadeEffect(
