@@ -36,6 +36,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -498,12 +502,29 @@ private fun FilterCard(
             .padding(8.dp)
             .testTag("filter_card_${filter.name}")
     ) {
+        val isHit = grade?.tabs?.contains("Hit") == true
         Box(
             Modifier.fillMaxWidth().height(80.dp).clip(RoundedCornerShape(6.dp))
-                .background(Brush.linearGradient(colors))
                 .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
         ) {
+            if (isHit && grade != null) {
+                // The same Hit.jpg for every card, tinted by that filter's OWN
+                // grade - so the thumbnail shows what the filter actually does.
+                AsyncImage(
+                    model = FilterCatalog.HIT_COVER_PATH,
+                    contentDescription = filter.displayName,
+                    contentScale = ContentScale.Crop,
+                    colorFilter = ColorFilter.colorMatrix(ColorMatrix(grade.toPreviewMatrix())),
+                    modifier = Modifier.fillMaxWidth().height(80.dp)
+                )
+            } else {
+                Box(
+                    Modifier.fillMaxWidth().height(80.dp)
+                        .background(Brush.linearGradient(colors)),
+                    contentAlignment = Alignment.Center
+                ) { }
+            }
             if (selected) {
                 Icon(Icons.Default.Check, "Selected", tint = Color.White, modifier = Modifier.size(22.dp))
             }

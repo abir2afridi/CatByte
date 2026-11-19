@@ -60,4 +60,35 @@ class FilterCatalogTest {
         }
         assertNotNull(VideoFilter.NONE.let { FilterCatalog.gradeOf(it) == null })
     }
+
+    @Test
+    fun `hit tab has all one hundred twelve named filters`() {
+        val hit = FilterCatalog.filtersFor("Hit")
+        assertTrue("Hit tab has ${hit.size - 1} filters", hit.size >= 100)
+        assertTrue("Original must be first", hit.first() == VideoFilter.NONE)
+        assertTrue("Tropical Hues missing", hit.any { it.displayName == "Tropical Hues" })
+        assertTrue("Bronze Gray missing", hit.any { it.displayName == "Bronze Gray" })
+        assertTrue("Image 4 missing", hit.any { it.displayName == "Image 4" })
+    }
+
+    @Test
+    fun `every hit filter has a distinct grade`() {
+        val grades = FilterCatalog.filtersFor("Hit")
+            .mapNotNull { FilterCatalog.gradeOf(it) }
+            .map { listOf(it.redGain, it.greenGain, it.blueGain, it.brightness, it.contrast, it.saturation) }
+        assertEquals(grades.size, grades.toSet().size)
+    }
+
+    @Test
+    fun `hit cover path is the bundled shared photo`() {
+        assertEquals("file:///android_asset/cover/hit.jpg", FilterCatalog.HIT_COVER_PATH)
+    }
+
+    @Test
+    fun `hit filters reach the export grade path`() {
+        FilterCatalog.filtersFor("Hit").forEach { filter ->
+            val grade = com.example.data.export.FilterMapper.gradeFor(filter)
+            assertTrue("$filter has no export grade", grade.saturation > 0f)
+        }
+    }
 }
