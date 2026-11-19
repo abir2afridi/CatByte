@@ -46,6 +46,10 @@ import java.util.Locale
  * Crop panel. Cropping is a real centre crop: the chosen preset computes a
  * normalised [CropMath] rectangle from the source aspect and writes it to the
  * clip's scale/position transform, which both preview and export read.
+ *
+ * The quick actions are real too: the rotation buttons turn the clip and the
+ * flip button mirrors it, both through the clip's transform - not through a
+ * cosmetic zoom or pan.
  */
 @Composable
 fun CropSheet(
@@ -55,6 +59,14 @@ fun CropSheet(
     currentPosX: Float,
     currentPosY: Float,
     onApply: (scale: Float, posX: Float, posY: Float) -> Unit,
+    /** Current rotation of the clip, in degrees. */
+    currentRotation: Float = 0f,
+    /** Receives the new absolute rotation, in degrees. */
+    onRotationChanged: (Float) -> Unit = {},
+    /** Current horizontal mirror state. */
+    currentMirrored: Boolean = false,
+    /** Receives the new horizontal mirror state. */
+    onMirroredChanged: (Boolean) -> Unit = {},
     onReset: () -> Unit,
     onClose: () -> Unit
 ) {
@@ -62,6 +74,8 @@ fun CropSheet(
     var scale by remember(currentScale) { mutableFloatStateOf(currentScale) }
     var posX by remember(currentPosX) { mutableFloatStateOf(currentPosX) }
     var posY by remember(currentPosY) { mutableFloatStateOf(currentPosY) }
+    var rotation by remember(currentRotation) { mutableFloatStateOf(currentRotation) }
+    var mirrored by remember(currentMirrored) { mutableStateOf(currentMirrored) }
 
     val sourceAspect = if (sourceWidth > 0 && sourceHeight > 0) {
         sourceWidth.toFloat() / sourceHeight.toFloat()
@@ -183,7 +197,8 @@ fun CropSheet(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Quick Rotate & Flip Controls Row
+        // Quick rotate & flip: these really turn and mirror the clip through
+        // its transform, so the preview and the exported file both change.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -191,24 +206,45 @@ fun CropSheet(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            listOf("90°", "180°", "270°", "Flip H").forEach { action ->
+            listOf("90°", "180°", "270°").forEach { action ->
+                val degrees = action.dropLast(1).toFloat()
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .background(colors.surfaceElevated)
                         .border(0.8.dp, colors.borderSubtle, RoundedCornerShape(6.dp))
                         .clickable {
-                            if (action == "90°" || action == "180°" || action == "270°") {
-                                scale = (scale + 0.01f).coerceIn(1f, 5f)
-                            } else {
-                                posX = (1f - posX).coerceIn(0f, 1f)
-                            }
-                            onApply(scale, posX, posY)
+                            rotation = ((rotation + degrees) % 360f + 360f) % 360f
+                            onRotationChanged(rotation)
                         }
                         .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .testTag("crop_rotate_${action.dropLast(1)}")
                 ) {
                     Text(action, color = colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (mirrored) colors.accentCyan.copy(alpha = 0.18f) else colors.surfaceElevated)
+                    .border(
+                        0.8.dp,
+                        if (mirrored) colors.accentCyan else colors.borderSubtle,
+                        RoundedCornerShape(6.dp)
+                    )
+                    .clickable {
+                        mirrored = !mirrored
+                        onMirroredChanged(mirrored)
+                    }
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                    .testTag("crop_flip_h")
+            ) {
+                Text(
+                    "Flip H",
+                    color = if (mirrored) colors.accentCyan else colors.textSecondary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 

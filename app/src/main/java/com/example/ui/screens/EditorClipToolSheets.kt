@@ -128,6 +128,10 @@ internal fun CropToolSheet(
         onApply = { scale, posX, posY ->
             viewModel.setSelectedClipCrop(scale, posX, posY)
         },
+        currentRotation = currentClip?.rotation ?: 0f,
+        onRotationChanged = { viewModel.setSelectedClipRotation(it) },
+        currentMirrored = currentClip?.isMirrored ?: false,
+        onMirroredChanged = { viewModel.setSelectedClipMirrored(it) },
         onReset = { viewModel.resetSelectedClipCrop() },
         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
     )

@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.example.model.BlendMode
 import com.example.model.ChromaKeyData
 import com.example.model.MaskData
@@ -58,6 +60,12 @@ internal fun KeyframeToolSheet(
     currentClip: MediaClip?,
     selectedClipId: String?
 ) {
+    val positionMs by viewModel.currentPositionMs.collectAsState()
+    val neighbours = if (selectedClipId != null) {
+        viewModel.keyframeNeighbours(selectedClipId, positionMs)
+    } else {
+        null to null
+    }
     KeyframeSheet(
         clip = currentClip,
         onAddKeyframe = { prop, val1, ease ->
@@ -70,6 +78,9 @@ internal fun KeyframeToolSheet(
                 viewModel.removeKeyframe(selectedClipId, kfId)
             }
         },
+        previousKeyframeMs = neighbours.first,
+        nextKeyframeMs = neighbours.second,
+        onSeekTo = { viewModel.seekTo(it) },
         onClose = { viewModel.closeToolSheet() }
     )
 }

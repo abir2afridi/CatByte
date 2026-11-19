@@ -6,6 +6,7 @@ import com.example.model.Keyframe
 import com.example.model.KeyframeProperty
 import com.example.viewmodel.EditorViewModel
 import com.example.viewmodel.localTimeForClip
+import com.example.viewmodel.timelineTimeForClip
 import com.example.viewmodel.withUpdatedClip
 import java.util.Locale
 
@@ -44,6 +45,35 @@ internal object KeyframeFeature {
                 clip.copy(keyframes = clip.keyframes.filterNot { it.id == keyframeId })
             }
         }
+    }
+
+    /**
+     * The keyframe before/after the playhead, as a timeline position.
+     *
+     * The keyframes themselves live in clip-local time, so the result is
+     * mapped back onto the project timeline. A missing neighbour is null -
+     * the sheet then disables the button instead of pretending to move.
+     */
+    fun keyframeNeighbours(
+        vm: EditorViewModel,
+        clipId: String,
+        timelinePositionMs: Long
+    ): Pair<Long?, Long?> {
+        val project = vm._currentProject.value ?: return null to null
+        val clip = project.clips.firstOrNull { it.id == clipId }
+            ?: project.overlayTracks
+                .asSequence()
+                .flatMap { it.clips.asSequence() }
+                .firstOrNull { it.id == clipId }
+            ?: return null to null
+        if (clip.keyframes.isEmpty()) return null to null
+        val currentLocal = project.localTimeForClip(clipId, timelinePositionMs) ?: return null to null
+        val sorted = clip.keyframes.sortedBy { it.timestampMs }
+        val previous = sorted.lastOrNull { it.timestampMs < currentLocal }?.timestampMs
+        val next = sorted.firstOrNull { it.timestampMs > currentLocal }?.timestampMs
+        val previousTimeline = previous?.let { project.timelineTimeForClip(clipId, it) }
+        val nextTimeline = next?.let { project.timelineTimeForClip(clipId, it) }
+        return previousTimeline to nextTimeline
     }
 
     /** Toggles a keyframe at the current playhead position on the selected clip. */

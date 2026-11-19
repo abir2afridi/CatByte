@@ -218,6 +218,41 @@ internal object ClipPropertyFeature {
     }
 
     /**
+     * Absolute rotation of the selected clip, in degrees.
+     *
+     * The rotation is part of the clip's transform, so the preview and the
+     * exported file both show the turned picture.
+     */
+    fun setSelectedClipRotation(vm: EditorViewModel, rotationDeg: Float) {
+        val clipId = vm._selectedClipId.value ?: return
+        val normalized = if (rotationDeg.isFinite()) {
+            ((rotationDeg % 360f) + 360f) % 360f
+        } else {
+            0f
+        }
+        vm.updateProject(coalesceKey = "rotation:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(rotation = normalized)
+            }
+        }
+    }
+
+    /**
+     * Mirrors the selected clip horizontally.
+     *
+     * The mirror flag is part of the clip's transform, so the preview and the
+     * exported file both show the flipped picture.
+     */
+    fun setSelectedClipMirrored(vm: EditorViewModel, mirrored: Boolean) {
+        val clipId = vm._selectedClipId.value ?: return
+        vm.updateProject(coalesceKey = "mirror:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(isMirrored = mirrored)
+            }
+        }
+    }
+
+    /**
      * Real loudness normalisation driven by the clip's decoded waveform. The
      * resulting gain is written to [com.example.model.MediaClip.volume], which
      * preview playback and the export GainProcessor both read, so the switch is

@@ -1060,6 +1060,20 @@ class EditorViewModel(
     fun resetSelectedClipCrop() = setSelectedClipCrop(1f, 0.5f, 0.5f)
 
     /**
+     * Absolute rotation of the selected clip, in degrees. The rotation is
+     * part of the clip's transform, so preview and export agree.
+     */
+    fun setSelectedClipRotation(rotationDeg: Float) =
+        ClipPropertyFeature.setSelectedClipRotation(this, rotationDeg)
+
+    /**
+     * Mirrors the selected clip horizontally. The mirror flag is part of the
+     * clip's transform, so preview and export agree.
+     */
+    fun setSelectedClipMirrored(mirrored: Boolean) =
+        ClipPropertyFeature.setSelectedClipMirrored(this, mirrored)
+
+    /**
      * Real loudness normalisation driven by the clip's decoded waveform. The
      * resulting gain is written to MediaClip.volume, which preview playback
      * and the export GainProcessor both read, so the switch is not cosmetic.
@@ -1484,6 +1498,13 @@ class EditorViewModel(
 
     fun removeKeyframe(clipId: String, keyframeId: String) =
         KeyframeFeature.removeKeyframe(this, clipId, keyframeId)
+
+    /**
+     * The keyframe before/after the playhead of one clip, as a timeline
+     * position. A missing neighbour is null.
+     */
+    fun keyframeNeighbours(clipId: String, timelinePositionMs: Long): Pair<Long?, Long?> =
+        KeyframeFeature.keyframeNeighbours(this, clipId, timelinePositionMs)
 
     /** Toggles a keyframe at the current playhead position on the selected clip. */
     fun toggleKeyframeAtPlayhead() = KeyframeFeature.toggleKeyframeAtPlayhead(this)

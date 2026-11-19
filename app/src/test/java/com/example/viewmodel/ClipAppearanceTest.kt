@@ -83,6 +83,42 @@ class ClipAppearanceTest {
     }
 
     @Test
+    fun `rotation is stored on the clip and normalised to a full turn`() {
+        val vm = viewModel(clip())
+        vm.setSelectedClipRotation(90f)
+        assertEquals(90f, vm.currentProject.value?.clips?.first()?.rotation ?: -1f, 0.0001f)
+
+        vm.setSelectedClipRotation(-90f)
+        assertEquals(270f, vm.currentProject.value?.clips?.first()?.rotation ?: -1f, 0.0001f)
+
+        vm.setSelectedClipRotation(450f)
+        assertEquals(90f, vm.currentProject.value?.clips?.first()?.rotation ?: -1f, 0.0001f)
+    }
+
+    @Test
+    fun `a non finite rotation falls back to zero`() {
+        val vm = viewModel(clip())
+        vm.setSelectedClipRotation(90f)
+        vm.setSelectedClipRotation(Float.NaN)
+        assertEquals(0f, vm.currentProject.value?.clips?.first()?.rotation ?: -1f, 0.0001f)
+    }
+
+    @Test
+    fun `the mirror flag is stored on the clip and undoes`() {
+        val vm = viewModel(clip())
+        assertFalse(vm.currentProject.value?.clips?.first()?.isMirrored == true)
+
+        vm.setSelectedClipMirrored(true)
+        assertTrue(vm.currentProject.value?.clips?.first()?.isMirrored == true)
+
+        vm.undo()
+        assertFalse(vm.currentProject.value?.clips?.first()?.isMirrored == true)
+
+        vm.redo()
+        assertTrue(vm.currentProject.value?.clips?.first()?.isMirrored == true)
+    }
+
+    @Test
     fun `loudness adjustment normalises a quiet clip`() {
         val waveform = List(32) { 0.05f }
         val vm = viewModel(clip(waveform = waveform))

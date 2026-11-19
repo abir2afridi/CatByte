@@ -141,6 +141,16 @@ fun KeyframeSheet(
     clip: MediaClip?,
     onAddKeyframe: (property: KeyframeProperty, value: Float, easing: EasingCurve) -> Unit,
     onRemoveKeyframe: (keyframeId: String) -> Unit,
+    /**
+     * Timeline position of the keyframe before the playhead, or null when
+     * there is none. The button is disabled in that case instead of doing
+     * nothing.
+     */
+    previousKeyframeMs: Long? = null,
+    /** Timeline position of the keyframe after the playhead, or null. */
+    nextKeyframeMs: Long? = null,
+    /** Moves the playhead to a keyframe. */
+    onSeekTo: (Long) -> Unit = {},
     onClose: () -> Unit
 ) {
     val colors = PencilTheme.colors
@@ -232,26 +242,51 @@ fun KeyframeSheet(
                         Text("+ Keyframe 💎", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
 
+                    // The navigation buttons move the playhead to the
+                    // neighbouring keyframe. They are disabled when there is
+                    // no such neighbour, so they never pretend to work.
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(colors.surfaceElevated)
+                            .background(
+                                if (previousKeyframeMs != null) colors.surfaceElevated
+                                else colors.surfaceElevated.copy(alpha = 0.4f)
+                            )
                             .border(0.8.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
-                            .clickable { }
+                            .clickable(enabled = previousKeyframeMs != null) {
+                                previousKeyframeMs?.let(onSeekTo)
+                            }
                             .padding(horizontal = 8.dp, vertical = 6.dp)
+                            .testTag("keyframe_prev")
                     ) {
-                        Text("‹ Prev KF", color = colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "‹ Prev KF",
+                            color = if (previousKeyframeMs != null) colors.textSecondary else colors.textTertiary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(colors.surfaceElevated)
+                            .background(
+                                if (nextKeyframeMs != null) colors.surfaceElevated
+                                else colors.surfaceElevated.copy(alpha = 0.4f)
+                            )
                             .border(0.8.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
-                            .clickable { }
+                            .clickable(enabled = nextKeyframeMs != null) {
+                                nextKeyframeMs?.let(onSeekTo)
+                            }
                             .padding(horizontal = 8.dp, vertical = 6.dp)
+                            .testTag("keyframe_next")
                     ) {
-                        Text("Next KF ›", color = colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Next KF ›",
+                            color = if (nextKeyframeMs != null) colors.textSecondary else colors.textTertiary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
 
