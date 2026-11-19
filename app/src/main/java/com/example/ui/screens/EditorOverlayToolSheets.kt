@@ -87,11 +87,22 @@ internal fun StickersToolSheet(viewModel: EditorViewModel) {
 
 @Composable
 internal fun EffectsToolSheet(viewModel: EditorViewModel) {
+    val project by viewModel.currentProject.collectAsStateWithLifecycle()
+    val position by viewModel.currentPositionMs.collectAsStateWithLifecycle()
+    // The "None" card removes the effect the playhead is on, so it is only
+    // enabled when there is one.
+    val canRemove = project?.effects.orEmpty().any { effect ->
+        position >= effect.startTimelineMs &&
+            position < effect.startTimelineMs + effect.durationMs
+    }
     EffectsSheet(
+        canRemoveEffect = canRemove,
         onAddEffect = { fx ->
-            if (fx != null) {
-                viewModel.addTimelineEffect(fx)
-            }
+            viewModel.addTimelineEffect(fx)
+            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+        },
+        onRemoveEffect = {
+            viewModel.removeEffectAtPlayhead()
             viewModel.setActiveSheet(ActiveToolSheet.NONE)
         },
         onClose = { viewModel.closeToolSheet() }
@@ -100,11 +111,20 @@ internal fun EffectsToolSheet(viewModel: EditorViewModel) {
 
 @Composable
 internal fun BodyEffectsToolSheet(viewModel: EditorViewModel) {
+    val project by viewModel.currentProject.collectAsStateWithLifecycle()
+    val position by viewModel.currentPositionMs.collectAsStateWithLifecycle()
+    val canRemove = project?.effects.orEmpty().any { effect ->
+        position >= effect.startTimelineMs &&
+            position < effect.startTimelineMs + effect.durationMs
+    }
     EffectsSheet(
+        canRemoveEffect = canRemove,
         onAddEffect = { fx ->
-            if (fx != null) {
-                viewModel.addTimelineEffect(fx)
-            }
+            viewModel.addTimelineEffect(fx)
+            viewModel.setActiveSheet(ActiveToolSheet.NONE)
+        },
+        onRemoveEffect = {
+            viewModel.removeEffectAtPlayhead()
             viewModel.setActiveSheet(ActiveToolSheet.NONE)
         },
         onClose = { viewModel.closeToolSheet() },

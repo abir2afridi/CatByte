@@ -75,7 +75,16 @@ val BodyEffectTabs: List<Pair<String, String>> = listOf(
 
 @Composable
 fun EffectsSheet(
-    onAddEffect: (EffectType?) -> Unit,
+    /** Adds a preset at the playhead. */
+    onAddEffect: (EffectType) -> Unit,
+    /** Removes the effect that covers the playhead. */
+    onRemoveEffect: () -> Unit,
+    /**
+     * True when an effect covers the playhead, i.e. when the "None" card
+     * has something to remove. The card is disabled otherwise instead of
+     * pretending to work.
+     */
+    canRemoveEffect: Boolean,
     onClose: () -> Unit,
     /** label -> EffectType.category; defaults to the video-effects tabs. */
     tabs: List<Pair<String, String>> = VideoEffectTabs,
@@ -234,7 +243,8 @@ fun EffectsSheet(
                 .fillMaxWidth()
                 .weight(1f)
         ) {
-            // "None" effect card
+            // "None" removes the effect that covers the playhead. It is
+            // disabled when there is nothing to remove.
             item {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -242,8 +252,9 @@ fun EffectsSheet(
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFF1E2026))
                         .border(1.dp, Color(0xFF2D303B), RoundedCornerShape(8.dp))
-                        .clickable { onAddEffect(null) }
+                        .clickable(enabled = canRemoveEffect) { onRemoveEffect() }
                         .padding(8.dp)
+                        .testTag("effect_none")
                 ) {
                     Box(
                         modifier = Modifier
@@ -256,14 +267,14 @@ fun EffectsSheet(
                         Icon(
                             imageVector = Icons.Default.Block,
                             contentDescription = "None",
-                            tint = Color(0xFFA5A8B2),
+                            tint = if (canRemoveEffect) Color(0xFFA5A8B2) else Color(0xFF55575F),
                             modifier = Modifier.size(24.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "None",
-                        color = Color.White,
+                        color = if (canRemoveEffect) Color.White else Color(0xFF6A6C75),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
@@ -282,6 +293,7 @@ fun EffectsSheet(
                         .border(1.dp, Color(0xFF2D303B), RoundedCornerShape(8.dp))
                         .clickable { onAddEffect(fx) }
                         .padding(8.dp)
+                        .testTag("effect_${fx.name.lowercase()}")
                 ) {
                     Box(
                         modifier = Modifier

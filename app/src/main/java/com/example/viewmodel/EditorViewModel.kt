@@ -1374,6 +1374,14 @@ class EditorViewModel(
     fun deleteTimelineEffect(id: String) =
         TimelineEffectFeature.deleteTimelineEffect(this, id)
 
+    /** True when an effect covers the playhead, i.e. there is one to remove. */
+    fun hasEffectAtPlayhead(): Boolean =
+        TimelineEffectFeature.effectAtPlayhead(this) != null
+
+    /** Removes the effect that covers the playhead (the panel's "None"). */
+    fun removeEffectAtPlayhead() =
+        TimelineEffectFeature.removeEffectAtPlayhead(this)
+
     /** Edits a placed effect: duration and intensity (undoable, one update). */
     fun updateTimelineEffect(id: String, durationMs: Long, intensityScale: Float) =
         updateProject { proj ->
