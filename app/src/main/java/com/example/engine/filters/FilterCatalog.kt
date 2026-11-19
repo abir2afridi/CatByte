@@ -156,5 +156,9 @@ object FilterCatalog {
             listOf(VideoFilter.NONE) + all.filter { tab in it.second.tabs }.map { it.first }
         }
 
+    /** Number of filters shown under a tab (Original is not counted). */
+    fun countFor(tab: String, lutCount: Int = 0): Int =
+        if (tab == "My LUTs") lutCount else filtersFor(tab).size - 1
+
     fun gradeOf(filter: VideoFilter): FilterGrade? = all.firstOrNull { it.first == filter }?.second
 }

@@ -196,12 +196,27 @@ fun FiltersSheet(
                         searchQuery = ""
                     }.padding(vertical = 6.dp).testTag("filter_tab_$index")
                 ) {
-                    Text(
-                        tab,
-                        color = if (active) Color.White else Color(0xFFA5A8B2),
-                        fontSize = 13.sp,
-                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            tab,
+                            color = if (active) Color.White else Color(0xFFA5A8B2),
+                            fontSize = 13.sp,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        val count = FilterCatalog.countFor(tab, importedLuts.size)
+                        Text(
+                            count.toString(),
+                            color = if (active) Color(0xFF26E5D7) else Color(0xFF7E818C),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (active) Color(0xFF26E5D7).copy(alpha = 0.16f) else Color(0xFF22242B))
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                                .testTag("filter_tab_${index}_count")
+                        )
+                    }
                     Spacer(Modifier.height(4.dp))
                     Box(
                         Modifier.width(22.dp).height(2.5.dp).clip(RoundedCornerShape(1.5.dp))

@@ -91,4 +91,15 @@ class FilterCatalogTest {
             assertTrue("$filter has no export grade", grade.saturation > 0f)
         }
     }
+
+    @Test
+    fun `every tab reports its filter count`() {
+        assertEquals(112, FilterCatalog.countFor("Hit"))
+        assertEquals(FilterCatalog.all.size, FilterCatalog.countFor("All"))
+        FilterCatalog.tabs.filterNot { it == "My LUTs" }.forEach { tab ->
+            assertTrue("$tab has zero filters", FilterCatalog.countFor(tab) > 0)
+        }
+        assertEquals(0, FilterCatalog.countFor("My LUTs", 0))
+        assertEquals(3, FilterCatalog.countFor("My LUTs", 3))
+    }
 }
