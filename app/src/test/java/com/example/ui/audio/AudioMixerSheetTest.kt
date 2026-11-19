@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import com.example.model.AudioClip
+import com.example.model.AudioEqualizer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -61,7 +62,7 @@ class AudioMixerSheetTest {
             )
         }
 
-        compose.onNodeWithTag("audio_mixer_mute").performClick()
+        compose.onNodeWithTag("audio_mixer_mute").performScrollTo().performClick()
         compose.onNodeWithTag("audio_mixer_reset").performScrollTo().performClick()
         compose.onNodeWithTag("audio_mixer_delete").performScrollTo().performClick()
         compose.waitForIdle()
@@ -138,6 +139,125 @@ class AudioMixerSheetTest {
         assertEquals(1, pans.size)
         assertEquals("music", pans.single().first)
         assertTrue("the balance should move towards the right", pans.single().second > -0.5f)
+    }
+
+    @Test
+    fun `equalizer sliders report only the band that changed`() {
+        val changed = mutableListOf<Pair<String, AudioEqualizer>>()
+        val withEq = audio.copy(equalizer = AudioEqualizer(2f, -1f, 0f))
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(withEq),
+                selectedAudioId = withEq.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onEqualizerChanged = { id, eq -> changed += id to eq },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        dragSlider("audio_mixer_eq_low", towardEnd = true)
+
+        assertEquals(1, changed.size)
+        assertEquals("music", changed.single().first)
+        val eq = changed.single().second
+        assertTrue("low band should rise, got ${eq.lowGainDb}", eq.lowGainDb > 2f)
+        assertEquals("mid band must be untouched", -1f, eq.midGainDb, 0.0001f)
+        assertEquals("high band must be untouched", 0f, eq.highGainDb, 0.0001f)
+    }
+
+    @Test
+    fun `equalizer sliders use the canonical decibel range`() {
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        listOf(
+            "audio_mixer_eq_low",
+            "audio_mixer_eq_mid",
+            "audio_mixer_eq_high"
+        ).forEach { tag ->
+            val range = compose.onNodeWithTag(tag)
+                .fetchSemanticsNode()
+                .config[SemanticsProperties.ProgressBarRangeInfo]
+                .range
+            assertEquals("$tag min", AudioEqualizer.MIN_GAIN_DB, range.start, 0f)
+            assertEquals("$tag max", AudioEqualizer.MAX_GAIN_DB, range.endInclusive, 0f)
+        }
+    }
+
+    @Test
+    fun `flat button clears every equalizer band`() {
+        val changed = mutableListOf<AudioEqualizer>()
+        val withEq = audio.copy(equalizer = AudioEqualizer(4f, -2f, 5f))
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(withEq),
+                selectedAudioId = withEq.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onEqualizerChanged = { _, eq -> changed += eq },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        compose.onNodeWithTag("audio_mixer_eq_flat").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        assertEquals(listOf(AudioEqualizer()), changed)
+    }
+
+    @Test
+    fun `flat button is disabled while the equalizer is already flat`() {
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        compose.onNodeWithTag("audio_mixer_eq_flat").performScrollTo().assertIsNotEnabled()
     }
 
     @Test

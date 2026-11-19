@@ -3,6 +3,7 @@ package com.example.data.db
 import com.example.engine.AudioTiming
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
+import com.example.model.AudioEqualizer
 import com.example.model.BezierPoint
 import com.example.model.BlendMode
 import com.example.model.EasingCurve
@@ -127,6 +128,11 @@ class ProjectJsonTest {
                         type = VoiceEffectType.REVERB,
                         intensity = 0.5f,
                         enhanceVoice = true
+                    ),
+                    equalizer = AudioEqualizer(
+                        lowGainDb = 5.5f,
+                        midGainDb = -2.5f,
+                        highGainDb = 3f
                     ),
                     loopCount = 3,
                     fadeInMs = 300L,
@@ -439,6 +445,52 @@ class ProjectJsonTest {
             listOf(300L, 1_200L),
             ProjectJson.fromJson(json.toString())!!.manualBeatsMs
         )
+    }
+
+    @Test
+    fun `malformed equalizer gains are clamped during json decode`() {
+        val json = JSONObject()
+            .put("id", "malformed_eq")
+            .put("title", "EQ")
+            .put(
+                "audioTracks",
+                JSONArray().put(
+                    JSONObject()
+                        .put("id", "broken_eq")
+                        .put("title", "Broken EQ")
+                        .put("artist", "Test")
+                        .put("uriString", "content://audio/broken")
+                        .put("durationMs", 1_000L)
+                        .put("originalDurationMs", 1_000L)
+                        .put(
+                            "equalizer",
+                            JSONObject()
+                                .put("lowGainDb", 400.0)
+                                .put("midGainDb", "not a number")
+                                .put("highGainDb", -80.0)
+                        )
+                )
+            )
+
+        val restored = ProjectJson.fromJson(json.toString())!!
+            .audioTracks
+            .single()
+            .equalizer
+
+        assertEquals(AudioEqualizer.MAX_GAIN_DB, restored.lowGainDb, 0f)
+        assertEquals(0f, restored.midGainDb, 0f)
+        assertEquals(AudioEqualizer.MIN_GAIN_DB, restored.highGainDb, 0f)
+    }
+
+    @Test
+    fun `legacy audio without an equalizer decodes as flat`() {
+        val legacy = JSONObject()
+            .put("id", "legacy_eq")
+            .put("title", "Legacy EQ")
+            .put("durationMs", 1_000L)
+            .put("originalDurationMs", 1_000L)
+
+        assertEquals(AudioEqualizer(), audioFromJson(legacy).equalizer)
     }
 
     @Test

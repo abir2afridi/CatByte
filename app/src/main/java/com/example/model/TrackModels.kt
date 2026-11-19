@@ -58,6 +58,12 @@ data class AudioClip(
     /** Per-track audio processing (voice presets, enhance voice, noise gate). */
     val audioEffects: AudioEffectSettings = AudioEffectSettings(),
     /**
+     * Three-band EQ (low shelf / mid peak / high shelf) applied to this track
+     * before the stereo balance and the gain envelope. Preview and export run
+     * the same filters through the shared composition factory.
+     */
+    val equalizer: AudioEqualizer = AudioEqualizer(),
+    /**
      * How often the trimmed source window repeats on the timeline. 1 plays the
      * window once; 4 repeats it four times, so the track covers four times the
      * window without touching the source file.

@@ -62,9 +62,13 @@ internal fun ProjectCompositionFactory.buildAudioSequence(
     val fadeInMs = (spec.fadeInUs / 1_000L).coerceIn(0L, unitDurationMs)
     val fadeOutMs = (spec.fadeOutUs / 1_000L).coerceIn(0L, unitDurationMs)
     // Per-track DSP chain (gate -> voice EQ -> creative preset -> pitch) runs
-    // before the gain envelope, so the mixer's volume slider stays a pure
-    // level control. No-op settings produce no processors at all.
+    // before the mixer EQ, the stereo balance and the gain envelope, so the
+    // volume slider stays a pure level control. No-op settings produce no
+    // processors at all.
     val effectProcessors = AudioEffectProcessors.forSettings(audio.audioEffects)
+    // 3-band mixer EQ: low shelf / mid peak / high shelf. The same filters run
+    // in the preview and in the exported file.
+    val eqProcessors = AudioEffectProcessors.forEqualizer(audio.equalizer)
     // Stereo balance: the track is placed left or right in the mix. A centred
     // track needs no processor at all, so the channel layout of the source is
     // left untouched.
@@ -100,7 +104,7 @@ internal fun ProjectCompositionFactory.buildAudioSequence(
         } else {
             baseGain
         }
-        val processors = effectProcessors + panProcessors + GainProcessor(gainProvider)
+        val processors = effectProcessors + eqProcessors + panProcessors + GainProcessor(gainProvider)
         val itemBuilder = EditedMediaItem.Builder(mediaItem)
             // Media3 requires the ORIGINAL source duration here. Clipping and
             // speed are applied afterwards to derive the presentation duration.

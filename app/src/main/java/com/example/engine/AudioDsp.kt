@@ -1,5 +1,6 @@
 package com.example.engine
 
+import com.example.model.AudioEqualizer
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -103,6 +104,44 @@ object AudioDsp {
                     a0 = (a + 1f) - (a - 1f) * cosW + t,
                     a1 = 2f * ((a - 1f) - (a + 1f) * cosW),
                     a2 = (a + 1f) - (a - 1f) * cosW - t
+                )
+            }
+
+            /** Low shelf boost/cut at [gainDb] (RBJ audio EQ cookbook). */
+            fun lowShelf(sampleRate: Int, cutoffHz: Float, gainDb: Float, slope: Float = 1f): Biquad {
+                val a = 10f.pow(gainDb / 40f)
+                val w0 = 2f * PI.toFloat() * cutoffHz / sampleRate
+                val cosW = cos(w0)
+                val alpha = sin(w0) / 2f * sqrt((a + 1f / a) * (1f / slope - 1f) + 2f)
+                val t = 2f * sqrt(a) * alpha
+                return Biquad(
+                    b0 = a * ((a + 1f) - (a - 1f) * cosW + t),
+                    b1 = 2f * a * ((a - 1f) - (a + 1f) * cosW),
+                    b2 = a * ((a + 1f) - (a - 1f) * cosW - t),
+                    a0 = (a + 1f) + (a - 1f) * cosW + t,
+                    a1 = -2f * ((a - 1f) + (a + 1f) * cosW),
+                    a2 = (a + 1f) + (a - 1f) * cosW - t
+                )
+            }
+
+            /** Peaking EQ with centre [centerHz], [q] and [gainDb]. */
+            fun peaking(
+                sampleRate: Int,
+                centerHz: Float,
+                gainDb: Float,
+                q: Float = 1f
+            ): Biquad {
+                val a = 10f.pow(gainDb / 40f)
+                val w0 = 2f * PI.toFloat() * centerHz / sampleRate
+                val cosW = cos(w0)
+                val alpha = sin(w0) / (2f * q)
+                return Biquad(
+                    b0 = 1f + alpha * a,
+                    b1 = -2f * cosW,
+                    b2 = 1f - alpha * a,
+                    a0 = 1f + alpha / a,
+                    a1 = -2f * cosW,
+                    a2 = 1f - alpha / a
                 )
             }
         }
@@ -213,6 +252,67 @@ object AudioDsp {
                 samples[i] = clampToShort(y * 32768f)
             }
             gate.process(samples, frames, channels)
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Three-band equaliser
+    // ------------------------------------------------------------------
+
+    /**
+     * Low shelf / mid peak / high shelf equaliser.
+     *
+     * The three sections run in series and only the bands that are not flat
+     * are built, so an untouched band costs nothing. Cutoffs are clamped below
+     * Nyquist for low sample rates; the gains are canonicalised by
+     * [AudioEqualizer.clampGain] before the filters are created, so malformed
+     * persisted values cannot destabilise the biquads.
+     */
+    class Equalizer(
+        sampleRate: Int,
+        equalizer: AudioEqualizer
+    ) : SampleKernel {
+        private val eq = equalizer.sanitized()
+        private val nyquistLimit = sampleRate * 0.45f
+        private val low = if (eq.lowGainDb != 0f) {
+            Biquad.lowShelf(
+                sampleRate,
+                min(AudioEqualizer.LOW_SHELF_HZ, nyquistLimit),
+                eq.lowGainDb
+            )
+        } else {
+            null
+        }
+        private val mid = if (eq.midGainDb != 0f) {
+            Biquad.peaking(
+                sampleRate,
+                min(AudioEqualizer.MID_PEAK_HZ, nyquistLimit),
+                eq.midGainDb,
+                AudioEqualizer.MID_Q
+            )
+        } else {
+            null
+        }
+        private val high = if (eq.highGainDb != 0f) {
+            Biquad.highShelf(
+                sampleRate,
+                min(AudioEqualizer.HIGH_SHELF_HZ, nyquistLimit),
+                eq.highGainDb
+            )
+        } else {
+            null
+        }
+
+        override fun process(samples: ShortArray, frames: Int, channels: Int) {
+            if (low == null && mid == null && high == null) return
+            for (i in 0 until frames * channels) {
+                val channel = i % channels
+                var y = samples[i] / 32768f
+                low?.let { y = it.process(y, channel) }
+                mid?.let { y = it.process(y, channel) }
+                high?.let { y = it.process(y, channel) }
+                samples[i] = clampToShort(y * 32768f)
+            }
         }
     }
 

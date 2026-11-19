@@ -3,6 +3,7 @@ package com.example.viewmodel
 import com.example.data.ProjectRepository
 import com.example.model.AudioClip
 import com.example.model.AudioEffectSettings
+import com.example.model.AudioEqualizer
 import com.example.model.MediaClip
 import com.example.model.VideoProject
 import com.example.model.VoiceEffectType
@@ -85,6 +86,58 @@ class AudioMixerTest {
 
         viewModel.setAudioPan("music", Float.NaN)
         assertEquals(0f, viewModel.currentProject.value!!.audioTracks.single().pan, 0.0001f)
+    }
+
+    @Test
+    fun `equalizer is stored on the track and supports undo redo`() {
+        val (viewModel, _) = viewModel()
+        viewModel.setAudioEqualizer("music", AudioEqualizer(6f, -3.5f, 2f))
+
+        val applied = viewModel.currentProject.value!!.audioTracks.single().equalizer
+        assertEquals(6f, applied.lowGainDb, 0.0001f)
+        assertEquals(-3.5f, applied.midGainDb, 0.0001f)
+        assertEquals(2f, applied.highGainDb, 0.0001f)
+
+        viewModel.undo()
+        assertTrue(viewModel.currentProject.value!!.audioTracks.single().equalizer.isFlat)
+
+        viewModel.redo()
+        assertEquals(6f, viewModel.currentProject.value!!.audioTracks.single().equalizer.lowGainDb, 0.0001f)
+    }
+
+    @Test
+    fun `equalizer gains are clamped before they reach the render graph`() {
+        val (viewModel, _) = viewModel()
+        viewModel.setAudioEqualizer(
+            "music",
+            AudioEqualizer(40f, Float.NaN, -40f)
+        )
+
+        val eq = viewModel.currentProject.value!!.audioTracks.single().equalizer
+        assertEquals(AudioEqualizer.MAX_GAIN_DB, eq.lowGainDb, 0f)
+        assertEquals(0f, eq.midGainDb, 0f)
+        assertEquals(AudioEqualizer.MIN_GAIN_DB, eq.highGainDb, 0f)
+    }
+
+    @Test
+    fun `rapid equalizer slider stream collapses to one undo step`() {
+        val (viewModel, _) = viewModel()
+
+        viewModel.setAudioEqualizer("music", AudioEqualizer(lowGainDb = 3f))
+        viewModel.setAudioEqualizer("music", AudioEqualizer(lowGainDb = 6f))
+        viewModel.setAudioEqualizer("music", AudioEqualizer(lowGainDb = 9f))
+
+        viewModel.undo()
+        assertTrue(viewModel.currentProject.value!!.audioTracks.single().equalizer.isFlat)
+    }
+
+    @Test
+    fun `equalizer no-change does not create an undo step`() {
+        val (viewModel, _) = viewModel()
+        viewModel.setAudioEqualizer("music", AudioEqualizer())
+
+        assertFalse(viewModel.canUndo.value)
+        assertTrue(viewModel.currentProject.value!!.audioTracks.single().equalizer.isFlat)
     }
 
     @Test
@@ -254,13 +307,14 @@ class AudioMixerTest {
     }
 
     @Test
-    fun `reset restores gain mute fades speed and trim`() {
+    fun `reset restores gain mute fades speed trim and the equalizer`() {
         val (viewModel, _) = viewModel()
         viewModel.setAudioVolume("music", 0.2f)
         viewModel.setAudioClipMuted("music", true)
         viewModel.setAudioFades("music", 500L, 600L)
         viewModel.setAudioSpeed("music", 2f)
         viewModel.setAudioTrim("music", 1_000L, 4_000L)
+        viewModel.setAudioEqualizer("music", AudioEqualizer(5f, 0f, -4f))
         viewModel.resetAudioMixer("music")
 
         val audio = viewModel.currentProject.value!!.audioTracks.single()
@@ -271,6 +325,7 @@ class AudioMixerTest {
         assertEquals(1f, audio.speed, 0.0001f)
         assertEquals(0L, audio.trimStartMs)
         assertEquals(0L, audio.trimEndMs)
+        assertTrue(audio.equalizer.isFlat)
         assertEquals(10_000L, audio.durationMs)
     }
 

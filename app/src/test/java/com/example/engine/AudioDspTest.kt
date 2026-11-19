@@ -3,8 +3,11 @@ package com.example.engine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.example.model.AudioEqualizer
 import kotlin.math.abs
+import kotlin.math.log10
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * DSP checks for the offline audio tools. Everything runs at a small sample
@@ -319,5 +322,119 @@ class AudioDspTest {
         // presence shelf partially offsets it, so expect roughly halved.
         val out = amplitude(cymbal, samplesIn / 2)
         assertTrue("8 kHz should be attenuated, got $out", out < 0.45f)
+    }
+
+    // ------------------------------------------------------------------
+    // Three-band mixer equaliser
+    // ------------------------------------------------------------------
+
+    private val hsr = 44_100
+
+    private fun rms(samples: ShortArray, from: Int): Double {
+        var sum = 0.0
+        for (i in from until samples.size) {
+            val value = samples[i].toDouble()
+            sum += value * value
+        }
+        return sqrt(sum / (samples.size - from).coerceAtLeast(1))
+    }
+
+    /** dB gain of [freq] through the EQ, measured after the filters settle. */
+    private fun eqGainDb(freq: Double, equalizer: AudioEqualizer): Double {
+        val frames = hsr / 2
+        val input = ShortArray(frames) { i ->
+            AudioDsp.clampToShort(0.5f * sin(2.0 * Math.PI * freq * i / hsr).toFloat() * 32768f)
+        }
+        val output = input.copyOf()
+        AudioDsp.Equalizer(hsr, equalizer).process(output, frames, 1)
+        return 20.0 * log10(rms(output, frames / 2) / rms(input, frames / 2))
+    }
+
+    @Test
+    fun `flat equalizer is a bit-exact no-op`() {
+        val samples = sine(440f, 1000)
+        val original = samples.copyOf()
+        AudioDsp.Equalizer(sr, AudioEqualizer()).process(samples, samples.size, 1)
+        assertTrue(original.contentEquals(samples))
+    }
+
+    @Test
+    fun `low shelf boost lifts bass without touching the treble`() {
+        val eq = AudioEqualizer(lowGainDb = 9f)
+        val bass = eqGainDb(80.0, eq)
+        val treble = eqGainDb(8_000.0, eq)
+        assertTrue("bass should be boosted, got $bass dB", bass > 7.0)
+        assertTrue("treble should stay flat, got $treble dB", abs(treble) < 0.5)
+    }
+
+    @Test
+    fun `high shelf cut lowers treble without touching the bass`() {
+        val eq = AudioEqualizer(highGainDb = -9f)
+        val treble = eqGainDb(8_000.0, eq)
+        val bass = eqGainDb(100.0, eq)
+        assertTrue("treble should be cut, got $treble dB", treble < -7.0)
+        assertTrue("bass should stay flat, got $bass dB", abs(bass) < 0.5)
+    }
+
+    @Test
+    fun `mid peak boosts the centre band only`() {
+        val eq = AudioEqualizer(midGainDb = 9f)
+        val centre = eqGainDb(1_000.0, eq)
+        val bass = eqGainDb(80.0, eq)
+        val treble = eqGainDb(12_000.0, eq)
+        assertTrue("mid should be boosted, got $centre dB", centre > 7.0)
+        assertTrue("bass should stay flat, got $bass dB", abs(bass) < 1.0)
+        assertTrue("treble should stay flat, got $treble dB", abs(treble) < 1.0)
+    }
+
+    @Test
+    fun `equalizer keeps filter state across chunked buffers`() {
+        val eq = AudioEqualizer(lowGainDb = 6f, midGainDb = -4f, highGainDb = 3f)
+        val frames = hsr / 10
+        val whole = ShortArray(frames) { i ->
+            AudioDsp.clampToShort(0.5f * sin(2.0 * Math.PI * 300.0 * i / hsr).toFloat() * 32768f)
+        }
+        val chunked = whole.copyOf()
+
+        AudioDsp.Equalizer(hsr, eq).process(whole, frames, 1)
+
+        val kernel = AudioDsp.Equalizer(hsr, eq)
+        val block = 512
+        var offset = 0
+        while (offset < frames) {
+            val count = minOf(block, frames - offset)
+            val slice = chunked.copyOfRange(offset, offset + count)
+            kernel.process(slice, count, 1)
+            slice.copyInto(chunked, offset)
+            offset += count
+        }
+
+        assertTrue("chunk boundaries changed the output", whole.contentEquals(chunked))
+    }
+
+    @Test
+    fun `equalizer channels share coefficients but not state`() {
+        val eq = AudioEqualizer(lowGainDb = 9f)
+        val frames = 2_000
+        val mono = ShortArray(frames) { i ->
+            AudioDsp.clampToShort(0.5f * sin(2.0 * Math.PI * 80.0 * i / hsr).toFloat() * 32768f)
+        }
+        val expected = mono.copyOf()
+        AudioDsp.Equalizer(hsr, eq).process(expected, frames, 1)
+
+        // Interleave the same signal into both channels: each channel must
+        // produce the mono result, i.e. the right channel is not fed the left
+        // channel's filter history.
+        val stereo = ShortArray(frames * 2)
+        for (i in 0 until frames) {
+            stereo[i * 2] = mono[i]
+            stereo[i * 2 + 1] = mono[i]
+        }
+        AudioDsp.Equalizer(hsr, eq).process(stereo, frames, 2)
+
+        for (i in 0 until frames) {
+            assertEquals("left frame $i", expected[i].toInt(), stereo[i * 2].toInt())
+            assertEquals("right frame $i", expected[i].toInt(), stereo[i * 2 + 1].toInt())
+        }
     }
 }

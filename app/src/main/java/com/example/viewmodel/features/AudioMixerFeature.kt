@@ -5,6 +5,7 @@ import com.example.engine.AudioTiming
 import com.example.engine.StereoPan
 import com.example.model.AudioClip
 import com.example.model.AudioEffectSettings
+import com.example.model.AudioEqualizer
 import com.example.viewmodel.EditorViewModel
 import java.util.UUID
 import kotlin.math.abs
@@ -76,6 +77,27 @@ internal object AudioMixerFeature {
             project.copy(
                 audioTracks = project.audioTracks.map { audio ->
                     if (audio.id == audioId) canonical.copy(pan = clipped) else audio
+                }
+            )
+        }
+    }
+
+    /**
+     * Three-band EQ of one track. The value lives on the clip and flows into
+     * the shared composition factory, so the preview and the export run the
+     * same low-shelf / mid-peak / high-shelf filters. Slider drags use one
+     * coalescing key and therefore collapse into a single undo step.
+     */
+    fun setAudioEqualizer(vm: EditorViewModel, audioId: String, equalizer: AudioEqualizer) {
+        val canonicalEq = AudioEqualizer.clamp(equalizer)
+        val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
+            ?: return
+        val canonical = canonical(current)
+        if (canonical.equalizer == canonicalEq) return
+        vm.updateProject("audio-eq:$audioId") { project ->
+            project.copy(
+                audioTracks = project.audioTracks.map { audio ->
+                    if (audio.id == audioId) canonical.copy(equalizer = canonicalEq) else audio
                 }
             )
         }
@@ -324,7 +346,7 @@ internal object AudioMixerFeature {
         }
     }
 
-    /** Restores gain, mute, fades, speed and trim without moving the clip. */
+    /** Restores gain, mute, fades, speed, trim and EQ without moving the clip. */
     fun resetAudioMixer(vm: EditorViewModel, audioId: String) {
         val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
             ?: return
@@ -345,7 +367,8 @@ internal object AudioMixerFeature {
                                 fadeOutMs = 0L,
                                 speed = 1f,
                                 trimStartMs = 0L,
-                                trimEndMs = 0L
+                                trimEndMs = 0L,
+                                equalizer = AudioEqualizer()
                             )
                         )
                     }

@@ -8,6 +8,7 @@ import androidx.media3.common.audio.AudioProcessor.AudioFormat
 import androidx.media3.common.util.UnstableApi
 import com.example.engine.AudioDsp
 import com.example.model.AudioEffectSettings
+import com.example.model.AudioEqualizer
 import java.nio.ByteBuffer
 
 /**
@@ -63,6 +64,20 @@ object AudioEffectProcessors {
             processors += SonicAudioProcessor().apply { setPitch(settings.type.pitchFactor) }
         }
         return processors
+    }
+
+    /**
+     * The mixer's 3-band EQ as one processor. A flat EQ returns an empty list,
+     * so a track that never touched the EQ adds no work to the chain.
+     */
+    fun forEqualizer(equalizer: AudioEqualizer): List<AudioProcessor> {
+        val canonical = equalizer.sanitized()
+        if (canonical.isFlat) return emptyList()
+        return listOf(
+            KernelAudioProcessor { sampleRate, _ ->
+                AudioDsp.Equalizer(sampleRate, canonical)
+            }
+        )
     }
 
     /** Adapts one [AudioDsp.SampleKernel] to the Media3 processor contract. */

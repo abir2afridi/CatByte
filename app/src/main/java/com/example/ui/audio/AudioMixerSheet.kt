@@ -52,12 +52,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.engine.AudioLoudness
 import com.example.engine.AudioTiming
-import com.example.model.AudioClip
 import com.example.engine.StereoPan
+import com.example.model.AudioClip
+import com.example.model.AudioEqualizer
 import com.example.ui.components.PlaybackLevelBar
 import com.example.ui.theme.PencilTheme
 import com.example.viewmodel.features.TrackControlFeature
 import java.util.Locale
+import kotlin.math.abs
 
 private const val MIXER_MAX_SPEED = 16f
 private val MIXER_SPEED_RANGE =
@@ -79,6 +81,8 @@ fun AudioMixerSheet(
     onVolumeChanged: (String, Float) -> Unit,
     /** Stereo balance: -1 hard left, 0 centre, +1 hard right. */
     onPanChanged: (String, Float) -> Unit = { _, _ -> },
+    /** Three-band EQ of the selected track (low shelf / mid peak / high shelf). */
+    onEqualizerChanged: (String, AudioEqualizer) -> Unit = { _, _ -> },
     onNormaliseVolume: (String) -> Unit = {},
     onMuteChanged: (String, Boolean) -> Unit,
     onSoloChanged: (String, Boolean) -> Unit = { _, _ -> },
@@ -322,6 +326,77 @@ fun AudioMixerSheet(
                     tag = "audio_mixer_pan",
                     onValueChangeFinished = { onPanChanged(selected.id, it) }
                 )
+
+                // 3-band equaliser: real low-shelf, peaking and high-shelf
+                // biquads that run on the device in the preview and in the
+                // export, before the stereo balance and the gain envelope.
+                val equalizer = selected.equalizer.sanitized()
+                MixerSectionTitle("Equalizer")
+                Text(
+                    text = "Low shelf 200 Hz · mid peak 1 kHz · high shelf 4 kHz",
+                    color = colors.textSecondary,
+                    fontSize = 10.sp
+                )
+                MixerSlider(
+                    stateKey = "eq-low:${selected.id}",
+                    label = "Low",
+                    valueLabel = { formatEqDb(it) },
+                    value = equalizer.lowGainDb,
+                    range = AudioEqualizer.MIN_GAIN_DB..AudioEqualizer.MAX_GAIN_DB,
+                    tag = "audio_mixer_eq_low",
+                    onValueChangeFinished = {
+                        onEqualizerChanged(selected.id, equalizer.copy(lowGainDb = it))
+                    }
+                )
+                MixerSlider(
+                    stateKey = "eq-mid:${selected.id}",
+                    label = "Mid",
+                    valueLabel = { formatEqDb(it) },
+                    value = equalizer.midGainDb,
+                    range = AudioEqualizer.MIN_GAIN_DB..AudioEqualizer.MAX_GAIN_DB,
+                    tag = "audio_mixer_eq_mid",
+                    onValueChangeFinished = {
+                        onEqualizerChanged(selected.id, equalizer.copy(midGainDb = it))
+                    }
+                )
+                MixerSlider(
+                    stateKey = "eq-high:${selected.id}",
+                    label = "High",
+                    valueLabel = { formatEqDb(it) },
+                    value = equalizer.highGainDb,
+                    range = AudioEqualizer.MIN_GAIN_DB..AudioEqualizer.MAX_GAIN_DB,
+                    tag = "audio_mixer_eq_high",
+                    onValueChangeFinished = {
+                        onEqualizerChanged(selected.id, equalizer.copy(highGainDb = it))
+                    }
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (equalizer.isFlat) {
+                            "Flat: the EQ adds no filtering to this track"
+                        } else {
+                            "EQ runs before volume, so the fader still sets the final level"
+                        },
+                        color = colors.textSecondary,
+                        fontSize = 10.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            onEqualizerChanged(selected.id, AudioEqualizer())
+                        },
+                        enabled = !equalizer.isFlat,
+                        modifier = Modifier
+                            .height(32.dp)
+                            .testTag("audio_mixer_eq_flat")
+                    ) {
+                        Text("Flat", fontSize = 10.sp, maxLines = 1)
+                    }
+                }
 
                 // Loudness normalisation is real maths on the decoded
                 // waveform; without data the button stays disabled and the
@@ -606,6 +681,10 @@ fun AudioMixerSheet(
         }
     }
 }
+
+/** Signed dB label for the mixer EQ, e.g. `+3.0 dB` or `0 dB`. */
+private fun formatEqDb(value: Float): String =
+    if (abs(value) < 0.05f) "0 dB" else String.format(Locale.US, "%+.1f dB", value)
 
 @Composable
 private fun MixerSectionTitle(text: String) {

@@ -1,6 +1,7 @@
 package com.example.data.db
 
 import com.example.model.AudioEffectSettings
+import com.example.model.AudioEqualizer
 import com.example.model.BezierPoint
 import com.example.model.BlendMode
 import com.example.model.ClipAnimation
@@ -178,6 +179,28 @@ internal fun audioEffectsFromJson(json: JSONObject?): AudioEffectSettings {
         isolateVoice = json.optBoolean("isolateVoice", false),
         reduceNoise = json.optBoolean("reduceNoise", false)
     )
+}
+
+/**
+ * The mixer EQ codec: [AudioEqualizer] <-> JSON.
+ *
+ * Missing bands fall back to flat and out-of-range or non-numeric gains are
+ * clamped by [AudioEqualizer.sanitized], so a malformed project cannot place
+ * a 400 dB shelf in the render chain.
+ */
+internal fun equalizerToJson(equalizer: AudioEqualizer): JSONObject = JSONObject().apply {
+    put("lowGainDb", equalizer.lowGainDb.toDouble())
+    put("midGainDb", equalizer.midGainDb.toDouble())
+    put("highGainDb", equalizer.highGainDb.toDouble())
+}
+
+internal fun equalizerFromJson(json: JSONObject?): AudioEqualizer {
+    if (json == null) return AudioEqualizer()
+    return AudioEqualizer(
+        lowGainDb = json.optDouble("lowGainDb", 0.0).toFloat(),
+        midGainDb = json.optDouble("midGainDb", 0.0).toFloat(),
+        highGainDb = json.optDouble("highGainDb", 0.0).toFloat()
+    ).sanitized()
 }
 
 internal fun speedCurveToJson(curve: SpeedCurve): JSONObject = JSONObject().apply {

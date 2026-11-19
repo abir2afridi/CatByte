@@ -32,6 +32,7 @@ import com.example.data.VoiceRecorder
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
 import com.example.model.AudioEffectSettings
+import com.example.model.AudioEqualizer
 import com.example.model.BlendMode
 import com.example.model.ClipAnimation
 import com.example.model.EasingCurve
@@ -1132,6 +1133,13 @@ class EditorViewModel(
      */
     fun setAudioPan(audioId: String, pan: Float) =
         AudioMixerFeature.setAudioPan(this, audioId, pan)
+
+    /**
+     * Three-band EQ of one audio track. The filters run in the shared
+     * composition chain, so preview and export are equalised identically.
+     */
+    fun setAudioEqualizer(audioId: String, equalizer: AudioEqualizer) =
+        AudioMixerFeature.setAudioEqualizer(this, audioId, equalizer)
 
     /**
      * Normalises one audio track's gain to the target loudness from its decoded
