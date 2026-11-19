@@ -454,73 +454,18 @@ class TimelineCanvasOverlay(
         height: Float
     ) {
         when (effect.effectType) {
-            EffectType.RGB_SPLIT -> {
-                val shift = width * 0.008f
-                effectPaint.shader = LinearGradient(
-                    0f, 0f, width, 0f,
-                    intArrayOf(Color.argb(52, 255, 0, 80), Color.TRANSPARENT, Color.argb(52, 0, 220, 255)),
-                    null,
-                    Shader.TileMode.CLAMP
-                )
-                canvas.drawRect(0f, 0f, width, height, effectPaint)
-                effectPaint.shader = null
-                effectPaint.color = Color.argb(38, 255, 0, 40)
-                canvas.drawRect(0f, 0f, shift, height, effectPaint)
-                effectPaint.color = Color.argb(38, 0, 220, 255)
-                canvas.drawRect(width - shift, 0f, width, height, effectPaint)
-            }
-            EffectType.SHAKE -> {
-                val jitter = sin(localMs / 38.0).toFloat() * width * 0.006f
-                effectPaint.color = Color.argb(26, 255, 255, 255)
-                canvas.drawRect(jitter, 0f, width + jitter, height, effectPaint)
-                effectPaint.color = Color.argb(18, 0, 0, 0)
-                canvas.drawRect(-jitter, 0f, width - jitter, height, effectPaint)
-            }
-            EffectType.VHS_GRAIN -> {
-                val random = Random(localMs / 33L + 7L)
-                effectPaint.color = Color.argb(34, 255, 255, 255)
-                repeat(46) {
-                    val y = random.nextFloat() * height
-                    val thickness = 1f + random.nextFloat() * 2.2f
-                    canvas.drawRect(0f, y, width, y + thickness, effectPaint)
-                }
-                effectPaint.color = Color.argb(18, 0, 0, 0)
-                repeat(18) {
-                    val y = random.nextFloat() * height
-                    canvas.drawRect(0f, y, width, y + 3f, effectPaint)
-                }
-            }
-            EffectType.NEON_HALO -> {
-                val pulse = 0.55f + 0.45f * sin(localMs / 180.0).toFloat()
-                effectPaint.style = Paint.Style.STROKE
-                effectPaint.strokeWidth = max(2f, width * 0.012f)
-                effectPaint.color = Color.argb((70 * pulse).toInt(), 56, 189, 248)
-                canvas.drawRect(2f, 2f, width - 2f, height - 2f, effectPaint)
-                effectPaint.strokeWidth = max(1f, width * 0.005f)
-                effectPaint.color = Color.argb((110 * pulse).toInt(), 125, 211, 252)
-                canvas.drawRect(6f, 6f, width - 6f, height - 6f, effectPaint)
-                effectPaint.style = Paint.Style.FILL
-            }
-            EffectType.LIGHTNING -> {
-                val phase = localMs % 1150L
-                if (phase < 75L) {
-                    effectPaint.color = Color.argb(120, 255, 255, 255)
-                    canvas.drawRect(0f, 0f, width, height, effectPaint)
-                }
-            }
-            EffectType.ZOOM_BLUR -> {
-                effectPaint.style = Paint.Style.STROKE
-                effectPaint.strokeWidth = max(1f, width * 0.003f)
-                val rings = 5
-                for (i in 0 until rings) {
-                    val fraction = (i + 1f) / rings
-                    val alpha = (18 * (1f - fraction)).toInt().coerceAtLeast(0)
-                    effectPaint.color = Color.argb(alpha, 255, 255, 255)
-                    val inset = width * 0.06f * fraction
-                    canvas.drawRect(inset, inset, width - inset, height - inset, effectPaint)
-                }
-                effectPaint.style = Paint.Style.FILL
-            }
+            EffectType.RGB_SPLIT ->
+                com.example.data.export.legacy.drawRgbSplit(canvas, effectPaint, localMs, width, height)
+            EffectType.SHAKE ->
+                com.example.data.export.legacy.drawBeatShake(canvas, effectPaint, localMs, width, height)
+            EffectType.VHS_GRAIN ->
+                com.example.data.export.legacy.drawVhsGrain(canvas, effectPaint, localMs, width, height)
+            EffectType.NEON_HALO ->
+                com.example.data.export.legacy.drawNeonHalo(canvas, effectPaint, localMs, width, height)
+            EffectType.LIGHTNING ->
+                com.example.data.export.legacy.drawLightning(canvas, effectPaint, localMs, width, height)
+            EffectType.ZOOM_BLUR ->
+                com.example.data.export.legacy.drawZoomBlur(canvas, effectPaint, localMs, width, height)
             else -> {
                 // Every library preset: one shared op computation feeds both
                 // this export renderer and the Compose preview.

@@ -2,94 +2,42 @@ package com.example.ui.canvas
 
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import com.example.engine.filters.BlueprintFilter
+import com.example.engine.filters.CharcoalSmudgeFilter
+import com.example.engine.filters.CyberpunkFilter
+import com.example.engine.filters.FilterGrade
+import com.example.engine.filters.GlitchArtFilter
+import com.example.engine.filters.GoldenHourFilter
+import com.example.engine.filters.HalftoneMangaFilter
+import com.example.engine.filters.MoodyFilter
+import com.example.engine.filters.NoirFilter
+import com.example.engine.filters.SepiaNotebookFilter
+import com.example.engine.filters.SketchGraphiteFilter
+import com.example.engine.filters.TealOrangeFilter
+import com.example.engine.filters.VintageFilter
 import com.example.model.VideoFilter
 
 /**
- * Colour-matrix preset for a clip's selected filter, or null for
- * [VideoFilter.NONE]. Kept in its own file so the preset table can be found
- * and tuned without reading the whole preview renderer.
+ * Preview colour filter for a clip's filter. The numbers come from the
+ * filter's OWN file (engine/filters/<Name>Filter.kt) through [FilterGrade],
+ * exactly like the export path - one definition, no duplicate matrices.
  */
-internal fun clipFilterColorMatrix(filter: VideoFilter): ColorFilter? = when (filter) {
-    VideoFilter.SKETCH_GRAPHITE -> ColorFilter.colorMatrix(ColorMatrix(
-        floatArrayOf(
-            0.33f, 0.33f, 0.33f, 0f, 15f,
-            0.33f, 0.33f, 0.33f, 0f, 12f,
-            0.33f, 0.33f, 0.33f, 0f, 8f,
-            0f, 0f, 0f, 1f, 0f
-        )
-    ))
-    VideoFilter.BLUEPRINT -> ColorFilter.colorMatrix(ColorMatrix(
-        floatArrayOf(
-            0.1f, 0.2f, 0.4f, 0f, -30f,
-            0.2f, 0.5f, 0.8f, 0f, 10f,
-            0.4f, 0.7f, 1.4f, 0f, 50f,
-            0f, 0f, 0f, 1f, 0f
-        )
-    ))
-    VideoFilter.SEPIA_NOTEBOOK -> ColorFilter.colorMatrix(ColorMatrix(
-        floatArrayOf(
-            0.393f, 0.769f, 0.189f, 0f, 25f,
-            0.349f, 0.686f, 0.168f, 0f, 15f,
-            0.272f, 0.534f, 0.131f, 0f, -10f,
-            0f, 0f, 0f, 1f, 0f
-        )
-    ))
-    VideoFilter.CHARCOAL_SMUDGE -> ColorFilter.colorMatrix(ColorMatrix(
-        floatArrayOf(
-            1.3f, 1.3f, 1.3f, 0f, -50f,
-            1.3f, 1.3f, 1.3f, 0f, -50f,
-            1.3f, 1.3f, 1.3f, 0f, -50f,
-            0f, 0f, 0f, 1f, 0f
-        )
-    ))
-    VideoFilter.HALFTONE_MANGA -> ColorFilter.colorMatrix(ColorMatrix(
-        floatArrayOf(
-            1.4f, 0f, 0f, 0f, -20f,
-            0f, 1.4f, 0f, 0f, -20f,
-            0f, 0f, 1.4f, 0f, -20f,
-            0f, 0f, 0f, 1f, 0f
-        )
-    ))
-    VideoFilter.CYBERPUNK -> ColorFilter.colorMatrix(ColorMatrix().apply {
-        setToSaturation(1.4f)
-    })
-    VideoFilter.VINTAGE -> ColorFilter.colorMatrix(ColorMatrix(
-        floatArrayOf(
-            1.2f, 0.1f, 0.1f, 0f, 15f,
-            0.1f, 1.0f, 0.1f, 0f, 10f,
-            0.1f, 0.1f, 0.8f, 0f, -10f,
-            0f, 0f, 0f, 1f, 0f
-        )
-    ))
-    VideoFilter.GOLDEN_HOUR -> ColorFilter.colorMatrix(ColorMatrix(
-        floatArrayOf(
-            1.3f, 0.2f, 0f, 0f, 20f,
-            0.1f, 1.1f, 0f, 0f, 10f,
-            0f, 0f, 0.7f, 0f, -15f,
-            0f, 0f, 0f, 1f, 0f
-        )
-    ))
-    VideoFilter.NOIR -> ColorFilter.colorMatrix(ColorMatrix().apply {
-        setToSaturation(0f)
-    })
-    VideoFilter.TEAL_ORANGE -> ColorFilter.colorMatrix(ColorMatrix(
-        floatArrayOf(
-            1.25f, 0f, 0f, 0f, 10f,
-            0f, 1.15f, 0.1f, 0f, 0f,
-            0f, 0.1f, 1.35f, 0f, 15f,
-            0f, 0f, 0f, 1f, 0f
-        )
-    ))
-    VideoFilter.MOODY -> ColorFilter.colorMatrix(ColorMatrix().apply {
-        setToSaturation(0.6f)
-    })
-    VideoFilter.GLITCH_ART -> ColorFilter.colorMatrix(ColorMatrix(
-        floatArrayOf(
-            1.5f, 0f, 0f, 0f, 30f,
-            0f, 0.8f, 0f, 0f, -10f,
-            0f, 0f, 1.5f, 0f, 25f,
-            0f, 0f, 0f, 1f, 0f
-        )
-    ))
-    VideoFilter.NONE -> null
+internal fun clipFilterColorMatrix(filter: VideoFilter): ColorFilter? {
+    val grade: FilterGrade = when (filter) {
+        VideoFilter.NONE -> return null
+        VideoFilter.SKETCH_GRAPHITE -> SketchGraphiteFilter.grade
+        VideoFilter.BLUEPRINT -> BlueprintFilter.grade
+        VideoFilter.SEPIA_NOTEBOOK -> SepiaNotebookFilter.grade
+        VideoFilter.CHARCOAL_SMUDGE -> CharcoalSmudgeFilter.grade
+        VideoFilter.HALFTONE_MANGA -> HalftoneMangaFilter.grade
+        VideoFilter.CYBERPUNK -> CyberpunkFilter.grade
+        VideoFilter.VINTAGE -> VintageFilter.grade
+        VideoFilter.GOLDEN_HOUR -> GoldenHourFilter.grade
+        VideoFilter.NOIR -> NoirFilter.grade
+        VideoFilter.TEAL_ORANGE -> TealOrangeFilter.grade
+        VideoFilter.MOODY -> MoodyFilter.grade
+        VideoFilter.GLITCH_ART -> GlitchArtFilter.grade
+    }
+    if (grade.isIdentity) return null
+    return ColorFilter.colorMatrix(ColorMatrix(grade.toPreviewMatrix()))
 }
