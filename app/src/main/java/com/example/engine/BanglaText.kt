@@ -1,5 +1,9 @@
 package com.example.engine
 
+import android.content.Context
+import android.graphics.Typeface
+import com.example.data.fonts.BanglaFontManager
+
 /**
  * Bangla-first text helpers.
  *
@@ -8,6 +12,37 @@ package com.example.engine
  * budget) live in one tested place instead of being scattered through Compose
  * modifiers.
  */
+object BanglaText {
+
+    /**
+     * Initializes the Bangla font system. Call once at app startup.
+     */
+    fun initialize(context: Context) {
+        BanglaFontManager.initialize(context)
+        BanglaFontManager.preloadAll()
+    }
+
+    /**
+     * Gets the best Typeface for Bangla text at the given weight.
+     * Uses bundled OFL fonts with fallback to system fonts.
+     */
+    fun getBanglaTypeface(weight: Int = 400): Typeface {
+        return BanglaFontManager.getBestBanglaTypeface(weight)
+    }
+
+    /**
+     * Gets a specific font family for Bangla text.
+     */
+    fun getBanglaTypeface(fontFamily: String, weight: Int): Typeface {
+        return BanglaFontManager.getTypeface(fontFamily, weight)
+    }
+
+    /**
+     * Checks if Bangla fonts are properly bundled and available.
+     */
+    fun areFontsAvailable(): Boolean = BanglaFontManager.areFontsAvailable()
+}
+
 object BanglaNumerals {
 
     private const val BANGLA_DIGITS = "\u09E6\u09E7\u09E8\u09E9\u09EA\u09EB\u09EC\u09ED\u09EE\u09EF"

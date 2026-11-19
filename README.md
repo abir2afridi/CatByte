@@ -10,11 +10,12 @@ export — all on the device, with no account and no cloud render.
 [Architecture](#architecture) · [Testing](#testing) · [Roadmap](#roadmap) ·
 [Documentation](#documentation)
 
-> **Honest status:** the export path is solid and 309 JVM/Robolectric tests
-> pass, but the "CapCut feel" still needs a real GL compositor, bundled Bangla
-> fonts and on-device models. What is done and what is not is tracked in
-> [`docs/M1-M4-ENGINE.md`](docs/M1-M4-ENGINE.md) and
-> [`FEATURE_MATRIX.md`](FEATURE_MATRIX.md).
+> **Honest status:** the export path is solid and 332 JVM/Robolectric tests
+> pass. The GL Compositor infrastructure is complete (35 GLSL effects, blend
+> modes, masks, chroma key, transitions) and compiles. Bangla font management
+> is implemented. What remains: wiring the GL Compositor into preview/export,
+> bundling OFL fonts, on-device E2E export test, and on-device AI models.
+> Detailed tracking in [`STATUS.md`](STATUS.md) and [`FEATURE_MATRIX.md`](FEATURE_MATRIX.md).
 
 ---
 
@@ -24,11 +25,12 @@ export — all on the device, with no account and no cloud render.
 |---|---|
 | **Platform** | Android (minSdk 24, target/compile SDK 37), Kotlin 2.2, Jetpack Compose |
 | **Rendering** | Media3 ExoPlayer (preview) + Media3 Transformer (export) |
+| **GPU Compositor** | ✅ Infrastructure complete — 35 GLSL effects, 5 blend modes, masks, chroma key, transitions |
 | **State** | Room + JSON snapshots, DataStore settings, durable undo journal |
-| **Languages** | English + Bengali UI (full key parity), Bangla digit formatting |
+| **Languages** | English + Bengali UI (full key parity), Bangla digit formatting, Bangla font manager |
 | **APK** | ~25.8 MB debug build, no native libraries yet |
-| **Plan progress** | ~62% — export core complete, device verification pending (`STATUS.md`) |
-| **Tests** | 309 JVM/Robolectric tests, 0 failures — no instrumented/device run yet |
+| **Plan progress** | ~68% — export core complete, GL compositor infrastructure complete, device verification pending |
+| **Tests** | 332 JVM/Robolectric tests, 0 failures — no instrumented/device run yet |
 | **CI** | GitHub Actions: lint, unit tests and debug APK (`.github/workflows/ci.yml`) |
 
 Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not built**
@@ -52,11 +54,11 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 | Draggable playhead + free timeline pan | ✅ | Needle drags with edge auto-scroll; any timeline touch pauses playback; content centers under the playhead during playback |
 | Keyframes (position, scale, rotation, opacity, volume) | ✅ | Sheet + interpolation + easing curves |
 | Speed: constant and bezier velocity curves | ✅ | Presets: montage, hero moment, bullet time, jump cut |
-| Masks (rectangle, circle, split, mirror, filmstrip) | 🟡 | Data + sheet exist; not burned into the pixels yet |
-| Blend modes | 🟡 | Sheet + enum; export composites with normal alpha |
+| Masks (rectangle, circle, split, mirror, filmstrip) | 🟡 | Data + sheet + GL shaders exist; not burned into the pixels yet |
+| Blend modes | 🟡 | Sheet + enum + GL shaders; export composites with normal alpha |
 | 13 filters + adjustments (brightness, contrast, saturation, vignette, HSL) | ✅ | Applied via Media3 colour effects |
-| Transitions (11 types) | 🟡 | Rendered through Media3, not true two-frame compositing |
-| Text overlays, animations, TTS voice-over | ✅ | Bangla shaping not verified on device |
+| Transitions (11 types) | 🟡 | Rendered through Media3, not true two-frame compositing; GL transition shaders exist |
+| Text overlays, animations, TTS voice-over | ✅ | Bangla shaping not verified on device; font manager implemented |
 | Preview surface | ✅ | Composition preview when available; ExoPlayer fallback renders a real video surface instead of a frozen still |
 | CapCut-style editor shell | ✅ | Top bar (close, search, trial badge, AI UHD menu, export pill), transport row (fullscreen / play / transition / undo / redo), timecode strip, clip context action bar, bottom tool nav (Edit…Background + Tools) |
 | Editor feature search | ✅ | Top-bar search jumps to 29 real panels/actions (split, volume, crop, captions, markers, …) |
@@ -70,7 +72,7 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 | Voice-over recording | ✅ | MediaRecorder based |
 | Beat detection | 🟡 | Detector, beat-magnetic snapping, beat ticks and auto-cut-to-beat are wired; source beats map through trim/start/speed; editable beat grid pending |
 | Audio rows + per-clip mute | 🟡 | One timeline row per audio clip with long-press drag (magnetic + clamp) and mute; per-clip volume/fades UI + mixer wiring pending |
-| Limiter, ducking, EQ, loudness (LUFS), noise reduction | 🟡 | Maths implemented and tested in the engine; not wired to the mixer |
+| Limiter, ducking, EQ, loudness (LUFS), noise reduction | 🟡 | Maths implemented and tested in the engine (`AudioMath`); not wired to the mixer |
 
 ### Export
 | Feature | State | Notes |
@@ -84,19 +86,12 @@ Legend for the tables below: **✅ working** · **🟡 partial** · **🔴 not b
 | HDR tone-map, 10-bit output | 🔴 | 10-bit sources detected by the proxy policy only |
 
 ### Not built yet
-- **GL compositor** — 35 GLSL effect sources and the transition weights exist in
-  `com.example.engine`, but no EGL surface executes them yet. The canvas
-  background colour is saved and read by the render graph, but the live
-  compositor still draws a black canvas.
-- **GIF export** — the export sheet shows the GIF tab for parity, but no GIF
-  encoder is bundled, so it stays disabled with an explanation.
-- **Bangla fonts and shaping** — UI strings are translated; OFL fonts are not
-  bundled and conjunct shaping has no golden-image test.
-- **On-device AI** — auto-reframe crop maths and silence detection are ready;
-  the detectors (MediaPipe/ML Kit/TFLite) are not.
+- **GL compositor wiring** — 35 GLSL effect sources, transition weights, blend modes, masks, and chroma key shaders exist in `com.example.engine.gl`, but no EGL surface executes them in preview/export yet. The canvas background colour is saved and read by the render graph, but the live compositor still draws a black canvas.
+- **GIF export** — the export sheet shows the GIF tab for parity, but no GIF encoder is bundled, so it stays disabled with an explanation.
+- **Bangla fonts and shaping** — UI strings are translated; OFL fonts are not bundled (font manager ready) and conjunct shaping has no golden-image test.
+- **On-device AI** — auto-reframe crop maths and silence detection are ready; the detectors (MediaPipe/ML Kit/TFLite) are not.
 - **Camera capture** — no CameraX module, so shoot-and-edit needs the gallery.
-- **Cloud anything** — no account, no cloud render, no marketplace, no
-  collaboration. Editing works from local files only.
+- **Cloud anything** — no account, no cloud render, no marketplace, no collaboration. Editing works from local files only.
 
 ---
 
@@ -154,7 +149,8 @@ differ between what you see and what you export. A parity test
 app/src/main/java/com/example/
 ├── model/          VideoProject, MediaClip, AudioClip, TextOverlay, keyframes
 ├── engine/         platform-free logic, unit tested on the JVM
-├── data/           Room, JSON, import, export, player, cache, services
+│   └── gl/         GPU compositor: GLShaderProgram, GLTextureCache, GLFramebuffer, GLCompositor
+├── data/           Room, JSON, import, export, player, cache, services, fonts
 ├── ui/             Compose screens, tool sheets, timeline, canvas, theme
 └── viewmodel/      EditorViewModel (editing commands, undo, export state)
 ```
@@ -180,12 +176,23 @@ app/src/main/java/com/example/
 | `DecoderBudget` | Decoder pool priority/LRU plan, proxy policy |
 | `SubtitleIO` | SRT/VTT parse/write, retime, validate, word→cue |
 | `CaptionBridge` | Cues ↔ timeline text overlays (SRT/VTT import, subtitle style) |
-| `BanglaText` | Native digits, mark-safe line breaking, caption fit |
+| `BanglaText` | Native digits, mark-safe line breaking, caption fit, font management |
 | `AudioMath` | Fades, ducking, limiter, mix, RMS/LUFS, PCM16 |
 | `DeviceProfiles` | LOW/MID/HIGH tiers, thermal + battery degradation |
 | `AutoReframe` | Subject-aware crop, smoothing, Ken Burns |
 | `SilenceDetector` | Silence ranges from the waveform pyramid |
 | `ExportPresets` | Platform presets, bitrate ladder, size estimate |
+
+### GL Compositor (`com.example.engine.gl`)
+
+| Class | Purpose |
+|---|---|
+| `GLShaderProgram` | OpenGL ES 3.0 shader compilation, linking, uniform/attribute caching |
+| `GLTextureCache` | LRU texture cache with 96MB memory budget |
+| `GLFramebuffer` | Offscreen framebuffers for ping-pong rendering (preview, effect, mask passes) |
+| `GLCompositor` | Main compositor: base rendering, effects, blend modes, masks, chroma key, transitions |
+| `GLPreviewSurface` | Real-time GPU preview SurfaceView |
+| `ShaderTemplate` | GLSL ES 3.0 template for effect shaders |
 
 ---
 
@@ -195,11 +202,12 @@ app/src/main/java/com/example/
 ./gradlew :app:testDebugUnitTest --rerun
 ```
 
-- **309 JVM/Robolectric tests, 0 failures**: timing, snapping, timeline geometry, undo journal,
+- **332 JVM/Robolectric tests, 0 failures**: timing, snapping, timeline geometry, undo journal,
   render graph, transitions, LUTs, captions, audio maths, Bangla text, device
   policy, export math, JSON round-trip, editor workflow, localization parity,
-  inline trim maths, track mute/lock/solo persistence, and 2 Compose UI test
-  classes (timeline gestures, track header controls) driven by Robolectric.
+  inline trim maths, track mute/lock/solo persistence, GL compositor infrastructure,
+  Bangla font manager, and 2 Compose UI test classes (timeline gestures, track
+  header controls) driven by Robolectric.
 - **CI:** `.github/workflows/ci.yml` runs lint, unit tests and `assembleDebug`
   on pushes and pull requests to `main`/`develop`.
 - **Not covered yet:** instrumented codec/export runs, golden-frame rendering,
@@ -207,18 +215,16 @@ app/src/main/java/com/example/
 
 ## Roadmap
 
-1. Run the instrumented export probe on a real device and record it in
-   `TEST_REPORT.md`.
-2. Free drag of clips across tracks (main-track reorder and overlay start-time
-   and cross-track drag are wired; audio row drag is wired; remaining work is
-   audio fades/mixer wiring and paste-attributes polish).
-3. Execute the shader library in a GL compositor shared by preview and export.
-4. Bundle Bangla OFL fonts and add golden-image shaping tests.
-5. Finish captions and the export sheet (SRT/VTT import/export, readable
-   auto-caption cues and keyboard shortcuts are wired; karaoke highlighting, a
-   real speech model, platform-preset chips in the sheet and the audio mixer
-   remain).
-6. CameraX capture, then on-device cutout/reframe/tracking.
+1. **Wire GL Compositor into preview & export** — Connect `GLPreviewSurface` to `EditorPreviewStage`, implement `CustomVideoCompositor` for export
+2. **Bangla font assets** — Download OFL fonts (Noto Sans Bengali, Hind Siliguri, Tiro Bangla, Anek Bangla) to `assets/fonts/bangla/`
+3. **On-device E2E export test** — Run `connectedDebugAndroidTest` on real device, record in `TEST_REPORT.md`
+4. **Decoder Pool + LRU Bitmap Cache** — `DecoderPool.kt`, `BitmapLruCache.kt` for 60fps scroll
+5. **Proxy Generation Pipeline** — Implement `ProxyManager.generateProxies()` with WorkManager
+6. **Audio Mixer Wiring** — Connect `AudioMath` (limiter, ducking, EQ, LUFS) to Media3 `AudioProcessor` chain
+7. **Keyframe Curve Editor** — Extend `KeyframeSheet` with bezier graph editor
+8. **AI Features** — Bundle Vosk/Whisper for auto-captions, MediaPipe for background removal
+9. **GIF/WebP Export** — Implement encoder in `GifExporter`
+10. **CameraX Capture** — Shoot-and-edit workflow
 
 Full breakdown and device-only work: [`docs/M1-M4-ENGINE.md`](docs/M1-M4-ENGINE.md).
 
@@ -235,6 +241,8 @@ Full breakdown and device-only work: [`docs/M1-M4-ENGINE.md`](docs/M1-M4-ENGINE.
 | [`TEST_REPORT.md`](TEST_REPORT.md) | Test coverage and results |
 | [`docs+/plan.md`](docs+/plan.md) | Original build plan |
 | [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md) | Dependency licences |
+| [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) | Detailed implementation roadmap |
+| [`IMPLEMENTATION_SUMMARY.md`](IMPLEMENTATION_SUMMARY.md) | Summary of recent work |
 
 ## Privacy
 

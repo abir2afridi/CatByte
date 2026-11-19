@@ -4,6 +4,7 @@ import com.example.data.ai.TranscriptSegment
 import com.example.engine.CaptionBridge
 import com.example.engine.CaptionTimeline
 import com.example.engine.SubtitleCue
+import com.example.engine.WordTiming
 import com.example.model.TextOverlay
 
 /**
@@ -61,6 +62,47 @@ object AutoCaptionManager {
 
         if (cues.isEmpty()) return emptyList()
         return CaptionBridge.overlaysFromCues(cues)
+    }
+
+    /**
+     * Groups recognised word timings (offline Vosk path) into phrase-level
+     * segments with REAL start/end times: a break on a speech pause or a word
+     * budget. Feeding these into [overlaysFromTranscript] keeps every caption
+     * on the timeline at the moment it was actually spoken.
+     */
+    fun segmentsFromWords(
+        words: List<WordTiming>,
+        pauseMs: Long = 650L,
+        maxWords: Int = MAX_WORDS_PER_CUE + 3
+    ): List<TranscriptSegment> {
+        val sane = words.filter { it.isSane }.sortedBy { it.startMs }
+        if (sane.isEmpty()) return emptyList()
+        val out = mutableListOf<TranscriptSegment>()
+        val current = mutableListOf<WordTiming>()
+        var lastEnd = sane.first().startMs
+
+        fun flush() {
+            if (current.isEmpty()) return
+            out.add(
+                TranscriptSegment(
+                    startMs = current.first().startMs,
+                    endMs = current.last().endMs,
+                    text = current.joinToString(" ") { it.text }
+                )
+            )
+            current.clear()
+        }
+        for (word in sane) {
+            if (current.isNotEmpty() &&
+                (word.startMs - lastEnd > pauseMs || current.size >= maxWords)
+            ) {
+                flush()
+            }
+            current.add(word)
+            lastEnd = word.endMs
+        }
+        flush()
+        return out
     }
 
     /**

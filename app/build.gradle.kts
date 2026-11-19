@@ -117,6 +117,8 @@ dependencies {
   implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.room.ktx)
+  // On-device speech recognition for real auto captions (Apache 2.0).
+  implementation(libs.vosk.android)
   implementation(libs.coil.compose)
 implementation(libs.coil.video)
   implementation(libs.kotlinx.coroutines.android)
