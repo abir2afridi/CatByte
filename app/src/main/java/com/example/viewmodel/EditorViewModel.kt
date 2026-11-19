@@ -1109,6 +1109,14 @@ class EditorViewModel(
         AudioMixerFeature.setAudioVolume(this, audioId, volume)
 
     /**
+     * Stereo balance of one audio track (-1 hard left, 0 centre, +1 hard
+     * right). Preview and export share the same composition, so the track is
+     * placed in the mix in exactly the same way.
+     */
+    fun setAudioPan(audioId: String, pan: Float) =
+        AudioMixerFeature.setAudioPan(this, audioId, pan)
+
+    /**
      * Normalises one audio track's gain to the target loudness from its decoded
      * waveform. False means the track has no analysable waveform yet.
      */

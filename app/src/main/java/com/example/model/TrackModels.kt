@@ -33,6 +33,12 @@ data class AudioClip(
     /** Playback speed multiplier for the source audio. */
     val speed: Float = 1.0f,
     val volume: Float = 1.0f,
+    /**
+     * Stereo balance of the track: -1 is hard left, 0 is centre and +1 is hard
+     * right. The side the track moves away from fades out; a mono source is
+     * spread over both speakers so it can be placed in the mix as well.
+     */
+    val pan: Float = 0f,
     val isVoiceover: Boolean = false,
     val isMuted: Boolean = false,
     /**

@@ -66,6 +66,28 @@ class AudioMixerTest {
     }
 
     @Test
+    fun `pan is stored on the track and supports undo redo`() {
+        val (viewModel, _) = viewModel()
+        viewModel.setAudioPan("music", -0.4f)
+        assertEquals(-0.4f, viewModel.currentProject.value!!.audioTracks.single().pan, 0.0001f)
+
+        viewModel.undo()
+        assertEquals(0f, viewModel.currentProject.value!!.audioTracks.single().pan, 0.0001f)
+        viewModel.redo()
+        assertEquals(-0.4f, viewModel.currentProject.value!!.audioTracks.single().pan, 0.0001f)
+    }
+
+    @Test
+    fun `pan is clamped to the stereo field`() {
+        val (viewModel, _) = viewModel()
+        viewModel.setAudioPan("music", 5f)
+        assertEquals(1f, viewModel.currentProject.value!!.audioTracks.single().pan, 0.0001f)
+
+        viewModel.setAudioPan("music", Float.NaN)
+        assertEquals(0f, viewModel.currentProject.value!!.audioTracks.single().pan, 0.0001f)
+    }
+
+    @Test
     fun `mute preserves the stored volume`() {
         val (viewModel, _) = viewModel()
         viewModel.setAudioVolume("music", 0.4f)

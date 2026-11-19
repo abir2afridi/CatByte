@@ -32,6 +32,7 @@ internal fun audioToJson(audio: AudioClip): JSONObject = JSONObject().apply {
     put("trimEndMs", audio.trimEndMs)
     put("speed", audio.speed.toDouble())
     put("volume", audio.volume.toDouble())
+    put("pan", audio.pan.toDouble())
     put("isVoiceover", audio.isVoiceover)
     put("isMuted", audio.isMuted)
     put("isSoloed", audio.isSoloed)
@@ -55,6 +56,7 @@ internal fun audioFromJson(json: JSONObject): AudioClip {
         trimEndMs = json.optLong("trimEndMs"),
         speed = json.optDouble("speed", 1.0).toFloat(),
         volume = json.optDouble("volume", 1.0).toFloat(),
+        pan = json.optDouble("pan", 0.0).toFloat(),
         isVoiceover = json.optBoolean("isVoiceover", false),
         isMuted = json.optBoolean("isMuted", false),
         isSoloed = json.optBoolean("isSoloed", false),

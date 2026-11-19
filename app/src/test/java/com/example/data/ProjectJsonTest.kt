@@ -122,6 +122,7 @@ class ProjectJsonTest {
                     trimEndMs = 8850L,
                     speed = 1.15f,
                     volume = 0.5f,
+                    pan = -0.35f,
                     audioEffects = AudioEffectSettings(
                         type = VoiceEffectType.REVERB,
                         intensity = 0.5f,

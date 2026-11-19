@@ -162,6 +162,7 @@ object AudioTiming {
             trimEndMs = trimEnd,
             speed = speed,
             volume = if (audio.volume.isFinite()) audio.volume.coerceIn(0f, 2f) else 1f,
+            pan = StereoPan.clamp(audio.pan),
             loopCount = loopCount(audio),
             waveform = sanitizedWaveform(audio.waveform)
         )

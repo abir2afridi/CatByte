@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import com.example.engine.AudioLoudness
 import com.example.engine.AudioTiming
 import com.example.model.AudioClip
+import com.example.engine.StereoPan
 import com.example.ui.components.PlaybackLevelBar
 import com.example.ui.theme.PencilTheme
 import com.example.viewmodel.features.TrackControlFeature
@@ -76,6 +77,8 @@ fun AudioMixerSheet(
     maxTimelineStartMs: Long,
     onSelectAudio: (String) -> Unit,
     onVolumeChanged: (String, Float) -> Unit,
+    /** Stereo balance: -1 hard left, 0 centre, +1 hard right. */
+    onPanChanged: (String, Float) -> Unit = { _, _ -> },
     onNormaliseVolume: (String) -> Unit = {},
     onMuteChanged: (String, Boolean) -> Unit,
     onSoloChanged: (String, Boolean) -> Unit = { _, _ -> },
@@ -305,6 +308,19 @@ fun AudioMixerSheet(
                     range = 0f..2f,
                     tag = "audio_mixer_volume",
                     onValueChangeFinished = { onVolumeChanged(selected.id, it) }
+                )
+
+                // Stereo balance: the side the track moves away from fades
+                // out. A mono source is spread over both speakers, so it can
+                // be placed in the mix as well.
+                MixerSlider(
+                    stateKey = "pan:${selected.id}",
+                    label = "Pan (L-R)",
+                    valueLabel = { StereoPan.label(it) },
+                    value = StereoPan.clamp(selected.pan),
+                    range = StereoPan.MIN_PAN..StereoPan.MAX_PAN,
+                    tag = "audio_mixer_pan",
+                    onValueChangeFinished = { onPanChanged(selected.id, it) }
                 )
 
                 // Loudness normalisation is real maths on the decoded

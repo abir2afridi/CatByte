@@ -12,8 +12,10 @@ import com.example.data.export.AudioEffectProcessors
 import com.example.data.export.ConstantAudioSpeedProvider
 import com.example.data.export.ConstantGainProvider
 import com.example.data.export.DuckGainProvider
+import com.example.data.export.PanAudioProcessor
 import com.example.engine.AudioSpec
 import com.example.engine.AudioTiming
+import com.example.engine.StereoPan
 import com.example.model.AudioClip
 import java.io.File
 import kotlin.math.abs
@@ -63,6 +65,11 @@ internal fun ProjectCompositionFactory.buildAudioSequence(
     // before the gain envelope, so the mixer's volume slider stays a pure
     // level control. No-op settings produce no processors at all.
     val effectProcessors = AudioEffectProcessors.forSettings(audio.audioEffects)
+    // Stereo balance: the track is placed left or right in the mix. A centred
+    // track needs no processor at all, so the channel layout of the source is
+    // left untouched.
+    val pan = StereoPan.clamp(audio.pan)
+    val panProcessors = if (pan != 0f) listOf(PanAudioProcessor(pan)) else emptyList()
 
     val builder = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_AUDIO))
     if (spec.timelineInUs > 0L) {
@@ -93,7 +100,7 @@ internal fun ProjectCompositionFactory.buildAudioSequence(
         } else {
             baseGain
         }
-        val processors = effectProcessors + GainProcessor(gainProvider)
+        val processors = effectProcessors + panProcessors + GainProcessor(gainProvider)
         val itemBuilder = EditedMediaItem.Builder(mediaItem)
             // Media3 requires the ORIGINAL source duration here. Clipping and
             // speed are applied afterwards to derive the presentation duration.

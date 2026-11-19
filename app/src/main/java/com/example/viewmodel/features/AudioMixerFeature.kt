@@ -2,6 +2,7 @@ package com.example.viewmodel.features
 
 import com.example.engine.AudioLoudness
 import com.example.engine.AudioTiming
+import com.example.engine.StereoPan
 import com.example.model.AudioClip
 import com.example.model.AudioEffectSettings
 import com.example.viewmodel.EditorViewModel
@@ -58,6 +59,26 @@ internal object AudioMixerFeature {
             )
         }
         return true
+    }
+
+    /**
+     * Stereo balance of one track: -1 is hard left, 0 is centre and +1 is hard
+     * right. The value lives on the clip, so the shared composition balances
+     * the track the same way in the preview and in the exported file.
+     */
+    fun setAudioPan(vm: EditorViewModel, audioId: String, pan: Float) {
+        val clipped = StereoPan.clamp(pan)
+        val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
+            ?: return
+        val canonical = canonical(current)
+        if (canonical.pan == clipped) return
+        vm.updateProject("audio-pan:$audioId") { project ->
+            project.copy(
+                audioTracks = project.audioTracks.map { audio ->
+                    if (audio.id == audioId) canonical.copy(pan = clipped) else audio
+                }
+            )
+        }
     }
 
     /** Fade durations on the output timeline. */
@@ -317,6 +338,7 @@ internal object AudioMixerFeature {
                         canonical(
                             base.copy(
                                 volume = 1f,
+                                pan = 0f,
                                 isMuted = false,
                                 isSoloed = false,
                                 fadeInMs = 0L,

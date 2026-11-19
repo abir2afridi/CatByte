@@ -102,6 +102,45 @@ class AudioMixerSheetTest {
     }
 
     @Test
+    fun `the pan slider reports the new balance of the selected track`() {
+        val pans = mutableListOf<Pair<String, Float>>()
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio.copy(pan = -0.5f)),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onPanChanged = { id, value -> pans += id to value },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        val pan = compose.onNodeWithTag("audio_mixer_pan").performScrollTo()
+        pan.performTouchInput {
+            down(center)
+            moveTo(Offset(center.x * 1.5f, center.y))
+        }
+        compose.waitForIdle()
+        // The gesture only moves the local draft.
+        assertTrue(pans.isEmpty())
+
+        pan.performTouchInput { up() }
+        compose.waitForIdle()
+
+        assertEquals(1, pans.size)
+        assertEquals("music", pans.single().first)
+        assertTrue("the balance should move towards the right", pans.single().second > -0.5f)
+    }
+
+    @Test
     fun `auto volume stays disabled while the waveform is not decoded`() {
         compose.setContent {
             AudioMixerSheet(
