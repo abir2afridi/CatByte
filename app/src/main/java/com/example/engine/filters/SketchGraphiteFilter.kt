@@ -12,6 +12,9 @@ object SketchGraphiteFilter {
         blueGain = 1.0f,
         brightness = 0.06f,
         contrast = 0.22f,
+        cardColorA = 0xFF2C2B28,
+        cardColorB = 0xFFD6CEBD,
+        tabs = listOf("Pencil", "B&W"),
         saturation = 0.15f
     )
 }

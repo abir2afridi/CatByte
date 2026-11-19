@@ -12,6 +12,9 @@ object CharcoalSmudgeFilter {
         blueGain = 1.0f,
         brightness = -0.1f,
         contrast = 0.42f,
+        cardColorA = 0xFF000000,
+        cardColorB = 0xFF52525B,
+        tabs = listOf("Pencil", "B&W"),
         saturation = 0.0f
     )
 }

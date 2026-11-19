@@ -12,6 +12,9 @@ object BlueprintFilter {
         blueGain = 1.25f,
         brightness = -0.04f,
         contrast = 0.18f,
+        cardColorA = 0xFF0F172A,
+        cardColorB = 0xFF38BDF8,
+        tabs = listOf("Pencil", "Cool"),
         saturation = 0.85f
     )
 }

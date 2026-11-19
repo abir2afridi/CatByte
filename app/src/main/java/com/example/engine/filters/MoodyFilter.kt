@@ -12,6 +12,9 @@ object MoodyFilter {
         blueGain = 1.06f,
         brightness = -0.08f,
         contrast = 0.12f,
+        cardColorA = 0xFF1E293B,
+        cardColorB = 0xFF64748B,
+        tabs = listOf("Cinematic", "Cool"),
         saturation = 0.55f
     )
 }

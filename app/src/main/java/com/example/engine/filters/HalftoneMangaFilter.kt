@@ -12,6 +12,9 @@ object HalftoneMangaFilter {
         blueGain = 1.0f,
         brightness = 0.08f,
         contrast = 0.3f,
+        cardColorA = 0xFF18181B,
+        cardColorB = 0xFFE4E4E7,
+        tabs = listOf("Pencil", "B&W"),
         saturation = 0.25f
     )
 }

@@ -15,7 +15,12 @@ data class FilterGrade(
     val blueGain: Float,
     val brightness: Float,
     val contrast: Float,
-    val saturation: Float
+    val saturation: Float,
+    /** Screen-tab swatch colours (argb) - owned by this filter's own file. */
+    val cardColorA: Long = 0xFF2B2B33,
+    val cardColorB: Long = 0xFFA5A8B2,
+    /** drawer tabs this filter appears in. */
+    val tabs: List<String> = listOf("All")
 ) {
     /** True when applying this grade changes nothing. */
     val isIdentity: Boolean

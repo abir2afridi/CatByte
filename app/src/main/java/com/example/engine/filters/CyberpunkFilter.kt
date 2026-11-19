@@ -12,6 +12,9 @@ object CyberpunkFilter {
         blueGain = 1.3f,
         brightness = -0.04f,
         contrast = 0.26f,
+        cardColorA = 0xFF00FFFF,
+        cardColorB = 0xFFFF00FF,
+        tabs = listOf("Trending", "Neon"),
         saturation = 1.35f
     )
 }

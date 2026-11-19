@@ -12,6 +12,9 @@ object TealOrangeFilter {
         blueGain = 1.12f,
         brightness = 0.04f,
         contrast = 0.18f,
+        cardColorA = 0xFF00B4D8,
+        cardColorB = 0xFFFF6B6B,
+        tabs = listOf("Trending", "Cinematic"),
         saturation = 1.2f
     )
 }

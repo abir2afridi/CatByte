@@ -12,6 +12,9 @@ object GlitchArtFilter {
         blueGain = 1.18f,
         brightness = 0.02f,
         contrast = 0.32f,
+        cardColorA = 0xFFFF0000,
+        cardColorB = 0xFF0000FF,
+        tabs = listOf("Neon", "Cinematic"),
         saturation = 1.45f
     )
 }

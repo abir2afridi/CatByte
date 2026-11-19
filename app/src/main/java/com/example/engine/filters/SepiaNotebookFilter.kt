@@ -12,6 +12,9 @@ object SepiaNotebookFilter {
         blueGain = 0.72f,
         brightness = 0.05f,
         contrast = 0.05f,
+        cardColorA = 0xFF78350F,
+        cardColorB = 0xFFFDE68A,
+        tabs = listOf("Pencil", "Vintage"),
         saturation = 0.7f
     )
 }

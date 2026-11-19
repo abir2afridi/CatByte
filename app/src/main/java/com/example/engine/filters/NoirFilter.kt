@@ -12,6 +12,9 @@ object NoirFilter {
         blueGain = 1.0f,
         brightness = 0.0f,
         contrast = 0.45f,
+        cardColorA = 0xFF000000,
+        cardColorB = 0xFFFFFFFF,
+        tabs = listOf("Trending", "B&W"),
         saturation = 0.0f
     )
 }

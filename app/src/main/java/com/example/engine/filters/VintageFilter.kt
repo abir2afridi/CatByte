@@ -12,6 +12,9 @@ object VintageFilter {
         blueGain = 0.86f,
         brightness = 0.04f,
         contrast = -0.06f,
+        cardColorA = 0xFF8D6E63,
+        cardColorB = 0xFFFFE082,
+        tabs = listOf("Trending", "Vintage"),
         saturation = 0.8f
     )
 }

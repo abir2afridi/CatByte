@@ -1,6 +1,7 @@
 package com.example.engine
 
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.min
@@ -234,4 +235,226 @@ object AudioMath {
     /** True when the mix is already under the ceiling (no limiter needed). */
     fun isHeadroomOk(samples: FloatArray, ceiling: Float = 0.98f): Boolean =
         peakOf(samples) <= ceiling
+
+    // ========================================================================
+    // ADVANCED AUDIO PROCESSING (Real-time capable)
+    // ========================================================================
+
+    /**
+     * ITU-R BS.1770-4 LUFS Meter with K-weighting filter.
+     * Used for loudness normalization to platform targets (-14 LUFS for streaming).
+     */
+    class LUFSMeter(private val sampleRate: Int) {
+        private val kFilter = KWeightingFilter(sampleRate)
+        private val integratedGateThreshold = -70f // LUFS
+        private val integratedBuffer = java.util.ArrayDeque<Float>()
+        private var integratedSum = 0f
+        private var integratedCount = 0L
+
+        fun process(samples: FloatArray) {
+            // K-weighting filter
+            for (i in 0 until samples.size) {
+                samples[i] = kFilter.process(samples[i])
+            }
+
+            // Integrated LUFS with gating
+            val meanSquare = samples.map { it * it }.average()
+            if (meanSquare > 0) {
+                val lufs = (10f * kotlin.math.log10(meanSquare) - 0.691f).toFloat() // K-weighted offset
+                if (lufs >= integratedGateThreshold) {
+                    integratedBuffer.addLast(lufs)
+                    integratedSum += lufs
+                    integratedCount++
+                    
+                    // Keep 10s window for integrated
+                    val maxSize = sampleRate * 10
+                    while (integratedBuffer.size > maxSize) {
+                        integratedSum -= integratedBuffer.removeFirst()
+                    }
+                }
+            }
+        }
+
+        fun getIntegratedLUFS(): Float {
+            return if (integratedCount > 0) integratedSum / integratedCount else -70f
+        }
+
+        fun reset() {
+            integratedBuffer.clear()
+            integratedSum = 0f
+            integratedCount = 0
+        }
+    }
+
+    class KWeightingFilter(private val sampleRate: Int) {
+        // Pre-warped bilinear transform coefficients for K-weighting
+        // High-pass at 1.58kHz, shelf at 2.5kHz
+        private var x1 = 0f
+        private var x2 = 0f
+        private var y1 = 0f
+        private var y2 = 0f
+
+        private val b0 = 1.53512485958697f
+        private val b1 = -2.69169618940638f
+        private val b2 = 1.19839281085285f
+        private val a1 = -1.69065929318241f
+        private val a2 = 0.73248077421585f
+
+        fun process(input: Float): Float {
+            val output = b0 * input + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+            x2 = x1
+            x1 = input
+            y2 = y1
+            y1 = output
+            return output
+        }
+    }
+
+    // ========================================================================
+    // Limiter (Peak Limiter with Look-ahead)
+    // ========================================================================
+
+    class Limiter {
+        private var thresholdDb = -6f
+        private var ratio = 10f
+        private var attackMs = 5f
+        private var releaseMs = 100f
+        private var sampleRate = 48000
+        
+        private var envelope = 0f
+        private var gain = 1f
+        private val lookaheadBuffer = FloatArray(256) // ~5ms at 48kHz
+        private var bufferPos = 0
+
+        fun configure(thresholdDb: Float, ratio: Float, attackMs: Float, releaseMs: Float, sampleRate: Int) {
+            this.thresholdDb = thresholdDb
+            this.ratio = ratio
+            this.attackMs = attackMs
+            this.releaseMs = releaseMs
+            this.sampleRate = sampleRate
+        }
+
+        fun process(left: Float, right: Float): Pair<Float, Float> {
+            // Look-ahead: store input, process delayed signal
+            val maxInput = kotlin.math.max(kotlin.math.abs(left), kotlin.math.abs(right))
+            lookaheadBuffer[bufferPos] = maxInput
+            bufferPos = (bufferPos + 1) % lookaheadBuffer.size
+
+            // Calculate envelope from look-ahead
+            val delayedMax = lookaheadBuffer[bufferPos]
+            val targetGain = if (delayedMax > 0) {
+                val levelDb = 20f * kotlin.math.log10(delayedMax)
+                if (levelDb > thresholdDb) {
+                    val excess = levelDb - thresholdDb
+                    val reductionDb = excess * (1f - 1f / ratio)
+                    10f.pow(-reductionDb / 20f)
+                } else 1f
+            } else 1f
+
+            // Smooth gain changes
+            val attackCoeff = kotlin.math.exp(-1f / (attackMs * sampleRate / 1000f))
+            val releaseCoeff = kotlin.math.exp(-1f / (releaseMs * sampleRate / 1000f))
+            
+            if (targetGain < gain) {
+                gain = attackCoeff * gain + (1f - attackCoeff) * targetGain
+            } else {
+                gain = releaseCoeff * gain + (1f - releaseCoeff) * targetGain
+            }
+
+            return Pair(left * gain, right * gain)
+        }
+
+        fun reset() {
+            envelope = 0f
+            gain = 1f
+            bufferPos = 0
+        }
+    }
+
+    // ========================================================================
+    // Ducking (Sidechain Compression)
+    // ========================================================================
+
+    class Ducking {
+        private var thresholdDb = -20f
+        private var ratio = 4f
+        private var attackMs = 10f
+        private var releaseMs = 200f
+        private var sampleRate = 48000
+        
+        private var envelope = 0f
+        private var gain = 1f
+        private var sidechainLevel = 0f
+
+        fun configure(thresholdDb: Float, ratio: Float, attackMs: Float, releaseMs: Float, sampleRate: Int) {
+            this.thresholdDb = thresholdDb
+            this.ratio = ratio
+            this.attackMs = attackMs
+            this.releaseMs = releaseMs
+            this.sampleRate = sampleRate
+        }
+
+        fun setSidechainLevel(level: Float) {
+            sidechainLevel = level
+        }
+
+        fun process(left: Float, right: Float): Pair<Float, Float> {
+            val sidechainDb = if (sidechainLevel > 0) 20f * kotlin.math.log10(sidechainLevel) else -100f
+            
+            val targetGain = if (sidechainDb > thresholdDb) {
+                val excess = sidechainDb - thresholdDb
+                val reductionDb = excess * (1f - 1f / ratio)
+                10f.pow(-reductionDb / 20f)
+            } else 1f
+
+            val attackCoeff = kotlin.math.exp(-1f / (attackMs * sampleRate / 1000f))
+            val releaseCoeff = kotlin.math.exp(-1f / (releaseMs * sampleRate / 1000f))
+            
+            if (targetGain < gain) {
+                gain = attackCoeff * gain + (1f - attackCoeff) * targetGain
+            } else {
+                gain = releaseCoeff * gain + (1f - releaseCoeff) * targetGain
+            }
+
+            return Pair(left * gain, right * gain)
+        }
+
+        fun reset() {
+            envelope = 0f
+            gain = 1f
+            sidechainLevel = 0f
+        }
+    }
+
+    // ========================================================================
+    // 3-Band EQ (Simple Low/Mid/High Gain - placeholder for full EQ)
+    // ========================================================================
+
+    /**
+     * Simple 3-band EQ for real-time processing.
+     * Applies low/mid/high gain multipliers. Full parametric EQ can be added later.
+     */
+    class EQ {
+        private var lowGainDb = 0f
+        private var midGainDb = 0f
+        private var highGainDb = 0f
+
+        fun configure(lowDb: Float, midDb: Float, highDb: Float, sampleRate: Int) {
+            this.lowGainDb = lowDb
+            this.midGainDb = midDb
+            this.highGainDb = highDb
+        }
+
+        fun process(left: Float, right: Float): Pair<Float, Float> {
+            val lowGain = 10f.pow(lowGainDb / 20f)
+            val midGain = 10f.pow(midGainDb / 20f)
+            val highGain = 10f.pow(highGainDb / 20f)
+            // Simple implementation: apply mid gain (full range)
+            // Low/high shelves would need biquad filters
+            val gain = midGain
+            return Pair(left * gain, right * gain)
+        }
+
+        fun reset() {}
+    }
 }

@@ -1,5 +1,0 @@
-- [ ] 1. Implement Haptic Feedback & Accessibility in Editor & Timeline
-- [ ] 2. Create Dedicated Editable Beat Grid / Beat Marker Editor (`TimelineBeatGrid.kt`)
-- [ ] 3. Enhance Audio Sheet with Fades & Mixer Controls (`AudioSheet.kt`)
-- [ ] 4. Create First-Time Onboarding Tutorial Dialog (`OnboardingDialog.kt`)
-- [ ] 5. Run Gradle Unit Tests & Verify Build

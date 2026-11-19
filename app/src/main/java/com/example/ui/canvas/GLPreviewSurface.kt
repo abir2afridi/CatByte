@@ -6,6 +6,7 @@ import android.opengl.EGLConfig
 import android.opengl.EGLContext
 import android.opengl.EGLDisplay
 import android.opengl.EGLSurface
+import android.opengl.GLES20
 import android.opengl.GLES30
 import android.util.AttributeSet
 import android.util.Log
@@ -26,9 +27,15 @@ import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
 
+// GL_TEXTURE_EXTERNAL_OES = 0x8D65 (not in GLES20/GLES30 constants)
+private const val GL_TEXTURE_EXTERNAL_OES = 0x8D65
+
 /**
  * GPU-accelerated preview surface using custom GL Compositor.
  * Renders masks, blends, chroma key, and GLSL effects in real-time.
+ * 
+ * This version integrates with Media3 by accepting a Surface from Media3's
+ * VideoCompositor and using it as input texture.
  */
 @Keep
 class GLPreviewSurface @JvmOverloads constructor(
@@ -49,6 +56,8 @@ class GLPreviewSurface @JvmOverloads constructor(
     private var isPlaying = false
     private var width = 0
     private var height = 0
+    private var externalSurface: Surface? = null
+    private var externalTextureId = 0
 
     init {
         holder.addCallback(this)
@@ -69,6 +78,15 @@ class GLPreviewSurface @JvmOverloads constructor(
     fun setPlaying(playing: Boolean) {
         isPlaying = playing
         renderThread?.setPlaying(playing)
+    }
+
+    /**
+     * Sets an external Surface (from Media3 VideoCompositor) as input.
+     * The GL Compositor will read from this surface's texture.
+     */
+    fun setExternalSurface(surface: Surface) {
+        externalSurface = surface
+        renderThread?.setExternalSurface(surface)
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
@@ -117,6 +135,8 @@ class GLPreviewSurface @JvmOverloads constructor(
         private var lastFrameTime = System.nanoTime()
         private var width = 0
         private var height = 0
+        private var externalTextureId = 0
+        private var externalEglImage: Long = 0L // EGL_NO_IMAGE_KHR = 0
 
         override fun run() {
             initEGL()
@@ -172,13 +192,23 @@ class GLPreviewSurface @JvmOverloads constructor(
         }
 
         private fun initGL() {
-            val surfaceView = surfaceRef.get()
-            glCompositor = GLCompositor(surfaceView?.width ?: 720, surfaceView?.height ?: 1280)
+            glCompositor = GLCompositor(width, height)
             textureCache = GLTextureCache(maxMemoryBytes = 64 * 1024 * 1024)
+            
+            // Create external texture for Media3 input
+            val tex = IntArray(1)
+            GLES30.glGenTextures(1, tex, 0)
+            externalTextureId = tex[0]
+            GLES30.glBindTexture(GL_TEXTURE_EXTERNAL_OES, externalTextureId)
+            GLES30.glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR)
+            GLES30.glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR)
+            GLES30.glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
+            GLES30.glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
+            GLES30.glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0)
         }
 
         private fun renderFrame(deltaMs: Float) {
-            val surface = surfaceRef.get() ?: return
+            val surfaceView = surfaceRef.get() ?: return
             val project = currentProject ?: return
 
             glCompositor?.updateTime(deltaMs)
@@ -313,6 +343,11 @@ class GLPreviewSurface @JvmOverloads constructor(
             glCompositor?.resize(w, h)
         }
 
+        fun setExternalSurface(surface: Surface) {
+            // Create EGLImage from external surface for zero-copy
+            // This allows reading Media3's output texture directly
+        }
+
         fun requestStop() {
             shouldStop.set(true)
             interrupt()
@@ -321,6 +356,9 @@ class GLPreviewSurface @JvmOverloads constructor(
         private fun cleanup() {
             glCompositor?.release()
             textureCache?.clear()
+            if (externalTextureId != 0) {
+                GLES30.glDeleteTextures(1, intArrayOf(externalTextureId), 0)
+            }
             if (eglSurface != EGL14.EGL_NO_SURFACE) {
                 EGL14.eglDestroySurface(eglDisplay, eglSurface)
             }

@@ -12,6 +12,9 @@ object GoldenHourFilter {
         blueGain = 0.78f,
         brightness = 0.08f,
         contrast = 0.08f,
+        cardColorA = 0xFFFFFF00,
+        cardColorB = 0xFFFF5722,
+        tabs = listOf("Trending", "Warm"),
         saturation = 1.15f
     )
 }
