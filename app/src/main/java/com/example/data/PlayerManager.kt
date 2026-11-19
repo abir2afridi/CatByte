@@ -25,6 +25,7 @@ import com.example.data.player.previewIsReadyState
 import com.example.data.player.rebuildPreviewAtPosition
 import com.example.data.player.releasePlayers
 import com.example.data.player.seekPlayerTo
+import com.example.data.player.setCompareOriginalState
 import com.example.data.player.setPlayerVolume
 import com.example.data.player.setWatermarkState
 import com.example.data.player.syncPlayerPosition
@@ -101,8 +102,22 @@ class PlayerManager(context: Context) {
 
     internal var totalDurationMs: Long = 0L
     internal var currentProject: VideoProject? = null
+
+    /**
+     * The project as the user made it. [currentProject] is the preview
+     * variant, which can differ while the "original" comparison is on.
+     */
+    internal var sourceProject: VideoProject? = null
     internal var lastCompositionProject: VideoProject? = null
     internal var watermarkEnabled: Boolean = false
+
+    /**
+     * Preview-only "compare with the original": the selected clip is shown
+     * without its colour adjustments. The project itself keeps the grade, so
+     * the export is unaffected.
+     */
+    internal var compareOriginal: Boolean = false
+    internal var compareClipId: String? = null
 
     /** Last built composition, reused while the project is unchanged. */
     internal var cachedBuild: ProjectCompositionFactory.Result? = null
@@ -250,6 +265,16 @@ class PlayerManager(context: Context) {
     /** Rebuilds the preview because the watermark is burned into the graph. */
     fun setWatermarkEnabled(enabled: Boolean) {
         setWatermarkState(enabled)
+    }
+
+    /**
+     * Shows the selected clip without its colour adjustments (preview only).
+     *
+     * The comparison needs a rebuild: the colour grade is part of the
+     * composition, so the preview is rebuilt from the untouched project.
+     */
+    fun setCompareOriginal(enabled: Boolean, clipId: String?, rebuild: Boolean = true) {
+        setCompareOriginalState(enabled, clipId, rebuild)
     }
 
     fun release() {

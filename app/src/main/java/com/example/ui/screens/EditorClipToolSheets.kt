@@ -2,6 +2,8 @@ package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import com.example.model.ClipAnimation
 import com.example.model.MediaClip
@@ -92,12 +94,23 @@ internal fun AdjustmentsToolSheet(
     viewModel: EditorViewModel,
     currentClip: MediaClip?
 ) {
+    val compareOriginal by viewModel.compareOriginal.collectAsState()
     AdjustmentsSheet(
         clip = currentClip,
         onUpdateAdjustments = { b, c, s, v ->
             viewModel.updateClipAdjustments(b, c, s, v)
         },
-        onClose = { viewModel.closeToolSheet() }
+        onUpdateHsl = { adjustments ->
+            // The HSL grade belongs to the clip that is being graded.
+            currentClip?.id?.let { viewModel.setClipHslGrade(it, adjustments) }
+        },
+        isComparing = compareOriginal,
+        onCompareChanged = { enabled -> viewModel.setCompareOriginal(enabled) },
+        onClose = {
+            // Leaving the sheet always restores the graded preview.
+            viewModel.setCompareOriginal(false)
+            viewModel.closeToolSheet()
+        }
     )
 }
 

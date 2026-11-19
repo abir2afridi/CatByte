@@ -30,6 +30,9 @@ internal object SelectionFeature {
     }
 
     fun selectClip(vm: EditorViewModel, clipId: String?) {
+        // The "original" comparison belongs to the clip that was graded, so a
+        // new selection ends it.
+        if (vm._compareOriginal.value) vm.setCompareOriginal(false)
         vm._selectedClipId.value = clipId
         vm._selectedClipIds.value = if (clipId == null) emptySet() else setOf(clipId)
         vm._selectedAudioId.value = null
@@ -52,6 +55,7 @@ internal object SelectionFeature {
         // Deselect EVERYTHING: single clip, multi-select set and text overlay.
         // Clearing only the multi-select set used to leave the white selection
         // border on the timeline forever.
+        if (vm._compareOriginal.value) vm.setCompareOriginal(false)
         vm._selectedClipId.value = null
         vm._selectedClipIds.value = emptySet()
         vm._selectedTextId.value = null

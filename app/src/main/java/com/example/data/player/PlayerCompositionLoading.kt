@@ -13,6 +13,7 @@ import com.example.data.CanvasBackgroundLoader
 import com.example.data.PlayerManager
 import com.example.data.PlayerManager.Companion.TAG
 import com.example.data.ProjectCompositionFactory
+import com.example.engine.ClipColorAdjustments
 import com.example.model.VideoProject
 
 /**
@@ -96,12 +97,20 @@ internal fun PlayerManager.loadProjectInternal(
         buildCompositionPlayer()
     }
     val previous = currentProject
+    // The "original" comparison is a preview-only variant: the clip keeps its
+    // grade in the project, but the preview shows the untouched source.
+    sourceProject = project
+    val previewProject = if (compareOriginal) {
+        ClipColorAdjustments.withoutAdjustments(project, compareClipId)
+    } else {
+        project
+    }
     val start = (startPositionMs ?: _currentPositionMs.value)
         .coerceIn(0L, project.totalDurationMs)
     val wasPlaying = _isPlayingInternal.value ||
         (_activePlayer.value?.playWhenReady == true)
 
-    currentProject = project
+    currentProject = previewProject
     totalDurationMs = project.totalDurationMs
     _currentPositionMs.value = start
 
@@ -120,8 +129,8 @@ internal fun PlayerManager.loadProjectInternal(
     // after every mutation, so rebuilding identical input would stutter) —
     // unless the rebuild was forced because the player is known-broken.
     if (!forceRebuild &&
-        previous == project &&
-        lastCompositionProject == project &&
+        previous == previewProject &&
+        lastCompositionProject == previewProject &&
         _activePlayer.value != null
     ) {
         _activePlayer.value?.let { player ->
@@ -143,18 +152,18 @@ internal fun PlayerManager.loadProjectInternal(
             // and only re-prepare the player at the new start position.
             val cached = cachedBuild
             if (cached != null &&
-                cachedBuildProject == project &&
+                cachedBuildProject == previewProject &&
                 cachedBuildWatermark == watermarkEnabled
             ) {
                 cached
             } else {
                 ProjectCompositionFactory.buildPreview(
-                    project,
+                    previewProject,
                     watermarkEnabled,
-                    backgroundImage = CanvasBackgroundLoader.load(appContext, project.backgroundImageUri)
+                    backgroundImage = CanvasBackgroundLoader.load(appContext, previewProject.backgroundImageUri)
                 ).also {
                     cachedBuild = it
-                    cachedBuildProject = project
+                    cachedBuildProject = previewProject
                     cachedBuildWatermark = watermarkEnabled
                 }
             }
@@ -168,7 +177,7 @@ internal fun PlayerManager.loadProjectInternal(
                 player.playWhenReady = wasPlaying
                 _activePlayer.value = player
                 _usesCompositionPreview.value = true
-                lastCompositionProject = project
+                lastCompositionProject = previewProject
                 _previewWarnings.value = built.warnings
                 _playbackState.value = player.playbackState
                 _isPlayingInternal.value = player.isPlaying
@@ -195,7 +204,7 @@ internal fun PlayerManager.loadProjectInternal(
         }
     }
 
-    loadFallback(project, start, wasPlaying)
+    loadFallback(previewProject, start, wasPlaying)
 }
 
 /** Loads the project as a plain ExoPlayer playlist (composition fallback). */

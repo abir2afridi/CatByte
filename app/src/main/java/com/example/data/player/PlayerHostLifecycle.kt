@@ -25,7 +25,7 @@ internal fun PlayerManager.handleHostPause() {
 internal fun PlayerManager.handleHostResume() {
     if (!hostBackgrounded) return
     hostBackgrounded = false
-    val project = currentProject ?: return
+    val project = sourceProject ?: return
     if (PlayerRecoveryPolicy.shouldRebuildOnHostResume(
             backgrounded = true,
             lastError = _lastError.value,

@@ -234,6 +234,13 @@ class EditorViewModel(
     internal val _isEyedropperActive = MutableStateFlow(false)
     val isEyedropperActive: StateFlow<Boolean> = _isEyedropperActive.asStateFlow()
 
+    /**
+     * True while the preview shows the selected clip without its colour
+     * adjustments (the "Before / After" comparison of the Adjust panel).
+     */
+    internal val _compareOriginal = MutableStateFlow(false)
+    val compareOriginal: StateFlow<Boolean> = _compareOriginal.asStateFlow()
+
     /** Detected beat positions (ms) used as magnetic snap targets on the timeline. */
     internal val _snapBeats = MutableStateFlow<List<Long>>(emptyList())
     val snapBeats: StateFlow<List<Long>> = _snapBeats.asStateFlow()
@@ -433,6 +440,14 @@ class EditorViewModel(
      */
     private fun refreshPreviewComposition(project: VideoProject) {
         val manager = playerManager ?: return
+        // The preview player is process-scoped: keep its comparison state in
+        // sync with the editor before the composition is rebuilt, otherwise a
+        // recreated player would show the graded frame again.
+        manager.setCompareOriginal(
+            enabled = _compareOriginal.value,
+            clipId = if (_compareOriginal.value) _selectedClipId.value else null,
+            rebuild = false
+        )
         val scrubVisible = scrubPreview.isScrubVisible()
         if (!scrubVisible) {
             manager.loadProject(project)
@@ -993,6 +1008,39 @@ class EditorViewModel(
         saturation: Float,
         vignette: Float
     ) = ClipPropertyFeature.updateClipAdjustments(this, brightness, contrast, saturation, vignette)
+
+    /**
+     * Per-channel HSL grade of one clip (hue, saturation, luminance).
+     *
+     * The values live on the clip and are applied by the shared composition,
+     * so the preview and the exported file are graded identically.
+     */
+    fun setClipHslGrade(clipId: String, adjustments: List<HslAdjustment>) =
+        ClipEffectFeature.setClipHslAdjustments(this, clipId, adjustments)
+
+    /**
+     * Preview-only "compare with the original".
+     *
+     * While it is on, the preview shows the selected clip without its colour
+     * adjustments. The project keeps the grade, so the export is unaffected.
+     */
+    fun setCompareOriginal(enabled: Boolean) {
+        if (_compareOriginal.value == enabled) return
+        _compareOriginal.value = enabled
+        playerManager?.setCompareOriginal(enabled, if (enabled) _selectedClipId.value else null)
+    }
+
+    /**
+     * Ends the comparison without rebuilding the preview.
+     *
+     * Used when the whole project changes: the next load of the project
+     * already uses the real grade.
+     */
+    internal fun clearCompareOriginal() {
+        if (!_compareOriginal.value) return
+        _compareOriginal.value = false
+        playerManager?.setCompareOriginal(false, null, rebuild = false)
+    }
 
     /** Volume slider streams collapse into one undo step. */
     fun setClipVolume(volume: Float) = ClipPropertyFeature.setClipVolume(this, volume)

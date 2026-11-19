@@ -36,7 +36,9 @@ internal fun PlayerManager.playPlayer(): Boolean {
     // on every press made playback restart from scratch — the laggy,
     // stuttering start.
     if (PlayerRecoveryPolicy.shouldRebuildBeforePlay(_lastError.value, before.playbackState)) {
-        currentProject?.let { project ->
+        // The REAL project: while the "original" comparison is on, the loaded
+        // project is a preview variant without the colour grade.
+        sourceProject?.let { project ->
             loadProjectInternal(project, _currentPositionMs.value, forceRebuild = true)
         }
     }
@@ -192,7 +194,31 @@ internal fun PlayerManager.setPlayerVolume(volume: Float) {
 internal fun PlayerManager.setWatermarkState(enabled: Boolean) {
     if (watermarkEnabled == enabled) return
     watermarkEnabled = enabled
-    currentProject?.let { project ->
+    sourceProject?.let { project ->
+        lastCompositionProject = null
+        loadProjectInternal(project, _currentPositionMs.value)
+    }
+}
+
+/**
+ * Rebuilds the preview without the selected clip's colour adjustments.
+ *
+ * The comparison is a preview-only variant of the project: the stored project
+ * keeps the grade, so the exported file is never affected. The cached
+ * composition belongs to the previous grade and is dropped, otherwise the
+ * preview would keep showing the graded frame.
+ */
+internal fun PlayerManager.setCompareOriginalState(
+    enabled: Boolean,
+    clipId: String?,
+    rebuild: Boolean = true
+) {
+    if (compareOriginal == enabled && compareClipId == clipId) return
+    compareOriginal = enabled
+    compareClipId = clipId
+    if (!rebuild) return
+    sourceProject?.let { project ->
+        cachedBuild = null
         lastCompositionProject = null
         loadProjectInternal(project, _currentPositionMs.value)
     }

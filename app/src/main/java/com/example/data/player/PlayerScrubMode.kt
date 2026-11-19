@@ -123,7 +123,7 @@ internal fun PlayerManager.safeStartPositionMs(positionMs: Long = _currentPositi
  * so scrubbing no longer rebuilds and the preview stays live.
  */
 internal fun PlayerManager.rebuildPreviewAtPosition(positionMs: Long) {
-    val project = currentProject ?: return
+    val project = sourceProject ?: return
     val at = safeStartPositionMs(positionMs.coerceIn(0L, totalDurationMs))
     AppLog.warn(TAG, "Rebuilding the preview player at ${at}ms")
     // Leave scrub mode first (it would otherwise mute the fresh player).

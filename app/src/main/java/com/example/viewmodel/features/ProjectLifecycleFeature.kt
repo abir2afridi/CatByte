@@ -16,6 +16,9 @@ internal object ProjectLifecycleFeature {
         // the new project's preview.
         vm.scrubPreview.cancel()
         vm.pausePlayback()
+        // A new project has its own grade: the comparison of the old project
+        // must not survive the switch.
+        vm.clearCompareOriginal()
         val normalized = project.withMagneticMainTrack()
         // Start the preview at 0 explicitly: leaving the default would keep the
         // previous project's playhead inside PlayerManager, and the UI would
@@ -107,6 +110,11 @@ internal object ProjectLifecycleFeature {
     }
 
     fun setActiveSheet(vm: EditorViewModel, sheet: ActiveToolSheet) {
+        // The comparison belongs to the Adjust panel: leaving it ends the
+        // comparison, so the preview never stays stuck on the original.
+        if (sheet != ActiveToolSheet.ADJUSTMENTS && vm._compareOriginal.value) {
+            vm.setCompareOriginal(false)
+        }
         vm._activeSheet.value = sheet
     }
 }
