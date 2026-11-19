@@ -17,12 +17,24 @@ data class AnimationTransform(
  *
  * These feed [com.example.data.ProjectCompositionFactory]'s
  * `ClipTransformEffect`, which Media3 samples per frame, so the preview
- * composition and the exported file animate identically. Fade-in is the one
- * preset that needs per-frame alpha and therefore waits for the GL compositor.
+ * composition and the exported file animate identically. The "fade in"
+ * preset needs a per-frame colour change rather than a matrix, so it is
+ * rendered by `ClipFadeInEffect` from the same progress curve.
  */
 object ClipAnimationMath {
 
+    /** Default length of an entry animation. */
     const val DURATION_MS = 600L
+
+    /** Shortest animation the render graph accepts. */
+    const val MIN_DURATION_MS = 100L
+
+    /** Longest animation the render graph accepts. */
+    const val MAX_DURATION_MS = 5_000L
+
+    /** Clamps an animation length into the range the renderer supports. */
+    fun sanitizeDuration(durationMs: Long): Long =
+        if (durationMs <= 0L) DURATION_MS else durationMs.coerceIn(MIN_DURATION_MS, MAX_DURATION_MS)
 
     fun transformAt(
         animation: ClipAnimation,
@@ -49,10 +61,21 @@ object ClipAnimationMath {
                 rotationDeg = 360f * remaining,
                 scale = 1f + 0.10f * remaining
             )
-            // Alpha ramp: no matrix equivalent, so the graph leaves the clip
-            // untouched instead of faking a fade with scale.
+            // A fade is a colour change, not a transform: the matrix stays
+            // the identity and ClipFadeInEffect darkens the pixels.
             ClipAnimation.FADE_IN -> AnimationTransform()
         }
+    }
+
+    /**
+     * The opacity of the entry animation at [timeMs], from 0 to 1.
+     *
+     * Only the fade-in preset uses it; every other preset returns 1, i.e.
+     * "nothing to blend".
+     */
+    fun fadeProgress(timeMs: Long, durationMs: Long): Float {
+        if (durationMs <= 0L) return 1f
+        return (timeMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
     }
 
     /** True when the preset changes the transform before the first frame. */
@@ -60,4 +83,7 @@ object ClipAnimationMath {
         ClipAnimation.NONE, ClipAnimation.FADE_IN -> false
         else -> true
     }
+
+    /** True when the preset changes the pixels of the clip. */
+    fun needsFade(animation: ClipAnimation): Boolean = animation == ClipAnimation.FADE_IN
 }

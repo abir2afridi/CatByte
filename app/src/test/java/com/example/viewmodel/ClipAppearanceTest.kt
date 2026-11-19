@@ -2,6 +2,7 @@ package com.example.viewmodel
 
 import com.example.data.ProjectRepository
 import com.example.engine.AudioLoudness
+import com.example.engine.ClipAnimationMath
 import com.example.model.AudioEffectSettings
 import com.example.model.MediaClip
 import com.example.model.VoiceEffectType
@@ -116,6 +117,40 @@ class ClipAppearanceTest {
 
         vm.redo()
         assertTrue(vm.currentProject.value?.clips?.first()?.isMirrored == true)
+    }
+
+    @Test
+    fun `the animation duration is stored on the clip and clamped`() {
+        val vm = viewModel(clip())
+        vm.setClipAnimationDuration(1_500L)
+        assertEquals(1_500L, vm.currentProject.value?.clips?.first()?.animationDurationMs ?: -1L)
+
+        vm.setClipAnimationDuration(900_000L)
+        assertEquals(
+            ClipAnimationMath.MAX_DURATION_MS,
+            vm.currentProject.value?.clips?.first()?.animationDurationMs ?: -1L
+        )
+
+        vm.setClipAnimationDuration(1L)
+        assertEquals(
+            ClipAnimationMath.MIN_DURATION_MS,
+            vm.currentProject.value?.clips?.first()?.animationDurationMs ?: -1L
+        )
+    }
+
+    @Test
+    fun `a rapid animation duration drag collapses to one undo step`() {
+        val vm = viewModel(clip())
+        vm.setClipAnimationDuration(400L)
+        vm.setClipAnimationDuration(900L)
+        vm.setClipAnimationDuration(1_400L)
+
+        vm.undo()
+
+        assertEquals(
+            ClipAnimationMath.DURATION_MS,
+            vm.currentProject.value?.clips?.first()?.animationDurationMs ?: -1L
+        )
     }
 
     @Test

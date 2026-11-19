@@ -1,12 +1,14 @@
 package com.example.data.db
 
 import com.example.engine.AudioTiming
+import com.example.engine.ClipAnimationMath
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
 import com.example.model.AudioCompressor
 import com.example.model.AudioEqualizer
 import com.example.model.BezierPoint
 import com.example.model.BlendMode
+import com.example.model.ClipAnimation
 import com.example.model.EasingCurve
 import com.example.model.EffectType
 import com.example.model.Keyframe
@@ -62,6 +64,7 @@ class ProjectJsonTest {
             transition = com.example.model.TransitionType.DISSOLVE,
             transitionDurationMs = 500L,
             animationIn = com.example.model.ClipAnimation.FADE_IN,
+            animationDurationMs = 1_200L,
             brightness = 0.1f,
             contrast = 1.2f,
             saturation = 1.1f,
@@ -552,6 +555,45 @@ class ProjectJsonTest {
             .put("originalDurationMs", 1_000L)
 
         assertEquals(AudioCompressor(), audioFromJson(legacy).compressor)
+    }
+
+    @Test
+    fun `the animation duration survives the round trip`() {
+        val clip = MediaClip(
+            id = "anim",
+            title = "Animated",
+            durationMs = 2_000L,
+            originalDurationMs = 2_000L,
+            animationIn = ClipAnimation.ZOOM_IN,
+            animationDurationMs = 1_500L
+        )
+
+        val restored = clipFromJson(clipToJson(clip))
+
+        assertEquals(1_500L, restored.animationDurationMs)
+    }
+
+    @Test
+    fun `a malformed animation duration is clamped during json decode`() {
+        val clip = JSONObject()
+            .put("id", "anim")
+            .put("title", "Animated")
+            .put("durationMs", 2_000L)
+            .put("originalDurationMs", 2_000L)
+            .put("animationDurationMs", 900_000L)
+
+        assertEquals(ClipAnimationMath.MAX_DURATION_MS, clipFromJson(clip).animationDurationMs)
+    }
+
+    @Test
+    fun `a legacy clip without an animation duration decodes with the default`() {
+        val legacy = JSONObject()
+            .put("id", "legacy_anim")
+            .put("title", "Legacy")
+            .put("durationMs", 2_000L)
+            .put("originalDurationMs", 2_000L)
+
+        assertEquals(ClipAnimationMath.DURATION_MS, clipFromJson(legacy).animationDurationMs)
     }
 
     @Test

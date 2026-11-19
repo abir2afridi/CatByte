@@ -20,11 +20,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,24 +36,31 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.engine.ClipAnimationMath
 import com.example.model.ClipAnimation
 import com.example.ui.theme.PencilTheme
+import java.util.Locale
 
 /**
- * Clip entry animations. The chosen animation is stored on the clip and applied
- * by the shared render graph (zoom settle, swipe-in, damped bounce, spin and
- * fade from black), so preview and export stay in sync.
+ * Clip entry animations.
+ *
+ * The chosen animation is stored on the clip and applied by the shared render
+ * graph (zoom settle, swipe-in, damped bounce, spin and fade from black), so
+ * the preview and the export stay in sync. The duration slider writes the
+ * clip's real animation length, which the render graph samples the curve
+ * against.
  */
 @Composable
 fun AnimationSheet(
     current: ClipAnimation,
+    /** Length of the entry animation in milliseconds. */
+    currentDurationMs: Long,
     onSelect: (ClipAnimation) -> Unit,
+    /** Receives the new length of the entry animation, in milliseconds. */
+    onDurationChanged: (Long) -> Unit,
     onClose: () -> Unit
 ) {
     val colors = PencilTheme.colors
-    var selectedTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
-    var durationSec by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0.6f) }
-    val categories = listOf("In", "Out", "Combo")
 
     Column(
         modifier = Modifier
@@ -84,31 +93,21 @@ fun AnimationSheet(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                categories.forEachIndexed { index, title ->
-                    val active = selectedTab == index
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.clickable { selectedTab = index }
-                    ) {
-                        Text(
-                            text = title,
-                            color = if (active) colors.accentCyan else colors.textSecondary,
-                            fontSize = 14.sp,
-                            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Box(
-                            modifier = Modifier
-                                .width(16.dp)
-                                .height(2.dp)
-                                .background(if (active) colors.accentCyan else androidx.compose.ui.graphics.Color.Transparent)
-                        )
-                    }
-                }
+            // The panel edits the clip's entry animation - that is the only
+            // animation the model stores - so it says so instead of showing
+            // tabs that would not change anything.
+            Column {
+                Text(
+                    text = "Entry animation",
+                    color = colors.textPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "How the clip arrives on the timeline",
+                    color = colors.textTertiary,
+                    fontSize = 9.sp
+                )
             }
             IconButton(onClick = onClose, modifier = Modifier.size(30.dp)) {
                 Icon(Icons.Default.Check, contentDescription = "Close", tint = colors.accentCyan, modifier = Modifier.size(20.dp))
@@ -150,7 +149,11 @@ fun AnimationSheet(
                     )
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = if (animation == ClipAnimation.NONE) "Off" else String.format(java.util.Locale.US, "%.1fs", durationSec),
+                        text = if (animation == ClipAnimation.NONE) {
+                            "Off"
+                        } else {
+                            String.format(Locale.US, "%.1fs", currentDurationMs / 1000f)
+                        },
                         color = colors.textTertiary,
                         fontSize = 9.sp
                     )
@@ -160,30 +163,62 @@ fun AnimationSheet(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        Row(
+        AnimationDurationRow(
+            durationMs = currentDurationMs,
+            onDurationChanged = onDurationChanged
+        )
+    }
+}
+
+/**
+ * The duration slider of the animation panel.
+ *
+ * The draft value follows the committed one while the sheet is idle, and the
+ * gesture itself is the source of truth - the ViewModel coalesces the whole
+ * drag into a single undo step.
+ */
+@Composable
+private fun AnimationDurationRow(
+    durationMs: Long,
+    onDurationChanged: (Long) -> Unit
+) {
+    val colors = PencilTheme.colors
+    val range = ClipAnimationMath.MIN_DURATION_MS.toFloat()..ClipAnimationMath.MAX_DURATION_MS.toFloat()
+    val committed = durationMs.toFloat().coerceIn(range.start, range.endInclusive)
+    var draft by remember { mutableFloatStateOf(committed) }
+
+    LaunchedEffect(committed) {
+        draft = committed
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("Duration:", color = colors.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        Slider(
+            value = draft.coerceIn(range.start, range.endInclusive),
+            onValueChange = {
+                draft = it.coerceIn(range.start, range.endInclusive)
+                onDurationChanged(draft.toLong())
+            },
+            valueRange = range,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text("Duration:", color = colors.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-            androidx.compose.material3.Slider(
-                value = durationSec,
-                onValueChange = { durationSec = it },
-                valueRange = 0.2f..3.0f,
-                modifier = Modifier.weight(1f),
-                colors = androidx.compose.material3.SliderDefaults.colors(
-                    thumbColor = colors.accentCyan,
-                    activeTrackColor = colors.accentCyan
-                )
+                .weight(1f)
+                .testTag("animation_duration"),
+            colors = SliderDefaults.colors(
+                thumbColor = colors.accentCyan,
+                activeTrackColor = colors.accentCyan
             )
-            Text(
-                text = String.format(java.util.Locale.US, "%.1fs", durationSec),
-                color = colors.accentCyan,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        )
+        Text(
+            text = String.format(Locale.US, "%.1fs", draft / 1000f),
+            color = colors.accentCyan,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }

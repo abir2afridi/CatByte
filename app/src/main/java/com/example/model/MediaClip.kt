@@ -25,6 +25,12 @@ data class MediaClip(
     val transition: TransitionType = TransitionType.NONE,
     val transitionDurationMs: Long = 400L,
     val animationIn: ClipAnimation = ClipAnimation.NONE,
+    /**
+     * Length of the entry animation in milliseconds. The render graph samples
+     * the animation curve against this value, so the slider really changes
+     * how long the clip takes to arrive.
+     */
+    val animationDurationMs: Long = 600L,
     val brightness: Float = 0f,
     val contrast: Float = 1f,
     val saturation: Float = 1f,

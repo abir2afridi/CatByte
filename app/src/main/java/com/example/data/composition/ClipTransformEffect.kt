@@ -14,7 +14,14 @@ internal class ClipTransformEffect(private val clip: MediaClip) : MatrixTransfor
 
     override fun getMatrix(presentationTimeUs: Long): Matrix {
         val timeMs = presentationTimeUs / 1000L
-        val animation = ClipAnimationMath.transformAt(clip.animationIn, timeMs)
+        // The clip owns the length of its entry animation, so the slider in
+        // the animation panel really changes how long the clip takes to
+        // arrive.
+        val animation = ClipAnimationMath.transformAt(
+            animation = clip.animationIn,
+            timeMs = timeMs,
+            durationMs = clip.animationDurationMs
+        )
         val scale = KeyframeInterpolator.getScale(clip, timeMs).coerceAtLeast(0.01f) * animation.scale
         val rotation = KeyframeInterpolator.getRotation(clip, timeMs) + animation.rotationDeg
         val posX = KeyframeInterpolator.getPosX(clip, timeMs).coerceIn(0f, 1f)

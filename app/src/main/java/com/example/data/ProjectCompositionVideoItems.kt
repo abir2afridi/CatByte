@@ -11,8 +11,10 @@ import androidx.media3.effect.AlphaScale
 import com.example.data.composition.ClipTransformEffect
 import com.example.data.composition.MirrorAndRotationEffect
 import com.example.data.export.AudioEffectProcessors
+import com.example.data.export.ClipFadeInEffect
 import com.example.data.export.ConstantGainProvider
 import com.example.data.export.TransitionMapper
+import com.example.engine.ClipAnimationMath
 import com.example.model.MediaClip
 import com.example.model.VideoProject
 import kotlin.math.abs
@@ -77,6 +79,12 @@ internal fun ProjectCompositionFactory.buildVideoItem(
 
     val videoEffects = mutableListOf<androidx.media3.common.Effect>()
     videoEffects += buildColorEffect(clip)
+    // The "fade in" entry animation really darkens the clip to black and
+    // brings it back up, frame by frame. The effect list is shared by the
+    // preview and the export, so both fade identically.
+    if (ClipAnimationMath.needsFade(clip.animationIn)) {
+        videoEffects += ClipFadeInEffect(clip.animationDurationMs)
+    }
     if (isOverlay) {
         if (clip.rotation != 0f || clip.isMirrored) {
             videoEffects += MirrorAndRotationEffect(clip)

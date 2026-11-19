@@ -1,5 +1,6 @@
 package com.example.data.db
 
+import com.example.engine.ClipAnimationMath
 import com.example.model.AudioCompressor
 import com.example.model.AudioEffectSettings
 import com.example.model.AudioEqualizer
@@ -43,6 +44,7 @@ internal fun clipToJson(clip: MediaClip): JSONObject = JSONObject().apply {
     put("transition", clip.transition.name)
     put("transitionDurationMs", clip.transitionDurationMs)
     put("animationIn", clip.animationIn.name)
+    put("animationDurationMs", clip.animationDurationMs)
     put("brightness", clip.brightness.toDouble())
     put("contrast", clip.contrast.toDouble())
     put("saturation", clip.saturation.toDouble())
@@ -111,6 +113,9 @@ internal fun clipFromJson(json: JSONObject): MediaClip = MediaClip(
     transition = parseEnum(json.optString("transition"), TransitionType.NONE),
     transitionDurationMs = json.optLong("transitionDurationMs", 400L),
     animationIn = parseEnum(json.optString("animationIn"), ClipAnimation.NONE),
+    animationDurationMs = ClipAnimationMath.sanitizeDuration(
+        json.optLong("animationDurationMs", ClipAnimationMath.DURATION_MS)
+    ),
     brightness = json.optDouble("brightness", 0.0).toFloat(),
     contrast = json.optDouble("contrast", 1.0).toFloat(),
     saturation = json.optDouble("saturation", 1.0).toFloat(),

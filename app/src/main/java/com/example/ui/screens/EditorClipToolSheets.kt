@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import com.example.engine.ClipAnimationMath
 import com.example.model.ClipAnimation
 import com.example.model.MediaClip
 import com.example.ui.components.AdjustmentsSheet
@@ -84,7 +85,10 @@ internal fun AnimationToolSheet(
 ) {
     AnimationSheet(
         current = currentClip?.animationIn ?: ClipAnimation.NONE,
+        currentDurationMs = currentClip?.animationDurationMs
+            ?: ClipAnimationMath.DURATION_MS,
         onSelect = { viewModel.setClipAnimation(it) },
+        onDurationChanged = { viewModel.setClipAnimationDuration(it) },
         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
     )
 }

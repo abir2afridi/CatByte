@@ -995,6 +995,14 @@ class EditorViewModel(
     fun setClipAnimation(animation: ClipAnimation) =
         ClipPropertyFeature.setClipAnimation(this, animation)
 
+    /**
+     * Length of the selected clip's entry animation. The render graph samples
+     * the animation curve against this value, so the slider really changes
+     * the animation.
+     */
+    fun setClipAnimationDuration(durationMs: Long) =
+        ClipPropertyFeature.setClipAnimationDuration(this, durationMs)
+
     /** Keeps (default) or drops the source pitch when the clip is retimed. */
     fun setClipMaintainPitch(maintain: Boolean) =
         ClipPropertyFeature.setClipMaintainPitch(this, maintain)

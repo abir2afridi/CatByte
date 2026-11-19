@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.ClipTiming
 import com.example.data.MediaMetadata
 import com.example.engine.AudioLoudness
+import com.example.engine.ClipAnimationMath
 import com.example.model.AudioEffectSettings
 import com.example.model.ClipAnimation
 import com.example.model.SpeedCurve
@@ -134,6 +135,23 @@ internal object ClipPropertyFeature {
         val clipId = vm._selectedClipId.value ?: return
         vm.updateProject { proj ->
             proj.withUpdatedClip(clipId) { clip -> clip.copy(animationIn = animation) }
+        }
+    }
+
+    /**
+     * Length of the clip's entry animation.
+     *
+     * The value is clamped by [ClipAnimationMath.sanitizeDuration] and the
+     * slider drags share one coalescing key, so a continuous drag collapses
+     * into a single undo step.
+     */
+    fun setClipAnimationDuration(vm: EditorViewModel, durationMs: Long) {
+        val clipId = vm._selectedClipId.value ?: return
+        val canonical = ClipAnimationMath.sanitizeDuration(durationMs)
+        vm.updateProject(coalesceKey = "animation-duration:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(animationDurationMs = canonical)
+            }
         }
     }
 
