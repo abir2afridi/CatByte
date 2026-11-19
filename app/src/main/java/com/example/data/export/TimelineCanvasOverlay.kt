@@ -442,6 +442,9 @@ class TimelineCanvasOverlay(
         project.effects.forEach { effect ->
             if (timeMs < effect.startTimelineMs) return@forEach
             if (timeMs > effect.startTimelineMs + effect.durationMs) return@forEach
+            // Interactive families blend inside the GPU (EffectBlendShader),
+            // so the overlay must NOT draw them a second time on top.
+            if (effect.effectType.spec.family.isShaderFamily) return@forEach
             drawTimelineEffect(canvas, effect, timeMs - effect.startTimelineMs, width, height)
         }
     }

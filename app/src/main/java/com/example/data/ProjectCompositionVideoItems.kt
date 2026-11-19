@@ -113,6 +113,23 @@ internal fun ProjectCompositionFactory.buildVideoItem(
                 strength = 0.5f
             )
         }
+        // Interactive effect families (light leaks, vignettes, strobes, ...)
+        // must MODIFY the video's pixels, not sit on top of them: they run as
+        // GPU blend shaders sampling the real frame. Applied per clip for the
+        // timeline span the effect covers.
+        if (!isOverlay && !removeVideo) {
+            val clipInUs = layer.timelineInUs
+            val clipOutUs = layer.timelineOutUs
+            com.example.data.export.EffectBlendShaderUtil
+                .activeShaderSpecs(project.effects, clipInUs, clipOutUs)
+                .forEach { effect ->
+                    videoEffects += com.example.data.export.EffectBlendShader(
+                        effect.effectType.spec.family,
+                        effect.effectType.spec,
+                        effect.intensityScale
+                    )
+                }
+        }
     }
 
     val audioProcessors = mutableListOf<AudioProcessor>()

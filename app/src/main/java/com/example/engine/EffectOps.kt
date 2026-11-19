@@ -3,25 +3,17 @@ package com.example.engine
 import com.example.model.EffectFamily
 import com.example.model.EffectSpec
 import com.example.model.EffectType
-import com.example.engine.effects.beams
 import com.example.engine.effects.bokeh
 import com.example.engine.effects.cinemaBars
 import com.example.engine.effects.confetti
 import com.example.engine.effects.edgeGlow
-import com.example.engine.effects.filmBurn
 import com.example.engine.effects.grain
-import com.example.engine.effects.grid
-import com.example.engine.effects.lightLeak
 import com.example.engine.effects.particles
 import com.example.engine.effects.pixelBlocks
-import com.example.engine.effects.plasma
 import com.example.engine.effects.ripple
 import com.example.engine.effects.rings
 import com.example.engine.effects.scanlines
-import com.example.engine.effects.spotlight
 import com.example.engine.effects.starfield
-import com.example.engine.effects.strobe
-import com.example.engine.effects.vignette
 import com.example.engine.effects.wave
 import kotlin.random.Random
 
@@ -88,24 +80,24 @@ object EffectOps {
         if (width <= 0f || height <= 0f) return emptyList()
         val rng = Random(type.name.hashCode() * 31L + localMs / NOISE_FRAME_MS)
         return when (spec.family) {
-            EffectFamily.LIGHT_LEAK -> lightLeak(spec, localMs, width, height)
-            EffectFamily.STROBE -> strobe(spec, localMs, width, height)
+            // Interactive families (light leak, vignette, strobe, spotlight,
+            // film burn, plasma, grid, beams) render in the GPU via
+            // EffectBlendShader - they MODIFY video pixels, so they never
+            // produce overlay ops.
+            EffectFamily.LIGHT_LEAK, EffectFamily.STROBE, EffectFamily.VIGNETTE,
+            EffectFamily.SPOTLIGHT, EffectFamily.FILM_BURN, EffectFamily.PLASMA,
+            EffectFamily.GRID, EffectFamily.BEAMS -> emptyList()
+
             EffectFamily.SCANLINES -> scanlines(spec, localMs, rng, width, height)
             EffectFamily.GRAIN -> grain(spec, localMs, rng, width, height)
-            EffectFamily.VIGNETTE -> vignette(spec, localMs, width, height)
             EffectFamily.RINGS -> rings(spec, localMs, width, height)
-            EffectFamily.BEAMS -> beams(spec, localMs, rng, width, height)
             EffectFamily.PARTICLES -> particles(spec, localMs, rng, width, height)
             EffectFamily.BOKEH -> bokeh(spec, localMs, rng, width, height)
             EffectFamily.EDGE_GLOW -> edgeGlow(spec, localMs, width, height)
             EffectFamily.CINEMA_BARS -> cinemaBars(spec, localMs, width, height)
             EffectFamily.WAVE -> wave(spec, localMs, width, height)
             EffectFamily.PIXEL_BLOCKS -> pixelBlocks(spec, localMs, rng, width, height)
-            EffectFamily.SPOTLIGHT -> spotlight(spec, localMs, width, height)
-            EffectFamily.FILM_BURN -> filmBurn(spec, localMs, rng, width, height)
-            EffectFamily.GRID -> grid(spec, localMs, width, height)
             EffectFamily.CONFETTI -> confetti(spec, localMs, rng, width, height)
-            EffectFamily.PLASMA -> plasma(spec, localMs, width, height)
             EffectFamily.STARFIELD -> starfield(spec, localMs, rng, width, height)
             EffectFamily.RIPPLE -> ripple(spec, localMs, width, height)
         }

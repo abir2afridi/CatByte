@@ -27,6 +27,9 @@ internal fun ClipEffectOverlays(
     // replayed here with Compose so preview and output match.
     activeEffects
         .filter { it.effectType !in LEGACY_PRESETS }
+        // Interactive families blend inside the GPU composition; drawing them
+        // here would paint them twice.
+        .filter { it.effectType.spec.family !in com.example.data.export.EFFECT_FAMILY_SHADER_SET }
         .forEach { effect ->
             androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
                 val spec = effect.effectType.spec.let {

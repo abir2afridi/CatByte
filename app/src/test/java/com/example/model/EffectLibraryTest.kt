@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.data.export.isShaderFamily
 import com.example.engine.EffectOps
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -57,11 +58,19 @@ class EffectLibraryTest {
     }
 
     @Test
-    fun `every preset renders real ops at several times`() {
+    fun `every preset renders - overlay families as ops, shader families via the GPU`() {
         val w = 1080f
         val h = 1920f
         val times = listOf(0L, 400L, 1_200L, 2_500L)
         EffectType.entries.forEach { type ->
+            if (type.spec.family.isShaderFamily) {
+                // Interactive families are GPU blend shaders, not overlay ops.
+                assertTrue(
+                    "${type.name} must be a shader family",
+                    com.example.data.export.EFFECT_FAMILY_SHADER_SET.contains(type.spec.family)
+                )
+                return@forEach
+            }
             val renderedAtLeastOnce = times.any { localMs ->
                 EffectOps.compute(type, type.spec, localMs, w, h).isNotEmpty()
             }
