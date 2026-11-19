@@ -137,6 +137,32 @@ object BeatGrid {
         grid.beatsMs.minByOrNull { abs(it - atMs) }
 
     /**
+     * Merges hand-pinned beats into the detected ones.
+     *
+     * A pin is authoritative: a detected beat within [dedupeMs] of a pin is
+     * dropped so the ruler does not draw two magnets a few milliseconds apart.
+     * The result is ordered and unique, which is what the ruler and the snap
+     * candidates expect.
+     */
+    fun merge(detected: List<Long>, manual: List<Long>, dedupeMs: Long = 20L): List<Long> {
+        val tolerance = dedupeMs.coerceAtLeast(0L)
+        val pinned = manual.filter { it >= 0L }.distinct().sorted()
+        val detectedOnly = detected.filter { beat ->
+            beat >= 0L && pinned.none { abs(it - beat) <= tolerance }
+        }
+        return (detectedOnly + pinned).distinct().sorted()
+    }
+
+    /** Absolute minutes:seconds.milliseconds, e.g. `0:03.240`. */
+    fun timecode(atMs: Long): String {
+        val ms = atMs.coerceAtLeast(0L)
+        val minutes = ms / 60_000L
+        val seconds = (ms / 1_000L) % 60L
+        val millis = ms % 1_000L
+        return String.format(java.util.Locale.US, "%d:%02d.%03d", minutes, seconds, millis)
+    }
+
+    /**
      * Converts source-file beat timestamps into project-timeline magnets.
      *
      * [sourceBeats] are relative to the media file, but an audio clip can start

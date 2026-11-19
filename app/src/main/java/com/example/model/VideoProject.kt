@@ -50,7 +50,13 @@ data class VideoProject(
      */
     val autoDuckStrength: Float = 0.35f,
     /** Named, coloured timeline markers (jump targets and snap magnets). */
-    val markers: List<TimelineMarker> = emptyList()
+    val markers: List<TimelineMarker> = emptyList(),
+    /**
+     * Timeline positions (ms) pinned by hand when beat detection misses a hit.
+     * They are merged with the detected beats, so they become visible ruler
+     * lines and magnetic snap targets just like the detected ones.
+     */
+    val manualBeatsMs: List<Long> = emptyList()
 ) {
     val allVideoClips: List<MediaClip>
         get() = clips + overlayTracks.flatMap { it.clips }

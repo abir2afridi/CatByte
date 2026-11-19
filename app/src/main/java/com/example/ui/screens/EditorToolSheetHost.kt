@@ -207,6 +207,9 @@ internal fun BoxScope.EditorToolSheetHost(
                     onMultiSelectChange = onMultiSelectChange
                 )
             }
+            ActiveToolSheet.BEAT_GRID -> {
+                BeatGridToolSheet(viewModel = viewModel, project = project)
+            }
             ActiveToolSheet.DRAW -> {
                 DrawToolSheet(viewModel = viewModel)
             }

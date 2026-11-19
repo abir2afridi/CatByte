@@ -13,6 +13,7 @@ import com.example.data.TemplateEngine
 import com.example.model.VideoProject
 import com.example.ui.components.AiImagePromptDialog
 import com.example.ui.components.AiToolsSheet
+import com.example.ui.components.BeatGridSheet
 import com.example.ui.components.CaptionsSheet
 import com.example.ui.components.CoverEditorSheet
 import com.example.ui.components.TemplatePickerSheet
@@ -38,8 +39,6 @@ internal fun TimelineToolsToolSheet(
     selectedClipId: String?,
     onMultiSelectChange: (Boolean) -> Unit
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val safeAreaGuides by viewModel.showSafeAreaGuides.collectAsState()
     TimelineToolsSheet(
         isMultiSelect = isMultiSelect,
@@ -48,11 +47,7 @@ internal fun TimelineToolsToolSheet(
         markerCount = project?.markers?.size ?: 0,
         hasSelectedClip = selectedClipId != null,
         safeAreaGuides = safeAreaGuides,
-        onBeatSync = {
-            scope.launch {
-                Toast.makeText(context, viewModel.autoCutToBeat(), Toast.LENGTH_LONG).show()
-            }
-        },
+        onBeatSync = { viewModel.setActiveSheet(ActiveToolSheet.BEAT_GRID) },
         onAddMarker = { viewModel.addMarker() },
         onPreviousMarker = { viewModel.jumpToMarker(-1) },
         onNextMarker = { viewModel.jumpToMarker(1) },
@@ -66,6 +61,37 @@ internal fun TimelineToolsToolSheet(
         onToggleSafeAreaGuides = { viewModel.toggleSafeAreaGuides(it) },
         onZoomChanged = { viewModel.setTimelineZoom(it) },
         onToggleKeyframe = { viewModel.toggleKeyframeAtPlayhead() },
+        onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
+    )
+}
+
+@Composable
+internal fun BeatGridToolSheet(
+    viewModel: EditorViewModel,
+    project: VideoProject
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val detectedBeats by viewModel.detectedBeats.collectAsState()
+    val playheadMs by viewModel.currentPositionMs.collectAsState()
+
+    fun notify(message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    BeatGridSheet(
+        detectedBeatCount = detectedBeats.size,
+        pinnedBeatsMs = project.manualBeatsMs,
+        playheadMs = playheadMs,
+        onCutToBeats = {
+            scope.launch {
+                Toast.makeText(context, viewModel.autoCutToBeat(), Toast.LENGTH_LONG).show()
+            }
+        },
+        onPinAtPlayhead = { notify(viewModel.pinBeatAt(playheadMs)) },
+        onRemoveAtPlayhead = { notify(viewModel.unpinBeatAt(playheadMs)) },
+        onClearPinned = { notify(viewModel.clearManualBeats()) },
+        onRemovePin = { notify(viewModel.unpinBeatAt(it)) },
         onClose = { viewModel.setActiveSheet(ActiveToolSheet.NONE) }
     )
 }

@@ -80,6 +80,7 @@ object ProjectJson {
             "markers",
             JSONArray().also { array -> project.markers.forEach { array.put(markerToJson(it)) } }
         )
+        put("manualBeatsMs", JSONArray().also { array -> project.manualBeatsMs.forEach { array.put(it) } })
         put(
             "stickers",
             JSONArray().also { array -> project.stickers.forEach { array.put(stickerToJson(it)) } }
@@ -113,6 +114,7 @@ object ProjectJson {
         audioTracks = json.optJSONArray("audioTracks").mapObjects { audioFromJson(it) },
         textOverlays = json.optJSONArray("textOverlays").mapObjects { textFromJson(it) },
         markers = markersFromJson(json.optJSONArray("markers")),
+        manualBeatsMs = beatsFromJson(json.optJSONArray("manualBeatsMs")),
         stickers = json.optJSONArray("stickers").mapObjects { stickerFromJson(it) },
         strokes = json.optJSONArray("strokes").mapObjects { strokeFromJson(it) },
         effects = json.optJSONArray("effects").mapObjects { effectFromJson(it) },

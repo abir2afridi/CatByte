@@ -174,7 +174,8 @@ class ProjectJsonTest {
             resolution = "4K",
             fps = 60,
             isFavorite = true,
-            paperStyle = "Blueprint"
+            paperStyle = "Blueprint",
+            manualBeatsMs = listOf(250L, 1_250L, 2_500L)
         )
     }
 
@@ -417,6 +418,27 @@ class ProjectJsonTest {
         assertTrue(audio.trimEndMs <= audio.originalDurationMs)
         assertEquals(AudioTiming.presentationDurationMs(audio), audio.durationMs)
         assertTrue(audio.fadeInMs + audio.fadeOutMs <= audio.durationMs)
+    }
+
+    @Test
+    fun `malformed manual beats are dropped instead of becoming beat zero`() {
+        val json = JSONObject()
+            .put("id", "manual_beats")
+            .put("title", "Beats")
+            .put(
+                "manualBeatsMs",
+                JSONArray()
+                    .put(1_200L)
+                    .put(-400L)
+                    .put("not a beat")
+                    .put(1_200L)
+                    .put(300L)
+            )
+
+        assertEquals(
+            listOf(300L, 1_200L),
+            ProjectJson.fromJson(json.toString())!!.manualBeatsMs
+        )
     }
 
     @Test

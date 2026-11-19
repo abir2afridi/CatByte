@@ -167,6 +167,24 @@ internal fun effectFromJson(json: JSONObject): TimelineEffect = TimelineEffect(
     intensityScale = json.optDouble("intensityScale", 1.0).toFloat()
 )
 
+/**
+ * Decodes hand-pinned beats into a safe list. Negative and non-numeric entries
+ * are dropped (JSONArray.optLong would turn a broken value into beat 0), and
+ * the result is ordered and de-duplicated so it can be merged with the
+ * detected beats without creating duplicate ruler lines.
+ */
+internal fun beatsFromJson(array: JSONArray?): List<Long> {
+    if (array == null) return emptyList()
+    val values = ArrayList<Long>(array.length())
+    for (index in 0 until array.length()) {
+        val raw = array.opt(index) as? Number
+        if (raw == null) continue
+        val at = raw.toLong()
+        if (at >= 0L) values += at
+    }
+    return values.distinct().sorted()
+}
+
 internal fun markerToJson(marker: TimelineMarker): JSONObject = JSONObject().apply {
     put("id", marker.id)
     put("atMs", marker.atMs)

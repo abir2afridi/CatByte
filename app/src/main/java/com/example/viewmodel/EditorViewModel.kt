@@ -84,6 +84,7 @@ import com.example.viewmodel.features.KeyframeFeature
 import com.example.viewmodel.features.OverlayClipFeature
 import com.example.viewmodel.features.ClipEffectFeature
 import com.example.viewmodel.features.BeatSyncFeature
+import com.example.viewmodel.features.ManualBeatsFeature
 import com.example.viewmodel.features.ClipPropertyFeature
 import com.example.viewmodel.features.ClipTransformFeature
 import com.example.viewmodel.features.SettingsFeature
@@ -109,6 +110,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
@@ -147,6 +149,8 @@ enum class ActiveToolSheet {
     OPACITY,
     AI_TOOLS,
     TIMELINE_TOOLS,
+    /** Detected + hand-pinned beat grid management and cut-to-beats. */
+    BEAT_GRID,
     BACKGROUND,
     COVER_EDITOR,
     TEMPLATES,
@@ -232,6 +236,10 @@ class EditorViewModel(
     /** Detected beat positions (ms) used as magnetic snap targets on the timeline. */
     internal val _snapBeats = MutableStateFlow<List<Long>>(emptyList())
     val snapBeats: StateFlow<List<Long>> = _snapBeats.asStateFlow()
+
+    /** Detection result only; hand-pinned [VideoProject.manualBeatsMs] are merged separately. */
+    internal val _detectedBeats = MutableStateFlow<List<Long>>(emptyList())
+    val detectedBeats: StateFlow<List<Long>> = _detectedBeats.asStateFlow()
 
     fun setEyedropperActive(active: Boolean) = SettingsFeature.setEyedropperActive(this, active)
 
@@ -500,11 +508,11 @@ class EditorViewModel(
                 .collectLatest { source ->
                     val ctx = context
                     if (ctx == null || source == null) {
-                        _snapBeats.value = emptyList()
+                        _detectedBeats.value = emptyList()
                         return@collectLatest
                     }
                     val sourceBeats = BeatDetector.detectBeats(ctx, source.uri)
-                    _snapBeats.value = BeatGrid.timelineBeats(
+                    _detectedBeats.value = BeatGrid.timelineBeats(
                         sourceBeats = sourceBeats,
                         startTimelineMs = source.startTimelineMs,
                         trimStartMs = source.trimStartMs,
@@ -512,6 +520,15 @@ class EditorViewModel(
                         durationMs = source.durationMs
                     )
                 }
+        }
+
+        // The timeline magnets are the detected beats plus the beats the user
+        // pinned by hand. Pinning must not trigger another detection pass, so
+        // the two sources are merged here instead of re-running the decoder.
+        viewModelScope.launch {
+            combine(_detectedBeats, _currentProject) { detected, project ->
+                BeatGrid.merge(detected, project?.manualBeatsMs.orEmpty())
+            }.collect { beats -> _snapBeats.value = beats }
         }
     }
 
@@ -1444,6 +1461,18 @@ class EditorViewModel(
      * a beatless track is reported honestly instead of cutting at made-up beats.
      */
     suspend fun autoCutToBeat(): String = BeatSyncFeature.autoCutToBeat(this)
+
+    /**
+     * Pins a beat by hand at [atMs]. Pinned beats appear on the ruler and act as
+     * snap magnets next to the detected ones. Returns the result for the toast.
+     */
+    fun pinBeatAt(atMs: Long): String = ManualBeatsFeature.pin(this, atMs)
+
+    /** Removes the pinned beat nearest to [atMs]. Returns the result for the toast. */
+    fun unpinBeatAt(atMs: Long): String = ManualBeatsFeature.unpin(this, atMs)
+
+    /** Removes every hand-pinned beat. Returns the result for the toast. */
+    fun clearManualBeats(): String = ManualBeatsFeature.clear(this)
 
     /** Exports a real MP4 and reports where it can be shared. */
     fun shareExportMessage(platform: String): String =

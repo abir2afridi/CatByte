@@ -279,10 +279,8 @@ internal fun EditorFeatureSearch(
                     Toast.makeText(context, "Select a clip first", Toast.LENGTH_SHORT).show()
                 }
             },
-            EditorSearchEntry("Beat sync", "Cut to detected beats", "music rhythm") {
-                scope.launch {
-                    Toast.makeText(context, viewModel.autoCutToBeat(), Toast.LENGTH_LONG).show()
-                }
+            EditorSearchEntry("Beat grid", "Pin beats and cut the clips to the grid", "music rhythm") {
+                viewModel.setActiveSheet(ActiveToolSheet.BEAT_GRID)
             },
             EditorSearchEntry("Add marker", "Drop a labelled timeline marker", "flag") {
                 viewModel.addMarker()

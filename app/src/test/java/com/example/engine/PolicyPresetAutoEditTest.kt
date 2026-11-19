@@ -155,6 +155,32 @@ class PolicyPresetAutoEditTest {
     }
 
     @Test
+    fun `manual beats merge with detected beats and win near duplicates`() {
+        assertEquals(
+            listOf(0L, 500L, 1_010L, 1_500L),
+            BeatGrid.merge(
+                detected = listOf(0L, 500L, 1_000L, 1_500L),
+                manual = listOf(1_010L)
+            )
+        )
+    }
+
+    @Test
+    fun `beat merge drops negative and duplicate pins and stays ordered`() {
+        assertEquals(
+            listOf(200L, 800L),
+            BeatGrid.merge(detected = listOf(800L), manual = listOf(-1L, 200L, 200L))
+        )
+    }
+
+    @Test
+    fun `beat timecode keeps the milliseconds used for precise pins`() {
+        assertEquals("0:03.240", BeatGrid.timecode(3_240L))
+        assertEquals("61:01.005", BeatGrid.timecode(3_661_005L))
+        assertEquals("0:00.000", BeatGrid.timecode(-50L))
+    }
+
+    @Test
     fun `subject smoothing follows the target gradually`() {
         val previous = SubjectTrack.Box(0.5f, 0.5f, 0.2f, 0.2f)
         val next = SubjectTrack.Box(0.9f, 0.5f, 0.2f, 0.2f)
