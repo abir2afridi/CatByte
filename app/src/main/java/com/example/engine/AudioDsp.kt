@@ -1,5 +1,6 @@
 package com.example.engine
 
+import com.example.model.AudioCompressor
 import com.example.model.AudioEqualizer
 import kotlin.math.PI
 import kotlin.math.abs
@@ -314,6 +315,78 @@ object AudioDsp {
                 samples[i] = clampToShort(y * 32768f)
             }
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Dynamics compressor
+    // ------------------------------------------------------------------
+
+    /**
+     * Soft-knee ratio compressor with a peak-follower envelope.
+     *
+     * The envelope tracks the loudest recent sample with a slow release, the
+     * static curve turns that level into a gain reduction (see
+     * [AudioCompressor.gainReductionDb]) and the gain itself is smoothed with
+     * the attack/release pair, so the gain never jumps. The makeup gain is
+     * applied after the smoothed gain and therefore stays exact.
+     *
+     * The detector works on the peak of all channels, so a compressor on a
+     * stereo track reacts to the louder side - the standard behaviour of a
+     * link-mode compressor.
+     */
+    class Compressor(
+        sampleRate: Int,
+        thresholdDb: Float = AudioCompressor.DEFAULT_THRESHOLD_DB,
+        ratio: Float = AudioCompressor.DEFAULT_RATIO,
+        makeupGainDb: Float = 0f,
+        attackMs: Float = AudioCompressor.DEFAULT_ATTACK_MS,
+        releaseMs: Float = AudioCompressor.DEFAULT_RELEASE_MS,
+        private val kneeDb: Float = AudioCompressor.KNEE_DB
+    ) : SampleKernel {
+        private val threshold = thresholdDb
+        private val safeRatio = ratio.coerceAtLeast(1f)
+        private val makeup = dbToLinear(makeupGainDb)
+        private val attackCoef = timeCoef(attackMs, sampleRate)
+        private val releaseCoef = timeCoef(releaseMs, sampleRate)
+        private var envelope = 0f
+        private var gain = 1f
+
+        override fun process(samples: ShortArray, frames: Int, channels: Int) {
+            if (channels <= 0) return
+            for (frame in 0 until frames) {
+                var peak = 0f
+                for (ch in 0 until channels) {
+                    val v = abs(samples[frame * channels + ch] / 32768f)
+                    if (v > peak) peak = v
+                }
+                // Peak follower with a slow release: the envelope follows the
+                // loudest recent sample instead of the instantaneous one.
+                envelope = if (peak > envelope) {
+                    peak
+                } else {
+                    releaseCoef * envelope + (1f - releaseCoef) * peak
+                }
+                val levelDb = linearToDb(envelope)
+                val reductionDb = AudioCompressor.gainReductionDb(
+                    levelDb = levelDb,
+                    thresholdDb = threshold,
+                    ratio = safeRatio,
+                    kneeDb = kneeDb
+                )
+                val target = dbToLinear(-reductionDb)
+                // The gain only ever moves down quickly and up slowly.
+                val coef = if (target < gain) attackCoef else releaseCoef
+                gain = coef * (target - gain) + gain
+                val applied = gain * makeup
+                for (ch in 0 until channels) {
+                    val i = frame * channels + ch
+                    samples[i] = clampToShort(samples[i] * applied)
+                }
+            }
+        }
+
+        private fun timeCoef(ms: Float, sampleRate: Int): Float =
+            1f - exp(-1f / (ms * sampleRate / 1000f).coerceAtLeast(1f))
     }
 
     // ------------------------------------------------------------------

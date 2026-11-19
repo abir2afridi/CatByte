@@ -31,6 +31,7 @@ import com.example.data.SpeechSynthesizer
 import com.example.data.VoiceRecorder
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
+import com.example.model.AudioCompressor
 import com.example.model.AudioEffectSettings
 import com.example.model.AudioEqualizer
 import com.example.model.BlendMode
@@ -1188,6 +1189,14 @@ class EditorViewModel(
      */
     fun setAudioEqualizer(audioId: String, equalizer: AudioEqualizer) =
         AudioMixerFeature.setAudioEqualizer(this, audioId, equalizer)
+
+    /**
+     * Dynamics compressor of one audio track. The envelope follower runs in
+     * the shared composition chain, so preview and export compress
+     * identically.
+     */
+    fun setAudioCompressor(audioId: String, compressor: AudioCompressor) =
+        AudioMixerFeature.setAudioCompressor(this, audioId, compressor)
 
     /**
      * Normalises one audio track's gain to the target loudness from its decoded

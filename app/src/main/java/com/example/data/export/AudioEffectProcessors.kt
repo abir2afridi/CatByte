@@ -7,6 +7,7 @@ import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.audio.AudioProcessor.AudioFormat
 import androidx.media3.common.util.UnstableApi
 import com.example.engine.AudioDsp
+import com.example.model.AudioCompressor
 import com.example.model.AudioEffectSettings
 import com.example.model.AudioEqualizer
 import java.nio.ByteBuffer
@@ -76,6 +77,28 @@ object AudioEffectProcessors {
         return listOf(
             KernelAudioProcessor { sampleRate, _ ->
                 AudioDsp.Equalizer(sampleRate, canonical)
+            }
+        )
+    }
+
+    /**
+     * The mixer's dynamics compressor as one processor. A disabled
+     * compressor returns an empty list, so a track that never touched the
+     * compressor adds no work to the chain.
+     */
+    fun forCompressor(compressor: AudioCompressor): List<AudioProcessor> {
+        val canonical = compressor.sanitized()
+        if (canonical.isNoOp) return emptyList()
+        return listOf(
+            KernelAudioProcessor { sampleRate, _ ->
+                AudioDsp.Compressor(
+                    sampleRate = sampleRate,
+                    thresholdDb = canonical.thresholdDb,
+                    ratio = canonical.ratio,
+                    makeupGainDb = canonical.makeupGainDb,
+                    attackMs = canonical.attackMs,
+                    releaseMs = canonical.releaseMs
+                )
             }
         )
     }

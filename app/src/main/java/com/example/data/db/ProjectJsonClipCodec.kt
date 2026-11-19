@@ -1,5 +1,6 @@
 package com.example.data.db
 
+import com.example.model.AudioCompressor
 import com.example.model.AudioEffectSettings
 import com.example.model.AudioEqualizer
 import com.example.model.BezierPoint
@@ -200,6 +201,35 @@ internal fun equalizerFromJson(json: JSONObject?): AudioEqualizer {
         lowGainDb = json.optDouble("lowGainDb", 0.0).toFloat(),
         midGainDb = json.optDouble("midGainDb", 0.0).toFloat(),
         highGainDb = json.optDouble("highGainDb", 0.0).toFloat()
+    ).sanitized()
+}
+
+/**
+ * The mixer compressor codec: [AudioCompressor] <-> JSON.
+ *
+ * Missing settings fall back to the defaults and out-of-range or
+ * non-numeric values are clamped by [AudioCompressor.sanitized], so a
+ * malformed project cannot put a 1000:1 ratio or a negative release time
+ * into the render chain.
+ */
+internal fun compressorToJson(compressor: AudioCompressor): JSONObject = JSONObject().apply {
+    put("enabled", compressor.enabled)
+    put("thresholdDb", compressor.thresholdDb.toDouble())
+    put("ratio", compressor.ratio.toDouble())
+    put("makeupGainDb", compressor.makeupGainDb.toDouble())
+    put("attackMs", compressor.attackMs.toDouble())
+    put("releaseMs", compressor.releaseMs.toDouble())
+}
+
+internal fun compressorFromJson(json: JSONObject?): AudioCompressor {
+    if (json == null) return AudioCompressor()
+    return AudioCompressor(
+        enabled = json.optBoolean("enabled", false),
+        thresholdDb = json.optDouble("thresholdDb", AudioCompressor.DEFAULT_THRESHOLD_DB.toDouble()).toFloat(),
+        ratio = json.optDouble("ratio", AudioCompressor.DEFAULT_RATIO.toDouble()).toFloat(),
+        makeupGainDb = json.optDouble("makeupGainDb", 0.0).toFloat(),
+        attackMs = json.optDouble("attackMs", AudioCompressor.DEFAULT_ATTACK_MS.toDouble()).toFloat(),
+        releaseMs = json.optDouble("releaseMs", AudioCompressor.DEFAULT_RELEASE_MS.toDouble()).toFloat()
     ).sanitized()
 }
 

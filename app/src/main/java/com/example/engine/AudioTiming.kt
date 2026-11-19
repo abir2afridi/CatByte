@@ -164,6 +164,7 @@ object AudioTiming {
             volume = if (audio.volume.isFinite()) audio.volume.coerceIn(0f, 2f) else 1f,
             pan = StereoPan.clamp(audio.pan),
             equalizer = audio.equalizer.sanitized(),
+            compressor = audio.compressor.sanitized(),
             loopCount = loopCount(audio),
             waveform = sanitizedWaveform(audio.waveform)
         )

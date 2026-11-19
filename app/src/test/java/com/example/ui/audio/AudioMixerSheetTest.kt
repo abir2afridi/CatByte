@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import com.example.model.AudioClip
+import com.example.model.AudioCompressor
 import com.example.model.AudioEqualizer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -261,8 +262,105 @@ class AudioMixerSheetTest {
     }
 
     @Test
-    fun `auto volume stays disabled while the waveform is not decoded`() {
+    fun `the compressor switch turns the compressor on for the selected track`() {
+        val changed = mutableListOf<Pair<String, AudioCompressor>>()
         compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onCompressorChanged = { id, compressor -> changed += id to compressor },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        compose.onNodeWithTag("audio_mixer_compressor_enabled").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        assertEquals(1, changed.size)
+        assertEquals("music", changed.single().first)
+        assertTrue("the compressor should be on", changed.single().second.enabled)
+    }
+
+    @Test
+    fun `the compressor sliders report only the parameter that changed`() {
+        val changed = mutableListOf<Pair<String, AudioCompressor>>()
+        val withCompressor = audio.copy(
+            compressor = AudioCompressor(enabled = true, thresholdDb = -20f, ratio = 4f)
+        )
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(withCompressor),
+                selectedAudioId = withCompressor.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onCompressorChanged = { id, compressor -> changed += id to compressor },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        dragSlider("audio_mixer_compressor_ratio", towardEnd = true)
+
+        assertEquals(1, changed.size)
+        val compressor = changed.single().second
+        assertTrue("the ratio should rise, got ${compressor.ratio}", compressor.ratio > 4f)
+        assertEquals("the threshold must be untouched", -20f, compressor.thresholdDb, 0.0001f)
+    }
+
+    @Test
+    fun `the compressor sliders use the canonical ranges`() {
+        compose.setContent {
+            AudioMixerSheet(
+                audioTracks = listOf(audio),
+                selectedAudioId = audio.id,
+                maxTimelineStartMs = 10_000L,
+                onSelectAudio = {},
+                onVolumeChanged = { _, _ -> },
+                onMuteChanged = { _, _ -> },
+                onFadesChanged = { _, _, _ -> },
+                onSpeedChanged = { _, _ -> },
+                onTrimChanged = { _, _, _ -> },
+                onTimelineStartChanged = { _, _ -> },
+                onReset = {},
+                onDelete = {},
+                onClose = {}
+            )
+        }
+
+        val threshold = compose.onNodeWithTag("audio_mixer_compressor_threshold")
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.ProgressBarRangeInfo]
+            .range
+        assertEquals(AudioCompressor.MIN_THRESHOLD_DB, threshold.start, 0f)
+        assertEquals(AudioCompressor.MAX_THRESHOLD_DB, threshold.endInclusive, 0f)
+
+        val ratio = compose.onNodeWithTag("audio_mixer_compressor_ratio")
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.ProgressBarRangeInfo]
+            .range
+        assertEquals(AudioCompressor.MIN_RATIO, ratio.start, 0f)
+        assertEquals(AudioCompressor.MAX_RATIO, ratio.endInclusive, 0f)
+    }
+
+    @Test
+    fun `auto volume stays disabled while the waveform is not decoded`() {        compose.setContent {
             AudioMixerSheet(
                 audioTracks = listOf(audio),
                 selectedAudioId = audio.id,

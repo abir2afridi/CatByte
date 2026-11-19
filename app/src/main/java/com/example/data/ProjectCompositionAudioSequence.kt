@@ -69,6 +69,11 @@ internal fun ProjectCompositionFactory.buildAudioSequence(
     // 3-band mixer EQ: low shelf / mid peak / high shelf. The same filters run
     // in the preview and in the exported file.
     val eqProcessors = AudioEffectProcessors.forEqualizer(audio.equalizer)
+    // Dynamics compressor: the envelope follower runs after the EQ (so the
+    // compressor reacts to the tone the user actually hears) and before the
+    // stereo balance and the gain envelope (so the fader stays a pure level
+    // control). The same kernel runs in the preview and in the export.
+    val compressorProcessors = AudioEffectProcessors.forCompressor(audio.compressor)
     // Stereo balance: the track is placed left or right in the mix. A centred
     // track needs no processor at all, so the channel layout of the source is
     // left untouched.
@@ -104,7 +109,7 @@ internal fun ProjectCompositionFactory.buildAudioSequence(
         } else {
             baseGain
         }
-        val processors = effectProcessors + eqProcessors + panProcessors + GainProcessor(gainProvider)
+        val processors = effectProcessors + eqProcessors + compressorProcessors + panProcessors + GainProcessor(gainProvider)
         val itemBuilder = EditedMediaItem.Builder(mediaItem)
             // Media3 requires the ORIGINAL source duration here. Clipping and
             // speed are applied afterwards to derive the presentation duration.

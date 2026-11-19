@@ -2,6 +2,7 @@ package com.example.viewmodel
 
 import com.example.data.ProjectRepository
 import com.example.model.AudioClip
+import com.example.model.AudioCompressor
 import com.example.model.AudioEffectSettings
 import com.example.model.AudioEqualizer
 import com.example.model.MediaClip
@@ -138,6 +139,66 @@ class AudioMixerTest {
 
         assertFalse(viewModel.canUndo.value)
         assertTrue(viewModel.currentProject.value!!.audioTracks.single().equalizer.isFlat)
+    }
+
+    @Test
+    fun `compressor is stored on the track and supports undo redo`() {
+        val (viewModel, _) = viewModel()
+        viewModel.setAudioCompressor(
+            "music",
+            AudioCompressor(enabled = true, thresholdDb = -24f, ratio = 6f, makeupGainDb = 3f)
+        )
+
+        val applied = viewModel.currentProject.value!!.audioTracks.single().compressor
+        assertTrue(applied.enabled)
+        assertEquals(-24f, applied.thresholdDb, 0.0001f)
+        assertEquals(6f, applied.ratio, 0.0001f)
+        assertEquals(3f, applied.makeupGainDb, 0.0001f)
+
+        viewModel.undo()
+        assertTrue(viewModel.currentProject.value!!.audioTracks.single().compressor.isNoOp)
+
+        viewModel.redo()
+        assertTrue(viewModel.currentProject.value!!.audioTracks.single().compressor.enabled)
+    }
+
+    @Test
+    fun `compressor parameters are clamped before they reach the render graph`() {
+        val (viewModel, _) = viewModel()
+        viewModel.setAudioCompressor(
+            "music",
+            AudioCompressor(
+                enabled = true,
+                thresholdDb = 40f,
+                ratio = 900f,
+                makeupGainDb = -4f
+            )
+        )
+
+        val compressor = viewModel.currentProject.value!!.audioTracks.single().compressor
+        assertEquals(AudioCompressor.MAX_THRESHOLD_DB, compressor.thresholdDb, 0f)
+        assertEquals(AudioCompressor.MAX_RATIO, compressor.ratio, 0f)
+        assertEquals(AudioCompressor.MIN_MAKEUP_GAIN_DB, compressor.makeupGainDb, 0f)
+    }
+
+    @Test
+    fun `rapid compressor slider stream collapses to one undo step`() {
+        val (viewModel, _) = viewModel()
+
+        viewModel.setAudioCompressor("music", AudioCompressor(enabled = true, ratio = 2f))
+        viewModel.setAudioCompressor("music", AudioCompressor(enabled = true, ratio = 4f))
+        viewModel.setAudioCompressor("music", AudioCompressor(enabled = true, ratio = 8f))
+
+        viewModel.undo()
+        assertTrue(viewModel.currentProject.value!!.audioTracks.single().compressor.isNoOp)
+    }
+
+    @Test
+    fun `compressor no-change does not create an undo step`() {
+        val (viewModel, _) = viewModel()
+        viewModel.setAudioCompressor("music", AudioCompressor())
+
+        assertFalse(viewModel.canUndo.value)
     }
 
     @Test
@@ -307,7 +368,7 @@ class AudioMixerTest {
     }
 
     @Test
-    fun `reset restores gain mute fades speed trim and the equalizer`() {
+    fun `reset restores gain mute fades speed trim equalizer and compressor`() {
         val (viewModel, _) = viewModel()
         viewModel.setAudioVolume("music", 0.2f)
         viewModel.setAudioClipMuted("music", true)
@@ -315,6 +376,7 @@ class AudioMixerTest {
         viewModel.setAudioSpeed("music", 2f)
         viewModel.setAudioTrim("music", 1_000L, 4_000L)
         viewModel.setAudioEqualizer("music", AudioEqualizer(5f, 0f, -4f))
+        viewModel.setAudioCompressor("music", AudioCompressor(enabled = true, ratio = 8f))
         viewModel.resetAudioMixer("music")
 
         val audio = viewModel.currentProject.value!!.audioTracks.single()
@@ -326,6 +388,7 @@ class AudioMixerTest {
         assertEquals(0L, audio.trimStartMs)
         assertEquals(0L, audio.trimEndMs)
         assertTrue(audio.equalizer.isFlat)
+        assertTrue(audio.compressor.isNoOp)
         assertEquals(10_000L, audio.durationMs)
     }
 

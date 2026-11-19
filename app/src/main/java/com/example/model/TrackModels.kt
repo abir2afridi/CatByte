@@ -64,6 +64,13 @@ data class AudioClip(
      */
     val equalizer: AudioEqualizer = AudioEqualizer(),
     /**
+     * Dynamics compressor applied to this track after the EQ and before the
+     * stereo balance and the gain envelope. Preview and export run the same
+     * envelope follower and soft-knee curve through the shared composition
+     * factory.
+     */
+    val compressor: AudioCompressor = AudioCompressor(),
+    /**
      * How often the trimmed source window repeats on the timeline. 1 plays the
      * window once; 4 repeats it four times, so the track covers four times the
      * window without touching the source file.

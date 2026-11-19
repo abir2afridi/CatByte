@@ -41,6 +41,7 @@ internal fun audioToJson(audio: AudioClip): JSONObject = JSONObject().apply {
     put("waveform", JSONArray(audio.waveform))
     put("audioEffects", audioEffectsToJson(audio.audioEffects))
     put("equalizer", equalizerToJson(audio.equalizer))
+    put("compressor", compressorToJson(audio.compressor))
     put("loopCount", audio.loopCount)
 }
 
@@ -66,6 +67,7 @@ internal fun audioFromJson(json: JSONObject): AudioClip {
         waveform = json.optJSONArray("waveform").toFloatList(),
         audioEffects = audioEffectsFromJson(json.optJSONObject("audioEffects")),
         equalizer = equalizerFromJson(json.optJSONObject("equalizer")),
+        compressor = compressorFromJson(json.optJSONObject("compressor")),
         loopCount = json.optInt("loopCount", 1)
     )
     return AudioTiming.normalize(raw)

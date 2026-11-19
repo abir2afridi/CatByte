@@ -54,6 +54,7 @@ import com.example.engine.AudioLoudness
 import com.example.engine.AudioTiming
 import com.example.engine.StereoPan
 import com.example.model.AudioClip
+import com.example.model.AudioCompressor
 import com.example.model.AudioEqualizer
 import com.example.ui.components.PlaybackLevelBar
 import com.example.ui.theme.PencilTheme
@@ -83,6 +84,8 @@ fun AudioMixerSheet(
     onPanChanged: (String, Float) -> Unit = { _, _ -> },
     /** Three-band EQ of the selected track (low shelf / mid peak / high shelf). */
     onEqualizerChanged: (String, AudioEqualizer) -> Unit = { _, _ -> },
+    /** Dynamics compressor of the selected track. */
+    onCompressorChanged: (String, AudioCompressor) -> Unit = { _, _ -> },
     onNormaliseVolume: (String) -> Unit = {},
     onMuteChanged: (String, Boolean) -> Unit,
     onSoloChanged: (String, Boolean) -> Unit = { _, _ -> },
@@ -397,6 +400,73 @@ fun AudioMixerSheet(
                         Text("Flat", fontSize = 10.sp, maxLines = 1)
                     }
                 }
+
+                // Dynamics compressor: a real envelope follower with a
+                // soft-knee curve. It runs after the EQ and before the
+                // stereo balance and the fader, so the fader stays a pure
+                // level control.
+                val compressor = selected.compressor.sanitized()
+                MixerSectionTitle("Compressor")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (compressor.enabled) {
+                            "On: loud parts are pushed down, quiet parts stay"
+                        } else {
+                            "Off: the track is not compressed"
+                        },
+                        color = colors.textSecondary,
+                        fontSize = 10.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = compressor.enabled,
+                        onCheckedChange = {
+                            onCompressorChanged(selected.id, compressor.copy(enabled = it))
+                        },
+                        modifier = Modifier.testTag("audio_mixer_compressor_enabled")
+                    )
+                }
+                Text(
+                    text = "Soft knee 6 dB · attack ${compressor.attackMs.toInt()} ms · release ${compressor.releaseMs.toInt()} ms",
+                    color = colors.textSecondary,
+                    fontSize = 10.sp
+                )
+                MixerSlider(
+                    stateKey = "comp-threshold:${selected.id}",
+                    label = "Threshold",
+                    valueLabel = { formatEqDb(it) },
+                    value = compressor.thresholdDb,
+                    range = AudioCompressor.MIN_THRESHOLD_DB..AudioCompressor.MAX_THRESHOLD_DB,
+                    tag = "audio_mixer_compressor_threshold",
+                    onValueChangeFinished = {
+                        onCompressorChanged(selected.id, compressor.copy(thresholdDb = it))
+                    }
+                )
+                MixerSlider(
+                    stateKey = "comp-ratio:${selected.id}",
+                    label = "Ratio",
+                    valueLabel = { String.format(Locale.US, "%.1f:1", it) },
+                    value = compressor.ratio,
+                    range = AudioCompressor.MIN_RATIO..AudioCompressor.MAX_RATIO,
+                    tag = "audio_mixer_compressor_ratio",
+                    onValueChangeFinished = {
+                        onCompressorChanged(selected.id, compressor.copy(ratio = it))
+                    }
+                )
+                MixerSlider(
+                    stateKey = "comp-makeup:${selected.id}",
+                    label = "Makeup",
+                    valueLabel = { formatEqDb(it) },
+                    value = compressor.makeupGainDb,
+                    range = AudioCompressor.MIN_MAKEUP_GAIN_DB..AudioCompressor.MAX_MAKEUP_GAIN_DB,
+                    tag = "audio_mixer_compressor_makeup",
+                    onValueChangeFinished = {
+                        onCompressorChanged(selected.id, compressor.copy(makeupGainDb = it))
+                    }
+                )
 
                 // Loudness normalisation is real maths on the decoded
                 // waveform; without data the button stays disabled and the

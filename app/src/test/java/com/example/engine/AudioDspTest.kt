@@ -3,6 +3,7 @@ package com.example.engine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.example.model.AudioCompressor
 import com.example.model.AudioEqualizer
 import kotlin.math.abs
 import kotlin.math.log10
@@ -437,4 +438,150 @@ class AudioDspTest {
             assertEquals("right frame $i", expected[i].toInt(), stereo[i * 2 + 1].toInt())
         }
     }
+
+    // ------------------------------------------------------------------
+    // Dynamics compressor
+    // ------------------------------------------------------------------
+
+    /** RMS of a block, used to compare the compressed and the dry signal. */
+    private fun blockRms(samples: ShortArray, from: Int, to: Int): Double {
+        var sum = 0.0
+        for (i in from until to) {
+            val value = samples[i].toDouble()
+            sum += value * value
+        }
+        return sqrt(sum / (to - from).coerceAtLeast(1))
+    }
+
+    @Test
+    fun `the compressor pushes loud parts down and leaves quiet parts alone`() {
+        val frames = 8_000
+        val loud = ShortArray(frames) { i ->
+            AudioDsp.clampToShort(0.9f * sin(2.0 * Math.PI * 200.0 * i / sr).toFloat() * 32768f)
+        }
+        val quiet = ShortArray(frames) { i ->
+            AudioDsp.clampToShort(0.05f * sin(2.0 * Math.PI * 200.0 * i / sr).toFloat() * 32768f)
+        }
+        val compressor = AudioDsp.Compressor(
+            sampleRate = sr,
+            thresholdDb = -20f,
+            ratio = 8f,
+            attackMs = 1f,
+            releaseMs = 50f
+        )
+        compressor.process(loud, frames, 1)
+        compressor.process(quiet, frames, 1)
+
+        val loudRatio = blockRms(loud, frames / 2, frames) / blockRms(
+            sine(200f, frames, amplitude = 0.9f), frames / 2, frames
+        )
+        val quietRatio = blockRms(quiet, frames / 2, frames) / blockRms(
+            sine(200f, frames, amplitude = 0.05f), frames / 2, frames
+        )
+
+        assertTrue("the loud signal should be attenuated, got $loudRatio", loudRatio < 0.5)
+        assertTrue("the quiet signal should pass, got $quietRatio", quietRatio > 0.85)
+    }
+
+    @Test
+    fun `a stronger ratio attenuates more`() {
+        val frames = 8_000
+        fun ratioOf(ratio: Float): Double {
+            val samples = ShortArray(frames) { i ->
+                AudioDsp.clampToShort(0.9f * sin(2.0 * Math.PI * 200.0 * i / sr).toFloat() * 32768f)
+            }
+            val dry = samples.copyOf()
+            AudioDsp.Compressor(
+                sampleRate = sr,
+                thresholdDb = -20f,
+                ratio = ratio,
+                attackMs = 1f,
+                releaseMs = 50f
+            ).process(samples, frames, 1)
+            return blockRms(samples, frames / 2, frames) / blockRms(dry, frames / 2, frames)
+        }
+
+        val gentle = ratioOf(2f)
+        val hard = ratioOf(20f)
+        assertTrue("20:1 should attenuate more than 2:1 ($hard vs $gentle)", hard < gentle)
+    }
+
+    @Test
+    fun `the makeup gain lifts the signal after the compression`() {
+        val frames = 8_000
+        val samples = ShortArray(frames) { i ->
+            AudioDsp.clampToShort(0.5f * sin(2.0 * Math.PI * 200.0 * i / sr).toFloat() * 32768f)
+        }
+        val dry = samples.copyOf()
+        AudioDsp.Compressor(
+            sampleRate = sr,
+            thresholdDb = 0f,
+            ratio = 2f,
+            makeupGainDb = 6f,
+            attackMs = 1f,
+            releaseMs = 50f
+        ).process(samples, frames, 1)
+
+        // A 0 dB threshold never compresses this -6 dBFS signal, so the only
+        // change is the +6 dB makeup gain.
+        val gainDb = 20.0 * log10(
+            blockRms(samples, frames / 2, frames) / blockRms(dry, frames / 2, frames)
+        )
+        assertNear(6f, gainDb.toFloat(), 0.5f)
+    }
+
+    @Test
+    fun `a ratio of one leaves the signal untouched`() {
+        val frames = 4_000
+        val samples = ShortArray(frames) { i ->
+            AudioDsp.clampToShort(0.9f * sin(2.0 * Math.PI * 200.0 * i / sr).toFloat() * 32768f)
+        }
+        val dry = samples.copyOf()
+        AudioDsp.Compressor(
+            sampleRate = sr,
+            thresholdDb = -20f,
+            ratio = 1f,
+            attackMs = 1f,
+            releaseMs = 50f
+        ).process(samples, frames, 1)
+
+        assertTrue("a 1:1 ratio must not change the signal", dry.contentEquals(samples))
+    }
+
+    @Test
+    fun `the compressor keeps its state across chunked buffers`() {
+        val frames = 4_000
+        val whole = ShortArray(frames) { i ->
+            AudioDsp.clampToShort(0.9f * sin(2.0 * Math.PI * 200.0 * i / sr).toFloat() * 32768f)
+        }
+        val chunked = whole.copyOf()
+
+        AudioDsp.Compressor(
+            sampleRate = sr,
+            thresholdDb = -20f,
+            ratio = 8f,
+            attackMs = 1f,
+            releaseMs = 50f
+        ).process(whole, frames, 1)
+
+        val kernel = AudioDsp.Compressor(
+            sampleRate = sr,
+            thresholdDb = -20f,
+            ratio = 8f,
+            attackMs = 1f,
+            releaseMs = 50f
+        )
+        val block = 256
+        var offset = 0
+        while (offset < frames) {
+            val count = minOf(block, frames - offset)
+            val slice = chunked.copyOfRange(offset, offset + count)
+            kernel.process(slice, count, 1)
+            slice.copyInto(chunked, offset)
+            offset += count
+        }
+
+        assertTrue("chunk boundaries changed the output", whole.contentEquals(chunked))
+    }
 }
+

@@ -3,6 +3,7 @@ package com.example.data.db
 import com.example.engine.AudioTiming
 import com.example.model.AspectRatioType
 import com.example.model.AudioClip
+import com.example.model.AudioCompressor
 import com.example.model.AudioEqualizer
 import com.example.model.BezierPoint
 import com.example.model.BlendMode
@@ -133,6 +134,14 @@ class ProjectJsonTest {
                         lowGainDb = 5.5f,
                         midGainDb = -2.5f,
                         highGainDb = 3f
+                    ),
+                    compressor = AudioCompressor(
+                        enabled = true,
+                        thresholdDb = -22f,
+                        ratio = 6f,
+                        makeupGainDb = 2.5f,
+                        attackMs = 4f,
+                        releaseMs = 220f
                     ),
                     loopCount = 3,
                     fadeInMs = 300L,
@@ -491,6 +500,58 @@ class ProjectJsonTest {
             .put("originalDurationMs", 1_000L)
 
         assertEquals(AudioEqualizer(), audioFromJson(legacy).equalizer)
+    }
+
+    @Test
+    fun `malformed compressor settings are clamped during json decode`() {
+        val json = JSONObject()
+            .put("id", "malformed_comp")
+            .put("title", "Compressor")
+            .put(
+                "audioTracks",
+                JSONArray().put(
+                    JSONObject()
+                        .put("id", "broken_comp")
+                        .put("title", "Broken compressor")
+                        .put("artist", "Test")
+                        .put("uriString", "content://audio/broken")
+                        .put("durationMs", 1_000L)
+                        .put("originalDurationMs", 1_000L)
+                        .put(
+                            "compressor",
+                            JSONObject()
+                                .put("enabled", true)
+                                .put("thresholdDb", 90.0)
+                                .put("ratio", "not a number")
+                                .put("makeupGainDb", -30.0)
+                                .put("attackMs", 0.0)
+                                .put("releaseMs", 99_999.0)
+                        )
+                )
+            )
+
+        val restored = ProjectJson.fromJson(json.toString())!!
+            .audioTracks
+            .single()
+            .compressor
+
+        assertTrue(restored.enabled)
+        assertEquals(AudioCompressor.MAX_THRESHOLD_DB, restored.thresholdDb, 0f)
+        assertEquals(AudioCompressor.DEFAULT_RATIO, restored.ratio, 0f)
+        assertEquals(AudioCompressor.MIN_MAKEUP_GAIN_DB, restored.makeupGainDb, 0f)
+        assertEquals(AudioCompressor.MIN_ATTACK_MS, restored.attackMs, 0f)
+        assertEquals(AudioCompressor.MAX_RELEASE_MS, restored.releaseMs, 0f)
+    }
+
+    @Test
+    fun `legacy audio without a compressor decodes as disabled`() {
+        val legacy = JSONObject()
+            .put("id", "legacy_comp")
+            .put("title", "Legacy compressor")
+            .put("durationMs", 1_000L)
+            .put("originalDurationMs", 1_000L)
+
+        assertEquals(AudioCompressor(), audioFromJson(legacy).compressor)
     }
 
     @Test

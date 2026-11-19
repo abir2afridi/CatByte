@@ -4,6 +4,7 @@ import com.example.engine.AudioLoudness
 import com.example.engine.AudioTiming
 import com.example.engine.StereoPan
 import com.example.model.AudioClip
+import com.example.model.AudioCompressor
 import com.example.model.AudioEffectSettings
 import com.example.model.AudioEqualizer
 import com.example.viewmodel.EditorViewModel
@@ -98,6 +99,27 @@ internal object AudioMixerFeature {
             project.copy(
                 audioTracks = project.audioTracks.map { audio ->
                     if (audio.id == audioId) canonical.copy(equalizer = canonicalEq) else audio
+                }
+            )
+        }
+    }
+
+    /**
+     * Dynamics compressor of one track. The value lives on the clip and flows
+     * into the shared composition factory, so the preview and the export run
+     * the same envelope follower and soft-knee curve. Slider drags use one
+     * coalescing key and therefore collapse into a single undo step.
+     */
+    fun setAudioCompressor(vm: EditorViewModel, audioId: String, compressor: AudioCompressor) {
+        val canonicalCompressor = AudioCompressor.clamp(compressor)
+        val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
+            ?: return
+        val canonical = canonical(current)
+        if (canonical.compressor == canonicalCompressor) return
+        vm.updateProject("audio-compressor:$audioId") { project ->
+            project.copy(
+                audioTracks = project.audioTracks.map { audio ->
+                    if (audio.id == audioId) canonical.copy(compressor = canonicalCompressor) else audio
                 }
             )
         }
@@ -346,7 +368,7 @@ internal object AudioMixerFeature {
         }
     }
 
-    /** Restores gain, mute, fades, speed, trim and EQ without moving the clip. */
+    /** Restores gain, mute, fades, speed, trim, EQ and compressor without moving the clip. */
     fun resetAudioMixer(vm: EditorViewModel, audioId: String) {
         val current = vm._currentProject.value?.audioTracks?.firstOrNull { it.id == audioId }
             ?: return
@@ -368,7 +390,8 @@ internal object AudioMixerFeature {
                                 speed = 1f,
                                 trimStartMs = 0L,
                                 trimEndMs = 0L,
-                                equalizer = AudioEqualizer()
+                                equalizer = AudioEqualizer(),
+                                compressor = AudioCompressor()
                             )
                         )
                     }
