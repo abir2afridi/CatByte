@@ -136,10 +136,12 @@ internal fun BodyEffectsToolSheet(viewModel: EditorViewModel) {
 @Composable
 internal fun FiltersToolSheet(
     viewModel: EditorViewModel,
-    currentClip: MediaClip?
+    currentClip: MediaClip?,
+    initialPanel: Int = 0
 ) {
     val importedLuts by viewModel.importedLuts.collectAsStateWithLifecycle()
     val activeLutId by viewModel.activeLutId.collectAsStateWithLifecycle()
+    val filterContext = androidx.compose.ui.platform.LocalContext.current
     FiltersSheet(
         activeFilter = currentClip?.filter ?: VideoFilter.NONE,
         importedLuts = importedLuts,
@@ -149,6 +151,24 @@ internal fun FiltersToolSheet(
         },
         onSelectLut = { lut -> viewModel.setActiveLut(lut) },
         onOpenLutImport = { viewModel.setActiveSheet(ActiveToolSheet.LUT_IMPORT) },
+        initialPanel = initialPanel,
+        brightness = currentClip?.brightness ?: 0f,
+        contrast = currentClip?.contrast ?: 1f,
+        saturation = currentClip?.saturation ?: 1f,
+        vignette = currentClip?.vignette ?: 0f,
+        onUpdateAdjustments = { b, c, sat, v ->
+            viewModel.updateClipAdjustments(b, c, sat, v)
+        },
+        onResetAdjustments = {
+            viewModel.updateClipAdjustments(0f, 1f, 1f, 0f)
+        },
+        onNotify = { message ->
+            android.widget.Toast.makeText(
+                filterContext,
+                message,
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        },
         onClose = { viewModel.closeToolSheet() }
     )
 }

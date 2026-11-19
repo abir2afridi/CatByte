@@ -130,7 +130,8 @@ internal fun BoxScope.EditorToolSheetHost(
                 LutImportToolSheet(viewModel = viewModel)
             }
             ActiveToolSheet.ADJUSTMENTS -> {
-                AdjustmentsToolSheet(viewModel = viewModel, currentClip = currentClip)
+                // CapCut-style unified panel: Filter | Adjust | Video quality.
+                FiltersToolSheet(viewModel = viewModel, currentClip = currentClip, initialPanel = 1)
             }
             ActiveToolSheet.CANVAS_RATIO -> {
                 CanvasRatioToolSheet(viewModel = viewModel, project = project)

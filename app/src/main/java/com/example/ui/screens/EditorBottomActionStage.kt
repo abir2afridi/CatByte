@@ -174,7 +174,7 @@ internal fun EditorBottomActionStage(
                 viewModel.setActiveSheet(ActiveToolSheet.FILTERS_LIBRARY)
             }
             EditorMainTab.ADJUST -> withClip {
-                viewModel.setActiveSheet(ActiveToolSheet.ADJUSTMENTS)
+                viewModel.setActiveSheet(ActiveToolSheet.FILTERS_LIBRARY)
             }
             EditorMainTab.STICKER -> viewModel.setActiveSheet(ActiveToolSheet.STICKERS_PICKER)
             EditorMainTab.TRANSCRIPT -> generateTranscript()
