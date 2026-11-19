@@ -11,14 +11,34 @@ import androidx.media3.effect.AlphaScale
 import com.example.data.composition.ClipTransformEffect
 import com.example.data.composition.MirrorAndRotationEffect
 import com.example.data.export.AudioEffectProcessors
+import com.example.data.export.ClipChromaKeyEffect
 import com.example.data.export.ClipFadeInEffect
+import com.example.data.export.ClipMaskEffect
 import com.example.data.export.ConstantGainProvider
 import com.example.data.export.TransitionMapper
 import com.example.engine.ClipAnimationMath
+import com.example.engine.backgroundArgbFor
+import com.example.model.MaskType
 import com.example.model.MediaClip
 import com.example.model.VideoProject
 import kotlin.math.abs
 import kotlin.math.max
+
+/**
+ * What a masked-out or keyed-out area of a clip shows.
+ *
+ *  - an overlay clip keeps its pixels transparent, so the video underneath
+ *    shows through;
+ *  - a main-track clip has nothing behind it, so the area is filled with
+ *    the canvas background colour;
+ *  - in "blur" background mode the blurred copy of the clip sits below the
+ *    sharp one, so the area stays transparent and the blur shows through.
+ */
+private fun backgroundBehindMask(project: VideoProject, isOverlay: Boolean): Int? {
+    if (isOverlay) return null
+    if (project.backgroundMode == "blur") return null
+    return backgroundArgbFor(project.paperStyle).toInt()
+}
 
 /**
  * Audio gain of a video clip, honouring clip mute, track mute and video
@@ -84,6 +104,19 @@ internal fun ProjectCompositionFactory.buildVideoItem(
     // preview and the export, so both fade identically.
     if (ClipAnimationMath.needsFade(clip.animationIn)) {
         videoEffects += ClipFadeInEffect(clip.animationDurationMs)
+    }
+    // The mask and the chroma key are burned into the clip's pixels by the
+    // GPU, so the preview and the exported file show the same picture.
+    // The blurred background copy is a backdrop of the whole frame, so it
+    // keeps the full picture instead of the masked one.
+    if (!backgroundFill) {
+        val behind = backgroundBehindMask(project, isOverlay)
+        if (clip.mask.type != MaskType.NONE) {
+            videoEffects += ClipMaskEffect(mask = clip.mask, backgroundColor = behind)
+        }
+        if (clip.chromaKey.isEnabled) {
+            videoEffects += ClipChromaKeyEffect(chroma = clip.chromaKey, backgroundColor = behind)
+        }
     }
     if (isOverlay) {
         if (clip.rotation != 0f || clip.isMirrored) {

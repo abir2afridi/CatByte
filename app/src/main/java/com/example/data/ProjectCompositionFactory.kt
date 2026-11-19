@@ -15,7 +15,6 @@ import com.example.engine.RenderGraph
 import com.example.engine.RenderGraphBuilder
 import com.example.model.AudioClip
 import com.example.model.BlendMode
-import com.example.model.MaskType
 import com.example.model.MediaClip
 import com.example.model.VideoProject
 
@@ -134,9 +133,6 @@ object ProjectCompositionFactory {
                 } else {
                     warnings += "Placeholder clip '${clip.title}' is rendered as a gap."
                 }
-            }
-            if (clip.mask.type != MaskType.NONE) {
-                warnings += "Mask on '${clip.title}' is not burned into the render yet."
             }
             if (clip.blendMode != BlendMode.NORMAL) {
                 warnings += "Blend mode '${clip.blendMode.displayName}' on '${clip.title}' " +

@@ -12,7 +12,6 @@ import com.example.engine.MaskMath
 import com.example.engine.MaskSpec
 import com.example.model.MaskData
 import com.example.model.MaskType
-import java.nio.ByteBuffer
 
 /**
  * Burns a clip mask into the pixels, for both the CompositionPlayer preview
@@ -21,21 +20,32 @@ import java.nio.ByteBuffer
  * The fragment shader reproduces [MaskMath.coverage] exactly - same shapes,
  * same feather smoothstep, same invert - so what the user drags in the
  * preview is what lands in the MP4.
+ *
+ * [backgroundColor] decides what the masked-out area shows:
+ *
+ *  - `null` keeps the pixels transparent, so an overlay clip reveals the
+ *    video underneath it;
+ *  - a colour fills the masked-out area with the canvas background, which is
+ *    what a main-track clip needs - nothing is composited below it.
  */
 @UnstableApi
-class ClipMaskEffect(private val mask: MaskData) : GlEffect {
+class ClipMaskEffect(
+    private val mask: MaskData,
+    private val backgroundColor: Int? = null
+) : GlEffect {
 
     override fun isNoOp(inputWidth: Int, inputHeight: Int): Boolean =
         mask.type == MaskType.NONE
 
     override fun toGlShaderProgram(context: android.content.Context, useHdr: Boolean): GlShaderProgram =
-        MaskShaderProgram(useHdr, mask)
+        MaskShaderProgram(useHdr, mask, backgroundColor)
 }
 
 @UnstableApi
 internal class MaskShaderProgram(
     useHdr: Boolean,
-    mask: MaskData
+    mask: MaskData,
+    backgroundColor: Int? = null
 ) : BaseGlShaderProgram(/* useHighPrecisionColorComponents= */ useHdr, /* texturePoolCapacity= */ 1) {
 
     private val program: GlQuadProgram = try {
@@ -48,6 +58,19 @@ internal class MaskShaderProgram(
             setFloat("uFeather", mask.feather.coerceIn(0f, 1f))
             setFloat("uInvert", if (mask.isInverted) 1f else 0f)
             setFloat("uBands", FILMSTRIP_BANDS.toFloat())
+            val background = backgroundColor
+            if (background != null) {
+                setVec3(
+                    "uBackground",
+                    ((background shr 16) and 0xFF) / 255f,
+                    ((background shr 8) and 0xFF) / 255f,
+                    (background and 0xFF) / 255f
+                )
+                setFloat("uUseBackground", 1f)
+            } else {
+                setVec3("uBackground", 0f, 0f, 0f)
+                setFloat("uUseBackground", 0f)
+            }
             setSampler("uTexSampler", /* texId= */ 0, /* unit= */ 0)
         }
     } catch (error: IllegalStateException) {
@@ -104,6 +127,8 @@ internal class MaskShaderProgram(
             uniform float uFeather;
             uniform float uInvert;
             uniform float uBands;
+            uniform vec3 uBackground;
+            uniform float uUseBackground;
             in vec2 vUv;
             out vec4 fragColor;
 
@@ -141,7 +166,13 @@ internal class MaskShaderProgram(
               }
               float alpha = uInvert > 0.5 ? 1.0 - raw : raw;
               vec4 color = texture(uTexSampler, uv);
-              fragColor = vec4(color.rgb * alpha, color.a * alpha);
+              if (uUseBackground > 0.5) {
+                // A main-track clip has nothing behind it: the masked-out
+                // area shows the canvas background instead of a hole.
+                fragColor = vec4(mix(uBackground, color.rgb, alpha), 1.0);
+              } else {
+                fragColor = vec4(color.rgb * alpha, color.a * alpha);
+              }
             }
             """.trimIndent()
     }
@@ -166,6 +197,3 @@ internal fun maskSpecOf(mask: MaskData): MaskSpec = MaskSpec(
     invert = mask.isInverted,
     bands = MaskShaderProgram.FILMSTRIP_BANDS
 )
-
-@Suppress("unused")
-private val keepByteBufferImport = ByteBuffer.allocate(1)
