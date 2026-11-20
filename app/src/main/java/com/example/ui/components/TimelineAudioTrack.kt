@@ -217,12 +217,31 @@ fun TimelineAudioTrack(
                             val barWidth = 2.dp.toPx()
                             val gap = 2.dp.toPx()
                             val centerY = size.height / 2f
-                            var x = 0f
-                            var i = 0
                             val waveform = audio.waveform
                             val count = waveform.size
+                            // Map each drawn column onto the clip's TRIMMED
+                            // source window instead of tiling the buckets: at
+                            // any zoom, the bar under the cursor is the
+                            // loudness of the audio that actually plays there.
+                            // The row spans [trimStart, trimEnd] of the
+                            // original recording.
+                            val srcStart = audio.trimStartMs.coerceAtLeast(0L)
+                            val srcEnd = if (audio.trimEndMs > audio.trimStartMs) {
+                                audio.trimEndMs
+                            } else {
+                                audio.trimStartMs +
+                                    audio.originalDurationMs.coerceAtLeast(audio.durationMs)
+                            }
+                            val srcSpan = (srcEnd - srcStart).coerceAtLeast(1L)
+                            val srcTotal = audio.originalDurationMs.coerceAtLeast(srcSpan)
+                            var x = 0f
                             while (x < size.width) {
-                                val factor = waveform[i % count].coerceIn(0f, 1f)
+                                val rowFrac = x / size.width
+                                val sourceMs = srcStart + (rowFrac * srcSpan).toLong()
+                                val bucket =
+                                    ((sourceMs.toDouble() / srcTotal) * count)
+                                        .toInt().coerceIn(0, count - 1)
+                                val factor = waveform[bucket].coerceIn(0f, 1f)
                                 val half = size.height * 0.42f * factor
                                 drawLine(
                                     color = Color.White.copy(alpha = 0.45f),
@@ -231,7 +250,6 @@ fun TimelineAudioTrack(
                                     strokeWidth = barWidth
                                 )
                                 x += barWidth + gap
-                                i++
                             }
                         }
                     }
