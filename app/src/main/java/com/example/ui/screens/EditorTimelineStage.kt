@@ -5,11 +5,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,6 +45,10 @@ internal fun EditorTimelineStage(
     addMediaLauncher: ActivityResultLauncher<PickVisualMediaRequest>,
     onTransitionClick: (String) -> Unit
 ) {
+    // Bangla numerals for the timecode when the app language is Bangla.
+    val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
+    val banglaTimecodes = appLanguage.tag?.startsWith("bn") == true
+
     // Placed-effect editor: tapping an effect chip on the timeline opens it.
     val editingEffectId = remember { mutableStateOf<String?>(null) }
     val editingEffect = editingEffectId.value?.let { id ->
@@ -104,6 +110,8 @@ internal fun EditorTimelineStage(
     ) {
         MultiTrackTimeline(
             onEditEffect = { editingEffectId.value = it.id },
+            onMoveEffect = { id, startMs -> viewModel.moveTimelineEffect(id, startMs) },
+            banglaTimecodes = banglaTimecodes,
             project = project,
             currentPositionMs = positionState,
             isPlaying = isPlaying,

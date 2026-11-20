@@ -63,6 +63,8 @@ internal fun EditorTransportInfoRow(
     currentPositionMs: Long,
     totalDurationMs: Long,
     markers: List<TimelineMarker> = emptyList(),
+    /** Bangla numerals for the timecode chip (app language = Bangla). */
+    banglaTimecodes: Boolean = false,
     onAspectRatioClick: (() -> Unit)? = null,
     onFullscreen: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -134,7 +136,8 @@ internal fun EditorTransportInfoRow(
         ) {
             EditorTimecodeText(
                 currentPositionMs = currentPositionMs,
-                totalDurationMs = totalDurationMs
+                totalDurationMs = totalDurationMs,
+                bangla = banglaTimecodes
             )
         }
 

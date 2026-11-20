@@ -87,6 +87,7 @@ fun EditorScreen(
     val clipboardCount by viewModel.clipboardCount.collectAsState()
     val selectedTextId by viewModel.selectedTextId.collectAsState()
     val selectedAudioId by viewModel.selectedAudioId.collectAsState()
+    val appLanguage by viewModel.appLanguage.collectAsState()
     val activeSheet by viewModel.activeSheet.collectAsState()
     val timelineZoom by viewModel.timelineZoom.collectAsState()
     val exportState by viewModel.exportState.collectAsState()
@@ -395,6 +396,7 @@ fun EditorScreen(
                     currentPositionMs = positionState.value,
                     totalDurationMs = project!!.totalDurationMs,
                     markers = project!!.markers,
+                    banglaTimecodes = appLanguage.tag?.startsWith("bn") == true,
                     onAspectRatioClick = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
                     onFullscreen = { isPreviewFullscreen = true },
                     onSeek = { viewModel.seekTo(it) },
@@ -547,9 +549,9 @@ fun EditorScreen(
                 text = ttsInputText,
                 onTextChange = { ttsInputText = it },
                 onDismiss = { showTtsDialog = false },
-                onGenerate = {
+                onGenerate = { languageTag ->
                     if (ttsInputText.isNotBlank()) {
-                        viewModel.startTtsVoiceover(ttsInputText)
+                        viewModel.startTtsVoiceover(ttsInputText, languageTag)
                         ttsInputText = ""
                         showTtsDialog = false
                     }

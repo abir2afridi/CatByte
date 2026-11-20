@@ -115,12 +115,18 @@ object OverlayRenderer {
         return bitmap
     }
 
-    private fun typefaceFor(style: TextFontStyle): Typeface = when (style) {
-        TextFontStyle.CAPCUT_BOLD -> Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-        TextFontStyle.CLEAN_SANS, TextFontStyle.BANGLA_NOTO_SANS -> Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-        TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> Typeface.create(Typeface.SERIF, Typeface.NORMAL)
-        TextFontStyle.NEON_GLOW -> Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD_ITALIC)
-        TextFontStyle.SUBTITLE, TextFontStyle.BANGLA_HIND_SILIGURI -> Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        else -> Typeface.DEFAULT
+    private fun typefaceFor(style: TextFontStyle): Typeface {
+        // BANGLA_* styles resolve to the bundled OFL Bangla families first;
+        // DEFAULT means "not a Bangla style" or the bundle is missing.
+        val bangla = com.example.data.fonts.BanglaFontManager.forTextFontStyle(style)
+        if (bangla != Typeface.DEFAULT) return bangla
+        return when (style) {
+            TextFontStyle.CAPCUT_BOLD -> Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
+            TextFontStyle.CLEAN_SANS, TextFontStyle.BANGLA_NOTO_SANS -> Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+            TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> Typeface.create(Typeface.SERIF, Typeface.NORMAL)
+            TextFontStyle.NEON_GLOW -> Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD_ITALIC)
+            TextFontStyle.SUBTITLE, TextFontStyle.BANGLA_HIND_SILIGURI -> Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            else -> Typeface.DEFAULT
+        }
     }
 }

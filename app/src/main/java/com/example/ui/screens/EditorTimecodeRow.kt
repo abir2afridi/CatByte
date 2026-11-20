@@ -22,11 +22,15 @@ import java.util.Locale
  *
  * This is the single timecode in the editor - nothing time-related is painted
  * on top of the preview frame.
+ *
+ * When [bangla] is set (app language is Bangla) the digits render in Bangla
+ * numerals; the separator stays ASCII so widths stay monospaced-stable.
  */
 @Composable
 fun EditorTimecodeText(
     currentPositionMs: Long,
     totalDurationMs: Long,
+    bangla: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -34,7 +38,7 @@ fun EditorTimecodeText(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = formatTimecodeTenths(currentPositionMs),
+            text = formatTimecodeTenths(currentPositionMs, bangla),
             color = Color.White,
             fontSize = 10.5.sp,
             fontWeight = FontWeight.Bold,
@@ -43,7 +47,7 @@ fun EditorTimecodeText(
             maxLines = 1
         )
         Text(
-            text = " / " + formatTimecodeTenths(totalDurationMs),
+            text = " / " + formatTimecodeTenths(totalDurationMs, bangla),
             color = Color(0xFF8E8E93),
             fontSize = 9.5.sp,
             fontWeight = FontWeight.Normal,
@@ -58,6 +62,7 @@ fun EditorTimecodeText(
 internal fun EditorTimecodeRow(
     currentPositionMs: Long,
     totalDurationMs: Long,
+    bangla: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -68,7 +73,8 @@ internal fun EditorTimecodeRow(
     ) {
         EditorTimecodeText(
             currentPositionMs = currentPositionMs,
-            totalDurationMs = totalDurationMs
+            totalDurationMs = totalDurationMs,
+            bangla = bangla
         )
     }
 }
@@ -76,13 +82,15 @@ internal fun EditorTimecodeRow(
 /**
  * Formats milliseconds as `MM:SS.s` using locale-independent ASCII digits and
  * a dot separator (Locale.US), so Bangla/Arabic locales never localise the
- * digits or swap the decimal separator.
+ * digits or swap the decimal separator. With [bangla] the digits are then
+ * translated to Bangla numerals (০-৯) by the engine's shared converter.
  */
-internal fun formatTimecodeTenths(ms: Long): String {
+internal fun formatTimecodeTenths(ms: Long, bangla: Boolean = false): String {
     // Work in integer tenths of a second so 59.96s never rounds to "00:60.0".
     val totalTenths = (ms.coerceAtLeast(0L) + 50L) / 100L
     val minutes = totalTenths / 600L
     val seconds = (totalTenths % 600L) / 10L
     val tenths = totalTenths % 10L
-    return String.format(Locale.US, "%02d:%02d.%d", minutes, seconds, tenths)
+    val ascii = String.format(Locale.US, "%02d:%02d.%d", minutes, seconds, tenths)
+    return if (bangla) com.example.engine.BanglaNumerals.toBangla(ascii) else ascii
 }

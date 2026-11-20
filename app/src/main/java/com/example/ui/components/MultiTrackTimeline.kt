@@ -96,6 +96,10 @@ fun MultiTrackTimeline(
     onCoverClick: () -> Unit = {},
     /** Tapping a placed effect opens the duration/intensity editor. */
     onEditEffect: (TimelineEffect) -> Unit = {},
+    /** Dragging a placed effect chip moves it in time (overlap is legal). */
+    onMoveEffect: (id: String, startTimelineMs: Long) -> Unit = { _, _ -> },
+    /** Bangla numerals for the gutter timecode (app language = Bangla). */
+    banglaTimecodes: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val totalMs = project.totalDurationMs.coerceAtLeast(TimelineGeometry.MIN_TIMELINE_MS)
@@ -183,6 +187,7 @@ fun MultiTrackTimeline(
             CapCutTimelineLeftGutter(
                 currentPositionMs = currentPositionMs,
                 totalDurationMs = totalMs,
+                banglaTimecodes = banglaTimecodes,
                 isMainMuted = project.isMainTrackMuted,
                 onToggleMainMute = {
                     onTrackMute(TimelineTrackIds.MAIN, !project.isMainTrackMuted)
@@ -261,6 +266,7 @@ fun MultiTrackTimeline(
                                 TimelineTracksContent(
                                     project = project,
                                     onEditEffect = onEditEffect,
+                                    onMoveEffect = onMoveEffect,
                                     selectedClipId = selectedClipId,
                                     selectedTextId = selectedTextId,
                                     selectedAudioId = selectedAudioId,

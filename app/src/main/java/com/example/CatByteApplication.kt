@@ -15,6 +15,10 @@ class CatByteApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         AppLog.init(this)
+        // Pre-copies the bundled OFL Bangla fonts so the preview and the
+        // export renderers can resolve BANGLA_* text styles to real Bangla
+        // typefaces instead of system-font fallbacks (tofu on stock Android).
+        com.example.data.fonts.BanglaFontManager.initialize(this)
         AppLog.info(
             tag = "App",
             message = "CatByte ${BuildConfig.VERSION_NAME} started (Android ${android.os.Build.VERSION.RELEASE}, SDK ${android.os.Build.VERSION.SDK_INT})"

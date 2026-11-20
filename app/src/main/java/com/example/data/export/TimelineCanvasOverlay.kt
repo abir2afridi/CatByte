@@ -503,7 +503,10 @@ class TimelineCanvasOverlay(
     private fun drawTimelineEffects(canvas: Canvas, timeMs: Long, width: Float, height: Float) {
         project.effects.forEach { effect ->
             if (timeMs < effect.startTimelineMs) return@forEach
-            if (timeMs > effect.startTimelineMs + effect.durationMs) return@forEach
+            // Exclusive end: the effect's final impact frame is start+duration-1,
+            // matching the preview. A progress == 1.0 draw (full-peak white of a
+            // burn/flash family) can never linger on the last exported frame.
+            if (timeMs >= effect.startTimelineMs + effect.durationMs) return@forEach
             // Interactive families blend inside the GPU (EffectBlendShader),
             // so the overlay must NOT draw them a second time on top.
             if (effect.effectType.spec.family.isShaderFamily) return@forEach
@@ -565,13 +568,22 @@ class TimelineCanvasOverlay(
     /** Warm yellow of the karaoke word highlight (opaque ARGB). */
     private val karaokeHighlightArgb: Int get() = 0xFFFFC531.toInt()
 
-    private fun typefaceFor(style: TextFontStyle): Typeface = when (style) {
-        TextFontStyle.CAPCUT_BOLD -> Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-        TextFontStyle.CLEAN_SANS, TextFontStyle.BANGLA_NOTO_SANS -> Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-        TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> Typeface.create(Typeface.SERIF, Typeface.NORMAL)
-        TextFontStyle.NEON_GLOW -> Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD_ITALIC)
-        TextFontStyle.SUBTITLE, TextFontStyle.BANGLA_HIND_SILIGURI -> Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        else -> Typeface.DEFAULT
+    private fun typefaceFor(style: TextFontStyle): Typeface {
+        // BANGLA_* styles resolve to the bundled OFL Bangla families first
+        // (stock Android often ships no Bengali font - a system fallback
+        // renders tofu). DEFAULT here means "not a Bangla style" or "the
+        // bundled font is missing", in which case the legacy mapping below
+        // still applies.
+        val bangla = com.example.data.fonts.BanglaFontManager.forTextFontStyle(style)
+        if (bangla != Typeface.DEFAULT) return bangla
+        return when (style) {
+            TextFontStyle.CAPCUT_BOLD -> Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
+            TextFontStyle.CLEAN_SANS, TextFontStyle.BANGLA_NOTO_SANS -> Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+            TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> Typeface.create(Typeface.SERIF, Typeface.NORMAL)
+            TextFontStyle.NEON_GLOW -> Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD_ITALIC)
+            TextFontStyle.SUBTITLE, TextFontStyle.BANGLA_HIND_SILIGURI -> Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            else -> Typeface.DEFAULT
+        }
     }
 
     // Kept here so the unused-import check does not flag the shared timing logic.

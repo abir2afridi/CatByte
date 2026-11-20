@@ -663,11 +663,17 @@ internal object AudioFeature {
         vm.voiceRecordJob = null
     }
 
-    /** Generates a voice-over from text using the device TTS engine. */
-    fun startTtsVoiceover(vm: EditorViewModel, text: String) {
+    /**
+     * Generates a voice-over from text using the device TTS engine.
+     *
+     * @param languageTag BCP-47 tag for the voice ("bn-IN", "en-US", ...);
+     *   the synthesiser warns (through [onFinished]'s error channel) when the
+     *   device has no voice for it instead of silently mispronouncing.
+     */
+    fun startTtsVoiceover(vm: EditorViewModel, text: String, languageTag: String = "en-US") {
         val tts = vm.speechSynthesizer ?: return
         vm._activeSheet.value = ActiveToolSheet.TTS_VOICEOVER
-        tts.synthesize(text) { file, error ->
+        tts.synthesize(text, languageTag) { file, error ->
             if (file != null) {
                 val durationMs = MediaDurationFallback.durationMs(vm.context!!, Uri.fromFile(file))
                     .coerceAtLeast(500L)

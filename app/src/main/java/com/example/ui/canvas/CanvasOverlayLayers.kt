@@ -110,7 +110,16 @@ internal fun CanvasTextOverlayLayers(
                 letterSpacing = textOverlay.letterSpacingEm.sp,
                 lineHeight = (baseSize.value * textOverlay.lineSpacingMultiplier).sp,
                 fontFamily = when (textOverlay.fontStyle) {
-                    TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> FontFamily.Serif
+                    TextFontStyle.CINEMATIC_SERIF -> FontFamily.Serif
+                    // BANGLA_* styles load the bundled OFL Bangla fonts, so
+                    // the fallback preview matches the burned-in export.
+                    TextFontStyle.BANGLA_NOTO_SANS,
+                    TextFontStyle.BANGLA_HIND_SILIGURI,
+                    TextFontStyle.BANGLA_TIRO,
+                    TextFontStyle.BANGLA_SOLAIMAN_LIPI,
+                    TextFontStyle.BANGLA_KALPURUSH -> FontFamily(
+                        com.example.data.fonts.BanglaFontManager.forTextFontStyle(textOverlay.fontStyle)
+                    )
                     else -> FontFamily.SansSerif
                 },
                 textAlign = TextAlign.Center,

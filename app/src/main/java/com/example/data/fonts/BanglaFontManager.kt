@@ -134,6 +134,27 @@ object BanglaFontManager {
     }
 
     /**
+     * Typeface for a [com.example.model.TextFontStyle]: the BANGLA_* styles
+     * resolve to the bundled OFL families; anything else returns
+     * [Typeface.DEFAULT] so callers keep their own system-font fallback.
+     */
+    fun forTextFontStyle(style: com.example.model.TextFontStyle, bold: Boolean = false): Typeface {
+        val weight = if (bold) 700 else 400
+        return when (style) {
+            com.example.model.TextFontStyle.BANGLA_NOTO_SANS ->
+                getTypeface("Noto Sans Bengali", weight)
+            com.example.model.TextFontStyle.BANGLA_HIND_SILIGURI ->
+                getTypeface("Hind Siliguri", weight)
+            com.example.model.TextFontStyle.BANGLA_TIRO ->
+                getTypeface("Tiro Bangla", weight)
+            com.example.model.TextFontStyle.BANGLA_SOLAIMAN_LIPI,
+            com.example.model.TextFontStyle.BANGLA_KALPURUSH ->
+                getBestBanglaTypeface(weight)
+            else -> Typeface.DEFAULT
+        }
+    }
+
+    /**
      * Checks if Bangla fonts are available.
      */
     fun areFontsAvailable(): Boolean {

@@ -28,6 +28,25 @@ internal object TimelineEffectFeature {
     }
 
     /**
+     * Moves an effect's window on the timeline (the drag gesture on the
+     * effects track). Overlapping another effect is legal - both render; the
+     * track packs overlapping chips into separate lanes.
+     */
+    fun moveTimelineEffect(vm: EditorViewModel, id: String, startTimelineMs: Long) {
+        vm.updateProject { proj ->
+            proj.copy(
+                effects = proj.effects.map { fx ->
+                    if (fx.id == id) {
+                        fx.copy(startTimelineMs = startTimelineMs.coerceAtLeast(0L))
+                    } else {
+                        fx
+                    }
+                }
+            )
+        }
+    }
+
+    /**
      * The effect that covers the playhead, or null when there is none.
      *
      * The effect panel's "None" card removes exactly this one, so the card

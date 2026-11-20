@@ -69,6 +69,8 @@ fun CapCutTimelineLeftGutter(
     audioTracks: List<AudioClip> = emptyList(),
     onToggleAudioMute: (String, Boolean) -> Unit = { _, _ -> },
     hasTextTrack: Boolean = true,
+    /** Bangla numerals for the gutter timecode (app language = Bangla). */
+    banglaTimecodes: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -87,6 +89,7 @@ fun CapCutTimelineLeftGutter(
         ) {
             GutterTimecode(
                 currentPositionMs = currentPositionMs,
+                bangla = banglaTimecodes,
                 totalDurationMs = totalDurationMs
             )
         }
@@ -290,10 +293,12 @@ fun CapCutTimelineLeftGutter(
 @Composable
 private fun GutterTimecode(
     currentPositionMs: State<Long>,
-    totalDurationMs: Long
+    totalDurationMs: Long,
+    bangla: Boolean = false
 ) {
     EditorTimecodeText(
         currentPositionMs = currentPositionMs.value,
-        totalDurationMs = totalDurationMs
+        totalDurationMs = totalDurationMs,
+        bangla = bangla
     )
 }

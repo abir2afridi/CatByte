@@ -156,11 +156,20 @@ internal fun EditorTtsDialog(
     text: String,
     onTextChange: (String) -> Unit,
     onDismiss: () -> Unit,
-    onGenerate: () -> Unit
+    onGenerate: (languageTag: String) -> Unit
 ) {
     val colors = PencilTheme.colors
     var selectedVoice by remember { mutableStateOf("Bangla Female") }
-    val voicePresets = listOf("Bangla Female", "English Female", "English Male", "Narrator")
+    // Preset -> the BCP-47 tag the device TTS engine is asked for. The
+    // synthesiser warns (not silently fails) when the device has no voice
+    // for the language.
+    val voicePresets = listOf(
+        "Bangla Female" to "bn-IN",
+        "English Female" to "en-US",
+        "English Male" to "en-US",
+        "Narrator" to "en-GB"
+    )
+    val selectedLanguageTag = voicePresets.firstOrNull { it.first == selectedVoice }?.second ?: "en-US"
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -228,7 +237,7 @@ internal fun EditorTtsDialog(
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        voicePresets.forEach { voice ->
+                        voicePresets.forEach { (voice, _) ->
                             val active = voice == selectedVoice
                             Box(
                                 modifier = Modifier
@@ -266,7 +275,7 @@ internal fun EditorTtsDialog(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
-                            onClick = onGenerate,
+                            onClick = { onGenerate(selectedLanguageTag) },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF26E5D7)),
                             shape = RoundedCornerShape(16.dp),
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)

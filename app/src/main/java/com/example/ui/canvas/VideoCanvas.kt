@@ -127,15 +127,18 @@ fun VideoCanvas(
         clipLocalTimeMs = activeClip?.durationMs ?: 0L
     }
 
-    // Active overlays
+    // Active overlays. The end is EXCLUSIVE to match the export renderer: an
+    // overlay stops rendering exactly at start+duration, so a progress-1.0
+    // frame (e.g. a film-burn at peak white) can never linger on screen when
+    // the playhead pauses on the effect's last frame.
     val activeTexts = project.textOverlays.filter {
-        positionMs >= it.startTimelineMs && positionMs <= (it.startTimelineMs + it.durationMs)
+        positionMs >= it.startTimelineMs && positionMs < (it.startTimelineMs + it.durationMs)
     }
     val activeStickers = project.stickers.filter {
-        positionMs >= it.startTimelineMs && positionMs <= (it.startTimelineMs + it.durationMs)
+        positionMs >= it.startTimelineMs && positionMs < (it.startTimelineMs + it.durationMs)
     }
     val activeEffects = project.effects.filter {
-        positionMs >= it.startTimelineMs && positionMs <= (it.startTimelineMs + it.durationMs)
+        positionMs >= it.startTimelineMs && positionMs < (it.startTimelineMs + it.durationMs)
     }
 
     // Pulse animation - only runs while playing AND only when something actually

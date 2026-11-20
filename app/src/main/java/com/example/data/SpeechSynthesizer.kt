@@ -18,6 +18,7 @@ class SpeechSynthesizer(private val context: Context) {
     private var tts: TextToSpeech? = null
     private var ready = false
     private var initError: String? = null
+    private var pendingLanguageTag: String? = null
 
     val isReady: Boolean get() = ready
 
@@ -30,7 +31,7 @@ class SpeechSynthesizer(private val context: Context) {
         tts = TextToSpeech(context) { status ->
             ready = status == TextToSpeech.SUCCESS
             if (ready) {
-                tts?.language = Locale.getDefault()
+                applyLanguage(pendingLanguageTag ?: Locale.getDefault().toLanguageTag())
                 tts?.setSpeechRate(1f)
             } else {
                 initError = "The text to speech engine is not available on this device."
@@ -41,10 +42,43 @@ class SpeechSynthesizer(private val context: Context) {
     }
 
     /**
+     * Selects the synthesis language by BCP-47 tag ("bn-IN", "en-US", ...).
+     * Call before or after [initialise]; when the engine has no voice for the
+     * requested language the result says so instead of silently speaking
+     * Bangla text with an English voice.
+     *
+     * @return a short status line; empty when the language is available.
+     */
+    fun setLanguage(languageTag: String): String {
+        pendingLanguageTag = languageTag
+        val engine = tts ?: return ""
+        val locale = Locale.forLanguageTag(languageTag)
+        val availability = engine.isLanguageAvailable(locale)
+        return if (availability < TextToSpeech.LANG_AVAILABLE) {
+            engine.language = Locale.getDefault()
+            "No ${locale.displayLanguage} voice is installed on this device - " +
+                "using the device default instead. Install a ${locale.displayLanguage} " +
+                "text-to-speech voice in system settings for real ${locale.displayLanguage} speech."
+        } else {
+            engine.language = locale
+            ""
+        }
+    }
+
+    private fun applyLanguage(languageTag: String) {
+        val message = setLanguage(languageTag)
+        if (message.isNotEmpty()) AppLog.warn("SpeechSynthesizer", message)
+    }
+
+    /**
      * Synthesises [text] into a wave file and returns it. The synthesis runs in
      * the background, [onFinished] receives the generated file.
      */
-    fun synthesize(text: String, onFinished: (File?, String?) -> Unit) {
+    fun synthesize(
+        text: String,
+        languageTag: String? = null,
+        onFinished: (File?, String?) -> Unit
+    ) {
         if (!ready) {
             onFinished(null, initError ?: "The text to speech engine is still starting.")
             return
@@ -54,6 +88,7 @@ class SpeechSynthesizer(private val context: Context) {
             onFinished(null, "Write something first.")
             return
         }
+        val languageNote = languageTag?.let { setLanguage(it) } ?: ""
         val directory = File(context.filesDir, "voiceovers").apply { mkdirs() }
         val target = File(directory, "tts_${UUID.randomUUID().toString().take(8)}.wav")
 
@@ -83,6 +118,10 @@ class SpeechSynthesizer(private val context: Context) {
         }
         if (result != TextToSpeech.SUCCESS) {
             onFinished(null, "The voice-over could not be generated.")
+        } else if (languageNote.isNotEmpty()) {
+            // Surface the voice availability warning through the same channel
+            // the caller already shows errors on.
+            onFinished(target, languageNote)
         }
     }
 

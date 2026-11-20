@@ -1337,7 +1337,8 @@ class EditorViewModel(
     fun cancelVoiceRecording() = AudioFeature.cancelVoiceRecording(this)
 
     /** Generates a voice-over from text using the device TTS engine. */
-    fun startTtsVoiceover(text: String) = AudioFeature.startTtsVoiceover(this, text)
+    fun startTtsVoiceover(text: String, languageTag: String = "en-US") =
+        AudioFeature.startTtsVoiceover(this, text, languageTag)
 
     // ==========================================
     // Text & Subtitles
@@ -1429,6 +1430,10 @@ class EditorViewModel(
 
     fun deleteTimelineEffect(id: String) =
         TimelineEffectFeature.deleteTimelineEffect(this, id)
+
+    /** Moves a placed effect in time (the effects-track drag gesture). */
+    fun moveTimelineEffect(id: String, startTimelineMs: Long) =
+        TimelineEffectFeature.moveTimelineEffect(this, id, startTimelineMs)
 
     /** True when an effect covers the playhead, i.e. there is one to remove. */
     fun hasEffectAtPlayhead(): Boolean =
