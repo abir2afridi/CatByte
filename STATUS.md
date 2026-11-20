@@ -1,8 +1,40 @@
 # CatByte Video Editor - Project Status
 
-**Last Updated:** 2026-11-07
-**Current Phase:** CapCut parity UI round + P8 verification
-**Overall Progress:** ~80%
+**Last Updated:** 2026-11-20
+**Current Phase:** Feature-completion round (stub chips → real features, offline AI)
+**Overall Progress:** ~88%
+
+### 2026-11-19/20 feature-completion round (two coordinated sessions)
+
+Everything below compiles and is covered by the test suite: **953/953 JVM/Robolectric
+tests across 122 suites, 0 failures; assembleDebug green (2026-11-20).**
+
+Made fully functional in this round:
+- **Real on-device auto captions (Vosk)** - `SpeechTranscriber` contract,
+  `VoskTranscriber`, 16 kHz mono `PcmExtractor` (MediaCodec decode + seek +
+  `Resampler`), `CaptionAssembler`/`segmentsFromWords` cue packing, and a
+  `TranscriptionModels` consented downloader (English + Bangla, Apache-2.0) with
+  its Settings → Speech models UI. Captions run offline first; the configured
+  cloud endpoint remains an option.
+- **Audio DSP** - `AudioDsp` (echo, Schroeder reverb, robot ring-mod, noise gate,
+  voice EQ), Media3 adapters (`AudioEffectProcessors`), per-clip
+  `AudioEffectSettings` persisted in project JSON and applied in preview+export.
+- **Grade controls** - exposure/temperature/tint/vibrance fold into the shared
+  colour matrix (`ColorAdjustMath`), sliders in the Adjust panel, JSON round-trip.
+- **Background maths** - `BackgroundMath` (contain rect, blur sharp scales, image
+  cover mapping) + tests; background image/blur rendering landed in the
+  composition (see commits).
+- **Chip gaps closed** - detach audio (Unlink), copyright chip → Sounds library.
+
+Also landed (peer session, verified): mask/chroma-key GPU burn-in, effect-family
+refactor with interactive blending, real transition/animation panels, dynamics
+compressor, canvas background render, AI-lab engine, text styling (bold/italic/
+letter/line spacing), project rename, Inbox/Profile real stats, backup codec,
+Ken Burns, music generator, stereo pan, safe-area guides, relink flow.
+
+Honest status: cloud-only AI chips (AI Avatar, Generate media, AI remove, lip
+sync, ...) still require a specialised provider and stay explicit about it;
+instrumented/device runs remain pending.
 
 ---
 

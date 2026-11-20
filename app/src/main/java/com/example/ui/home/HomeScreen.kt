@@ -23,8 +23,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.example.data.ai.AiConfig
 import com.example.model.AspectRatioType
 import com.example.model.VideoProject
+import com.example.ui.ailab.AiLabRun
+import com.example.ui.ailab.AiLabScreen
 import com.example.ui.theme.PencilTheme
 import kotlinx.coroutines.delay
 
@@ -44,7 +47,9 @@ fun HomeScreen(
     onBackupProject: (projectId: String, destination: Uri, includeMedia: Boolean) -> Unit = { _, _, _ -> },
     onRestoreBackup: (Uri) -> Unit = {},
     onQuickTool: (QuickTool) -> Unit = {},
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    aiConfig: com.example.data.ai.AiConfig,
+    aiLabHistory: List<com.example.ui.ailab.AiLabRun>
 ) {
     val colors = PencilTheme.colors
     var selectedBottomNav by rememberSaveable { mutableIntStateOf(0) }
@@ -172,12 +177,26 @@ fun HomeScreen(
                     )
                 }
                 1 -> {
+                    // AI Lab Tab
+                    AiLabScreen(
+                        aiConfig = aiConfig,
+                        history = aiLabHistory,
+                        onOpenSettings = onOpenSettings,
+                        onClearHistory = { /* TODO: wire to repository */ },
+                        onCreateProjectWithScript = { title, lines ->
+                            onCreateNewProject()
+                            // TODO: open editor with script
+                        },
+                        onRunRecorded = { _, _, _ -> }
+                    )
+                }
+                2 -> {
                     Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                         HomeTopBar(onOpenSettings = onOpenSettings, onRestoreBackup = pickRestoreBackup)
                         InboxTabContent(projects)
                     }
                 }
-                2 -> {
+                3 -> {
                     Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                         HomeTopBar(onOpenSettings = onOpenSettings, onRestoreBackup = pickRestoreBackup)
                         ProfileTabContent(projects, onOpenSettings = onOpenSettings)

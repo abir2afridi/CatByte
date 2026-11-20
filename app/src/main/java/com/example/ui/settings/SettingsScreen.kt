@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -74,6 +75,7 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val colors = PencilTheme.colors
+    val context = LocalContext.current
 
     var showClearAllConfirm by remember { mutableStateOf(false) }
 
@@ -136,6 +138,8 @@ fun SettingsScreen(
                 speechModel = aiSpeechModel,
                 onSave = onSaveAiConfig
             )
+
+            SpeechModelsSection(context = context)
 
             SettingsBackupSection(
                 currentProjectTitle = currentProjectTitle,

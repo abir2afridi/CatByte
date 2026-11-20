@@ -18,4 +18,5 @@ class AppContainer(context: Context) {
     val playerManager = PlayerManager(appContext)
     val exportManager = ExportManager(appContext)
     val cloudAssetManager = CloudAssetManager(appContext)
+    val aiLabHistory = com.example.ui.ailab.AiLabHistory(appContext)
 }

@@ -9,9 +9,11 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.camera.CameraCaptureScreen
 import com.example.ui.home.HomeScreen
@@ -19,6 +21,7 @@ import com.example.ui.home.QuickTool
 import com.example.ui.screens.EditorScreen
 import com.example.ui.screens.SplashScreen
 import com.example.ui.settings.SettingsScreen
+import com.example.ui.ailab.AiLabRun
 import com.example.ui.systemlogs.SystemLogsScreen
 import com.example.viewmodel.ActiveToolSheet
 import com.example.viewmodel.EditorViewModel
@@ -53,6 +56,10 @@ fun CapCutApp(
     val cacheSizeMb by viewModel.cacheSizeMb.collectAsStateWithLifecycle()
     val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
     val aiConfig by viewModel.aiConfig.collectAsStateWithLifecycle()
+    // AI Lab history flow - handle nullable by providing empty flow fallback
+    val emptyAiLabFlow = kotlinx.coroutines.flow.flowOf(emptyList<AiLabRun>())
+    val aiLabHistory: List<AiLabRun> by (viewModel.container?.aiLabHistory?.runs ?: emptyAiLabFlow)
+        .collectAsStateWithLifecycle(initialValue = emptyList<AiLabRun>())
 
     val navigateToSettings: () -> Unit = {
         settingsReturnScreen = currentScreen
@@ -200,7 +207,9 @@ fun CapCutApp(
                         com.example.data.AppLog.info("Camera", "Home Camera tapped -> opening capture screen")
                         currentScreen = AppScreen.CAMERA
                     },
-                    onOpenSettings = { navigateToSettings() }
+                    onOpenSettings = { navigateToSettings() },
+                    aiConfig = aiConfig,
+                    aiLabHistory = aiLabHistory ?: emptyList()
                 )
             }
             AppScreen.CAMERA -> {

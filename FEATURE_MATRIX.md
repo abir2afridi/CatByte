@@ -66,13 +66,13 @@
 | Flip | 🟢 VERIFIED | Works |
 | Crop (free + ratios) | 🟡 IMPLEMENTED-NOT VERIFIED | `CropSheet`: 1:1/9:16/16:9/4:5 presets + zoom/position sliders; computes a real centre crop via `CropMath` into the clip scale/pos transform that preview and export both read; source dims persisted + lazily probed |
 | Scale/position/rotation via on-canvas gestures | 🟡 IMPLEMENTED-NOT VERIFIED | Direct canvas pinch/rotate/pan wired; device re-check pending |
-| Fit/fill/blur-fill background | 🔴 NOT STARTED | |
+| Fit/fill/blur-fill background | 🟡 IMPLEMENTED-NOT VERIFIED | Canvas background (paper colour / image / blurred copy) renders in the shared composition; `BackgroundMath` unit-tested; device check pending |
 | Mirror | 🟢 VERIFIED | Works |
 | Replace | 🟡 IMPLEMENTED-NOT VERIFIED | `replaceSelectedClipUri` swaps the source file in place and re-probes duration/dimensions, resetting trims/speed/loudness so preview and export line up |
 | Freeze frame | 🟡 IMPLEMENTED-NOT VERIFIED | Insert at playhead wired (`EditorViewModel`); device re-check pending |
 | Reverse | 🟡 IMPLEMENTED-NOT VERIFIED | Playback reversing wired; device re-check pending |
 | Extract audio | 🟡 IMPLEMENTED-NOT VERIFIED | Audio extraction from video clips wired; device re-check pending |
-| Detach audio | 🔴 NOT STARTED | |
+| Detach audio | 🟡 IMPLEMENTED-NOT VERIFIED | "Unlink" detaches audio into an independent track (one undo step); tested |
 | **Text** | | |
 | Multi-line | 🟡 IMPLEMENTED-NOT VERIFIED | Basic text overlay |
 | Unicode incl. Bangla shaping | 🔴 NOT STARTED | CRITICAL: Need HarfBuzz verification + bundled OFL fonts |
@@ -95,7 +95,7 @@
 | Waveform | 🟡 IMPLEMENTED-NOT VERIFIED | Static waveform |
 | Mixer with limiter | 🔴 NOT STARTED | |
 | **Adjust** | | |
-| Brightness, contrast, saturation, exposure, highlights, shadows, temperature, tint, vibrance, sharpen, vignette, grain, blur | 🟡 IMPLEMENTED-NOT VERIFIED | Basic brightness/contrast/saturation/vignette; missing exposure, highlights, shadows, temperature, tint, vibrance, sharpen, grain, blur |
+| Brightness, contrast, saturation, exposure, highlights, shadows, temperature, tint, vibrance, sharpen, vignette, grain, blur | 🟡 PARTIAL | Brightness/contrast/saturation/vignette + NEW exposure/temperature/tint/vibrance (`ColorAdjustMath`, matrix-exact, tested); highlights/shadows/sharpen/grain/blur still shader-only backlog |
 | All as GLSL, keyframable | 🔴 NOT STARTED | Using Media3 ColorGradeEffect, not custom GLSL |
 | **Filters** | | |
 | ≥20 original LUT-based presets (.cube/PNG LUT, 33³ or 64²) | 🟡 IMPLEMENTED-NOT VERIFIED | `FilterPresets` defines 20 bilingual colour looks + `LutCube` parsing/blending; not executed by a GL compositor |
@@ -138,8 +138,8 @@
 | Effects library (≥30 original GLSL effects) | 🟡 IMPLEMENTED-NOT VERIFIED | 35 GLSL ES 3.0 sources in `EffectShaders`; no EGL compositor executes them yet |
 | Text templates, animated captions (word-by-word, karaoke) | 🔴 NOT STARTED | |
 | SRT/VTT import & export, burned-in captions | 🟡 PARTIAL | Import/export wired (.srt/.vtt → text overlays, SRT share sheet); burned in shared overlay |
-| Audio: noise reduction (RNNoise) | 🔴 NOT STARTED | Check license |
-| Audio: voice effects (pitch/formant/robot/echo/reverb) | 🔴 NOT STARTED | |
+| Audio: noise reduction (RNNoise) | 🟡 PARTIAL | Honest basic gate: envelope noise gate (`AudioDsp.NoiseGate`, tested); neural RNNoise stays deferred |
+| Audio: voice effects (pitch/formant/robot/echo/reverb) | 🟡 IMPLEMENTED-NOT VERIFIED | Echo/Reverb/Robot/Deep/Chipmunk + voice-enhance EQ offline DSP (`AudioDsp` + `AudioEffectProcessors`), per-clip, persisted, in preview+export |
 | Audio: beat detection + beat markers | 🟡 IMPLEMENTED-NOT VERIFIED | `BeatDetector` + `snapBeats` magnets + ruler ticks + `autoCutToBeat()` wired; named/coloured beat markers and an editable grid pending |
 | Audio: auto-ducking | 🔴 NOT STARTED | |
 | Audio: equalizer | 🔴 NOT STARTED | |
@@ -154,7 +154,7 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| On-device auto captions (Whisper.cpp/ONNX/TFLite) | 🔴 NOT STARTED | User-consented download, Bangla+English tested |
+| On-device auto captions (Whisper.cpp/ONNX/TFLite) | 🟡 IMPLEMENTED-NOT VERIFIED | Real offline ASR via Vosk: consented model download (English+Bangla, Settings → Speech models), MediaCodec→16 kHz mono decode, timed words → caption cues; tested pipeline, device run pending |
 | Background removal / portrait matting (MediaPipe/ONNX) | 🔴 NOT STARTED | |
 | Object tracking (mask/sticker follows subject) | 🔴 NOT STARTED | |
 | Video stabilization (gyro-free or Media3/OpenCV) | 🔴 NOT STARTED | Verify license |

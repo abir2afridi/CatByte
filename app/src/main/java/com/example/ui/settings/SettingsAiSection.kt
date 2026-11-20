@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -232,6 +233,118 @@ internal fun SettingsAiSection(
                 color = colors.textSecondary,
                 fontSize = 10.sp,
                 modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Offline speech models for auto captions: one small Vosk model per language,
+ * downloaded once with the user's consent and stored in app-private storage.
+ * After that, captions need no network at all.
+ */
+@Composable
+internal fun SpeechModelsSection(context: android.content.Context) {
+    val colors = PencilTheme.colors
+    val scope = rememberCoroutineScope()
+
+    // Downloaded state is re-read after every download/delete.
+    var downloadedTick by remember { mutableStateOf(0) }
+    var busyLanguage by remember { mutableStateOf<com.example.data.captions.TranscriptionModels.Language?>(null) }
+    var progress by remember { mutableStateOf(0f) }
+    var status by remember { mutableStateOf<String?>(null) }
+
+    SettingsSection(
+        title = "Speech models (offline captions)",
+        icon = Icons.Outlined.RecordVoiceOver,
+        iconTint = colors.accentGreen
+    ) {
+        Text(
+            text = "Download a small on-device speech model once and auto captions " +
+                "run fully offline - no endpoint, no key, no upload. Recommended for Bangla.",
+            color = colors.textSecondary,
+            fontSize = 12.sp,
+            lineHeight = 16.sp
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        com.example.data.captions.TranscriptionModels.Language.entries.forEach { language ->
+            downloadedTick // read so recomposition picks up state changes
+            val installed = com.example.data.captions.TranscriptionModels
+                .isDownloaded(context, language)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "${language.displayName} (${language.nativeName})",
+                        color = colors.textPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = if (installed) "Installed" else "Not downloaded (~40-50 MB)",
+                        color = if (installed) colors.accentGreen else colors.textTertiary,
+                        fontSize = 10.sp
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        if (busyLanguage != null) return@TextButton
+                        scope.launch {
+                            if (installed) {
+                                com.example.data.captions.TranscriptionModels.delete(context, language)
+                                downloadedTick++
+                                status = "${language.displayName} model deleted."
+                            } else {
+                                busyLanguage = language
+                                progress = 0f
+                                status = "Downloading ${language.displayName} model…"
+                                try {
+                                    com.example.data.captions.TranscriptionModels.download(
+                                        context, language
+                                    ) { fraction -> progress = fraction }
+                                    downloadedTick++
+                                    status = "${language.displayName} model ready - auto captions now run offline."
+                                } catch (error: Throwable) {
+                                    status = "Download failed: ${error.message ?: "unknown error"}"
+                                } finally {
+                                    busyLanguage = null
+                                }
+                            }
+                        }
+                    },
+                    enabled = busyLanguage == null,
+                    modifier = Modifier.testTag("settings_speech_model_${language.name.lowercase()}")
+                ) {
+                    Text(
+                        text = when {
+                            busyLanguage == language && progress > 0f ->
+                                "${(progress * 100).toInt()}%"
+                            busyLanguage == language -> "…"
+                            installed -> "Delete"
+                            else -> "Download"
+                        },
+                        color = if (installed) Color(0xFFFF6B6B) else colors.accentCyan,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+
+        if (status != null) {
+            Text(
+                text = status!!,
+                color = colors.textSecondary,
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .testTag("settings_speech_model_status")
             )
         }
     }

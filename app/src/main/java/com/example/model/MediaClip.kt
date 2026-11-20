@@ -35,6 +35,11 @@ data class MediaClip(
     val contrast: Float = 1f,
     val saturation: Float = 1f,
     val vignette: Float = 0f,
+    /** Extra grade controls (engine/ColorAdjustMath folds them into the matrix). */
+    val exposure: Float = 0f,
+    val temperature: Float = 0f,
+    val tint: Float = 0f,
+    val vibrance: Float = 0f,
     val rotation: Float = 0f,
     val isMirrored: Boolean = false,
     val waveform: List<Float> = listOf(0.4f, 0.7f, 0.9f, 0.5f, 0.8f, 0.6f, 0.4f, 0.9f, 0.3f, 0.7f),

@@ -228,6 +228,27 @@ internal object ClipPropertyFeature {
         }
     }
 
+    /** The extra grade sliders (exposure/temperature/tint/vibrance), coalesced. */
+    fun updateGradeAdjustments(
+        vm: EditorViewModel,
+        exposure: Float,
+        temperature: Float,
+        tint: Float,
+        vibrance: Float
+    ) {
+        val clipId = vm._selectedClipId.value ?: return
+        vm.updateProject(coalesceKey = "grade:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(
+                    exposure = exposure.coerceIn(-1f, 1f),
+                    temperature = temperature.coerceIn(-1f, 1f),
+                    tint = tint.coerceIn(-1f, 1f),
+                    vibrance = vibrance.coerceIn(-1f, 1f)
+                )
+            }
+        }
+    }
+
     /** Volume slider streams collapse into one undo step. */
     fun setClipVolume(vm: EditorViewModel, volume: Float) {
         val clipId = vm._selectedClipId.value ?: return

@@ -187,7 +187,8 @@ class EditorViewModel(
     internal val cacheManager: CacheManager? = null,
     internal val playerManager: com.example.data.PlayerManager? = null,
     internal val exportManager: com.example.data.ExportManager? = null,
-    internal val context: Context? = null
+    internal val context: Context? = null,
+    internal val container: com.example.data.AppContainer? = null
 ) : ViewModel() {
 
     private val _projects = repository.projects
@@ -1032,6 +1033,14 @@ class EditorViewModel(
         saturation: Float,
         vignette: Float
     ) = ClipPropertyFeature.updateClipAdjustments(this, brightness, contrast, saturation, vignette)
+
+    /** Extra grade sliders: exposure, temperature, tint, vibrance. */
+    fun updateGradeAdjustments(
+        exposure: Float,
+        temperature: Float,
+        tint: Float,
+        vibrance: Float
+    ) = ClipPropertyFeature.updateGradeAdjustments(this, exposure, temperature, tint, vibrance)
 
     /**
      * Per-channel HSL grade of one clip (hue, saturation, luminance).

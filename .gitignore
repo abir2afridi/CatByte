@@ -8,6 +8,12 @@ dist/
 build/
 *.local
 .gradle/
+.cxx/
+.kotlin/
+
+# Agent/session tooling data
+.zcode/
+.opencode/
 
 # Tauri
 src-tauri/target/

@@ -62,20 +62,32 @@ internal object TextFeature {
     }
 
     /**
-     * AI auto captions for the whole timeline.
+     * Auto captions for the whole timeline.
+     *
+     * Two real engines, tried in order:
+     *  1. the offline Vosk model (Settings → AI → Speech models) - no network,
+     *     no account, works everywhere; preferred when installed;
+     *  2. the configured AI endpoint (Settings → AI) for users who prefer a
+     *     cloud recogniser.
      *
      * Every main-track clip with media is transcribed in order (or just the
      * selected overlay clip), and each result is shifted onto the timeline using
      * the clip's start, trim and speed. Clips without an audio track are skipped,
-     * and a real endpoint failure stops the run with the failing clip's name
-     * instead of leaving half the timeline captioned silently.
+     * and an engine failure stops the run with the failing clip's name instead
+     * of leaving half the timeline captioned silently.
      */
     suspend fun addAutoCaptions(vm: EditorViewModel): String {
         val project = vm._currentProject.value ?: return "Open a project first"
         val context = vm.context ?: return "AI captions need the app context"
+
+        val language = com.example.data.captions.TranscriptionModels.Language
+            .forTag(vm._appLanguage.value.tag)
+        val offlineModel = com.example.data.captions.TranscriptionModels
+            .installedFolder(context, language)
         val config = vm.aiConfig.value
-        if (!config.isConfigured) {
-            return "Auto captions need an AI endpoint. Add a base URL in Settings → AI."
+        if (offlineModel == null && !config.isConfigured) {
+            return "Auto captions need the offline ${language.displayName} speech model " +
+                "(Settings → AI → Speech models) or an AI endpoint in Settings → AI."
         }
 
         val selectedId = vm._selectedClipId.value
@@ -93,6 +105,19 @@ internal object TextFeature {
         val created = mutableListOf<TextOverlay>()
         var silentClips = 0
         var captionedClips = 0
+
+        // Offline first: the on-device Vosk model needs no endpoint, no key
+        // and no network, so it always wins when it is installed.
+        if (offlineModel != null) {
+            return offlineCaptions(
+                vm = vm,
+                project = project,
+                context = context,
+                modelPath = offlineModel.path,
+                clips = capped,
+                totalTargets = targets.size
+            )
+        }
 
         for (clip in capped) {
             if (created.size >= MAX_AI_CAPTIONS) break
@@ -177,6 +202,86 @@ internal object TextFeature {
         return "Added ${created.size} AI caption${if (created.size == 1) "" else "s"}" +
             " from $captionedClips clip${if (captionedClips == 1) "" else "s"}$skipped$truncated"
     }
+
+    /**
+     * The offline path: decode each clip's audio to 16 kHz mono, recognise it
+     * with the downloaded Vosk model and place the timed words on the timeline
+     * with the same trim/speed mapping the cloud path uses.
+     */
+    private suspend fun offlineCaptions(
+        vm: EditorViewModel,
+        project: com.example.model.VideoProject,
+        context: android.content.Context,
+        modelPath: String,
+        clips: List<com.example.model.MediaClip>,
+        totalTargets: Int
+    ): String {
+        val created = mutableListOf<TextOverlay>()
+        var silentClips = 0
+        var captionedClips = 0
+
+        for (clip in clips) {
+            if (created.size >= MAX_AI_CAPTIONS) break
+            val uriString = clip.uriString ?: continue
+            val uri = android.net.Uri.parse(uriString)
+            val sourceSpanMs = (clip.durationMs * clip.speed.coerceAtLeast(0.01f)).toLong()
+                .takeIf { it > 0L }
+                ?: ClipTiming.sourceLengthMs(clip)
+
+            val segments = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                val pcm = com.example.data.captions.PcmExtractor.extract(
+                    context = context,
+                    uri = uri,
+                    startMs = clip.trimStartMs,
+                    maxDurationMs = sourceSpanMs.coerceAtMost(MAX_OFFLINE_SPAN_MS)
+                )
+                if (pcm.samples.isEmpty()) {
+                    emptyList()
+                } else {
+                    val words = com.example.data.captions.VoskTranscriber(modelPath)
+                        .recognize(pcm.samples, pcm.sampleRate)
+                    AutoCaptionManager.segmentsFromWords(words)
+                }
+            }
+            if (segments.isEmpty()) {
+                silentClips++
+                continue
+            }
+            val overlays = AutoCaptionManager.overlaysFromTranscript(
+                segments = segments,
+                sourceOffsetMs = clip.trimStartMs,
+                clipStartMs = timelineStartOf(project, clip.id),
+                trimStartMs = clip.trimStartMs,
+                speed = clip.speed,
+                clipDurationMs = clip.durationMs
+            ).take(MAX_AI_CAPTIONS - created.size)
+            if (overlays.isNotEmpty()) {
+                created += overlays
+                captionedClips++
+            } else {
+                silentClips++
+            }
+        }
+
+        if (created.isEmpty()) {
+            return "The offline model heard no speech in ${clips.size} clip(s)"
+        }
+        vm.updateProject { proj ->
+            proj.copy(textOverlays = proj.textOverlays + created)
+        }
+        vm._selectedTextId.value = created.first().id
+        AppLog.info(
+            "EditorViewModel",
+            "Added ${created.size} offline captions from $captionedClips/${clips.size} clip(s)"
+        )
+        val skipped = if (silentClips > 0) ", $silentClips silent clip(s) skipped" else ""
+        val truncated = if (totalTargets > clips.size) " (first ${clips.size} clips)" else ""
+        return "Added ${created.size} offline caption${if (created.size == 1) "" else "s"}" +
+            " from $captionedClips clip${if (captionedClips == 1) "" else "s"}$skipped$truncated"
+    }
+
+    /** Offline decode/refuse span per clip (Vosk small models are fast but not free). */
+    private const val MAX_OFFLINE_SPAN_MS = 15 * 60_000L
 
     /** Position of a clip on the timeline (main clips are cumulative). */
     private fun timelineStartOf(project: com.example.model.VideoProject, clipId: String): Long {

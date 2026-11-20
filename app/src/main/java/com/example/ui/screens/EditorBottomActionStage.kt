@@ -321,7 +321,7 @@ internal fun EditorBottomActionStage(
                         brandMusicPicker.launch("audio/*")
                     }
                 }
-                "copyright" -> notify("Copyright-free music lives in the Sounds library")
+                "copyright" -> onOpenAudioSheet(EditorAudioTabs.MUSIC)
                 else -> notify("${subFeature.label} is not available yet")
             }
 

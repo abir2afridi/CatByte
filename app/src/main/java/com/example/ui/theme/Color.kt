@@ -86,6 +86,7 @@ data class AppColors(
     val accentPurple: Color,
     val accentGreen: Color,
     val accentPink: Color,
+    val accentTeal: Color,
     val playhead: Color,
     val timelineTrack: Color,
     val clipBg: Color,
@@ -111,6 +112,7 @@ val LightAppColors = AppColors(
     accentPurple = LightAccentPurple,
     accentGreen = LightAccentGreen,
     accentPink = LightAccentPink,
+    accentTeal = LightAccentTeal,
     playhead = LightPlayhead,
     timelineTrack = LightTimelineTrack,
     clipBg = LightClipBg,
@@ -136,6 +138,7 @@ val DarkAppColors = AppColors(
     accentPurple = DarkAccentPurple,
     accentGreen = DarkAccentGreen,
     accentPink = DarkAccentPink,
+    accentTeal = DarkAccentTeal,
     playhead = DarkPlayhead,
     timelineTrack = DarkTimelineTrack,
     clipBg = DarkClipBg,
@@ -169,3 +172,4 @@ val CapCutYellow: Color @Composable get() = PencilTheme.colors.accentYellow
 val CapCutPurple: Color @Composable get() = PencilTheme.colors.accentPurple
 val CapCutGreen: Color @Composable get() = PencilTheme.colors.accentGreen
 val CapCutPink: Color @Composable get() = PencilTheme.colors.accentPink
+val CapCutTeal: Color @Composable get() = PencilTheme.colors.accentTeal

@@ -49,6 +49,10 @@ internal fun clipToJson(clip: MediaClip): JSONObject = JSONObject().apply {
     put("contrast", clip.contrast.toDouble())
     put("saturation", clip.saturation.toDouble())
     put("vignette", clip.vignette.toDouble())
+    put("exposure", clip.exposure.toDouble())
+    put("temperature", clip.temperature.toDouble())
+    put("tint", clip.tint.toDouble())
+    put("vibrance", clip.vibrance.toDouble())
     put("rotation", clip.rotation.toDouble())
     put("isMirrored", clip.isMirrored)
     put("waveform", JSONArray(clip.waveform))
@@ -122,6 +126,10 @@ internal fun clipFromJson(json: JSONObject): MediaClip = MediaClip(
     contrast = json.optDouble("contrast", 1.0).toFloat(),
     saturation = json.optDouble("saturation", 1.0).toFloat(),
     vignette = json.optDouble("vignette", 0.0).toFloat(),
+    exposure = json.optDouble("exposure", 0.0).toFloat(),
+    temperature = json.optDouble("temperature", 0.0).toFloat(),
+    tint = json.optDouble("tint", 0.0).toFloat(),
+    vibrance = json.optDouble("vibrance", 0.0).toFloat(),
     rotation = json.optDouble("rotation", 0.0).toFloat(),
     isMirrored = json.optBoolean("isMirrored", false),
     waveform = json.optJSONArray("waveform").toFloatList(),

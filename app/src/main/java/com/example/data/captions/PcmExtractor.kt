@@ -21,12 +21,15 @@ object PcmExtractor {
     data class Result(val samples: ShortArray, val sampleRate: Int)
 
     /**
-     * Decodes at most [maxDurationMs] of audio to mono 16 kHz.
+     * Decodes at most [maxDurationMs] of audio to mono 16 kHz, starting at
+     * [startMs] inside the source file. Word timings are therefore relative to
+     * [startMs] - callers pass the clip's trim start as the offset.
      * [outputSampleRate] stays 16 kHz: recognition happens at that rate.
      */
     fun extract(
         context: Context,
         uri: android.net.Uri,
+        startMs: Long = 0L,
         maxDurationMs: Long = 10 * 60_000L,
         outputSampleRate: Int = 16_000
     ): Result {
@@ -47,6 +50,9 @@ object PcmExtractor {
                 return Result(ShortArray(0), outputSampleRate)
             }
             extractor.selectTrack(audioTrack)
+            if (startMs > 0L) {
+                extractor.seekTo(startMs * 1_000L, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+            }
 
             val inRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             val channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)

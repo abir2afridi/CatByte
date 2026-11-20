@@ -127,8 +127,9 @@ internal fun CapCutBottomNavigationBar(
         ) {
             val items = listOf(
                 Triple(0, "Edit", Icons.Outlined.ContentCut),
-                Triple(1, "Inbox", Icons.Outlined.Notifications),
-                Triple(2, "Profile", Icons.Outlined.Person)
+                Triple(1, "AI Lab", Icons.Outlined.AutoAwesome),
+                Triple(2, "Inbox", Icons.Outlined.Notifications),
+                Triple(3, "Profile", Icons.Outlined.Person)
             )
 
             items.forEach { (index, label, icon) ->

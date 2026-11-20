@@ -59,6 +59,8 @@ import java.util.Locale
 fun AdjustmentsSheet(
     clip: MediaClip?,
     onUpdateAdjustments: (brightness: Float, contrast: Float, saturation: Float, vignette: Float) -> Unit,
+    /** The extra grade sliders; writes exposure/temperature/tint/vibrance. */
+    onUpdateGradeAdjustments: (exposure: Float, temperature: Float, tint: Float, vibrance: Float) -> Unit = { _, _, _, _ -> },
     /** The full HSL list of the clip; the sheet edits one channel at a time. */
     onUpdateHsl: (List<HslAdjustment>) -> Unit = {},
     /** True while the preview shows the clip without its colour adjustments. */
@@ -71,6 +73,10 @@ fun AdjustmentsSheet(
     var contrast by remember(clipId) { mutableFloatStateOf(clip?.contrast ?: 1f) }
     var saturation by remember(clipId) { mutableFloatStateOf(clip?.saturation ?: 1f) }
     var vignette by remember(clipId) { mutableFloatStateOf(clip?.vignette ?: 0f) }
+    var exposure by remember(clipId) { mutableFloatStateOf(clip?.exposure ?: 0f) }
+    var temperature by remember(clipId) { mutableFloatStateOf(clip?.temperature ?: 0f) }
+    var tint by remember(clipId) { mutableFloatStateOf(clip?.tint ?: 0f) }
+    var vibrance by remember(clipId) { mutableFloatStateOf(clip?.vibrance ?: 0f) }
 
     // The HSL grade is edited per colour channel; every channel owns its own
     // hue/saturation/luminance values.
@@ -336,6 +342,54 @@ fun AdjustmentsSheet(
                 onValueChange = {
                     vignette = it
                     onUpdateAdjustments(brightness, contrast, saturation, vignette)
+                }
+            )
+
+            // The extra grade controls: exposure (stops), warm/cool
+            // temperature, green/magenta tint and vibrance. All four fold
+            // into the same colour matrix as the sliders above.
+            GradeSlider(
+                label = "Exposure",
+                valueText = String.format(Locale.US, "%+.2f", exposure),
+                value = exposure,
+                range = -1.0f..1.0f,
+                tag = "adjustments_exposure",
+                onValueChange = {
+                    exposure = it
+                    onUpdateGradeAdjustments(exposure, temperature, tint, vibrance)
+                }
+            )
+            GradeSlider(
+                label = "Temperature",
+                valueText = String.format(Locale.US, "%+.2f", temperature),
+                value = temperature,
+                range = -1.0f..1.0f,
+                tag = "adjustments_temperature",
+                onValueChange = {
+                    temperature = it
+                    onUpdateGradeAdjustments(exposure, temperature, tint, vibrance)
+                }
+            )
+            GradeSlider(
+                label = "Tint",
+                valueText = String.format(Locale.US, "%+.2f", tint),
+                value = tint,
+                range = -1.0f..1.0f,
+                tag = "adjustments_tint",
+                onValueChange = {
+                    tint = it
+                    onUpdateGradeAdjustments(exposure, temperature, tint, vibrance)
+                }
+            )
+            GradeSlider(
+                label = "Vibrance",
+                valueText = String.format(Locale.US, "%+.2f", vibrance),
+                value = vibrance,
+                range = -1.0f..1.0f,
+                tag = "adjustments_vibrance",
+                onValueChange = {
+                    vibrance = it
+                    onUpdateGradeAdjustments(exposure, temperature, tint, vibrance)
                 }
             )
         }
