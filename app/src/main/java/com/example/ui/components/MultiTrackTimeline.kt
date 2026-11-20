@@ -190,6 +190,7 @@ fun MultiTrackTimeline(
                 currentPositionMs = currentPositionMs,
                 totalDurationMs = totalMs,
                 banglaTimecodes = banglaTimecodes,
+                project = project,
                 isMainMuted = project.isMainTrackMuted,
                 onToggleMainMute = {
                     onTrackMute(TimelineTrackIds.MAIN, !project.isMainTrackMuted)

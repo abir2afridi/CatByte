@@ -36,6 +36,10 @@ import com.example.ui.theme.PencilTheme
 /**
  * Visual effects track.
  *
+ * [POSITION-LOCKED — user approved 2026-11-21] Overlapping effects are a
+ * feature: multiple effects may share the same seconds and both render.
+ * Do NOT add collision checks that push effects apart.
+ *
  * Effects MAY overlap in time - that is a feature (two effects can share the
  * same seconds and both render). To keep every chip visible and tappable the
  * track packs overlapping effects into separate lanes automatically: a chip

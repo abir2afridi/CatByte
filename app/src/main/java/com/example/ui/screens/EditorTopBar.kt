@@ -197,7 +197,10 @@ internal fun EditorTopBar(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Right side: AI UHD chip (carries the user's export settings) + Export
+            // [POSITION-LOCKED — user approved 2026-11-21]
+            // Right side: AI UHD chip (carries the user's export settings) + Export.
+            // There is intentionally NO separate resolution badge next to it -
+            // the settings live inside the AI UHD label itself.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)

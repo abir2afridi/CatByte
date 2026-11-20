@@ -70,7 +70,9 @@ internal fun EditorTransportRow(
             .background(barBackground)
             .testTag("editor_transport_row")
     ) {
-        // Left: the live timecode chip (opens the jump dialog).
+        // [POSITION-LOCKED — user approved 2026-11-21]
+        // The live timecode chip sits at the transport bar's LEFT edge (it
+        // moved here from the info strip below). Do not relocate it.
         if (timecodeText != null) {
             Box(
                 modifier = Modifier
@@ -92,9 +94,11 @@ internal fun EditorTransportRow(
             }
         }
 
+        // [POSITION-LOCKED — user approved 2026-11-21]
         // Center: Play/Pause button sits EXACTLY on the bar's centre line;
         // the scissors/frame-step group is balanced with a mirror spacer so
-        // the play button never drifts off centre.
+        // the play button never drifts off centre. Keep the mirror in sync
+        // when editing the left group.
         Row(
             modifier = Modifier.align(Alignment.Center),
             verticalAlignment = Alignment.CenterVertically

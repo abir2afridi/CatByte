@@ -124,7 +124,9 @@ internal fun EditorTransportInfoRow(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Grid / safe-area toggle (CapCut keeps it here, next to the ratio).
+        // [POSITION-LOCKED — user approved 2026-11-21]
+        // Grid / safe-area toggle sits HERE, next to the 1:1 ratio chip (it
+        // used to float on the preview canvas - the user moved it down here).
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(5.dp))

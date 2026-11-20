@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import coil.request.videoFrameMillis
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -71,6 +72,8 @@ fun CapCutTimelineLeftGutter(
     hasTextTrack: Boolean = true,
     /** Bangla numerals for the gutter timecode (app language = Bangla). */
     banglaTimecodes: Boolean = false,
+    /** The open project: its cover frame fills the Cover card. */
+    project: com.example.model.VideoProject? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -132,7 +135,10 @@ fun CapCutTimelineLeftGutter(
                 )
             }
 
-            // Cover thumbnail card with meadow preview frame and pencil icon
+            // Cover thumbnail card: shows the project's real cover - the
+            // custom cover image when the user set one, otherwise the video
+            // frame at coverFrameMs of the first clip. The meadow scene is
+            // only the fallback for empty projects.
             Box(
                 modifier = Modifier
                     .size(width = 52.dp, height = 56.dp)
@@ -141,8 +147,31 @@ fun CapCutTimelineLeftGutter(
                     .testTag("timeline_cover_button"),
                 contentAlignment = Alignment.Center
             ) {
-                // Background video frame (meadow & sky scene)
-                CapCutMeadowCanvas(modifier = Modifier.fillMaxSize())
+                val firstVideoUri = project?.clips
+                    ?.firstOrNull { !it.uriString.isNullOrBlank() }?.uriString
+                when {
+                    !project?.coverImageUri.isNullOrBlank() -> {
+                        coil.compose.AsyncImage(
+                            model = project!!.coverImageUri,
+                            contentDescription = null,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    firstVideoUri != null -> {
+                        coil.compose.AsyncImage(
+                            model = coil.request.ImageRequest
+                                .Builder(androidx.compose.ui.platform.LocalContext.current)
+                                .data(firstVideoUri)
+                                .videoFrameMillis(project!!.coverFrameMs)
+                                .build(),
+                            contentDescription = null,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    else -> CapCutMeadowCanvas(modifier = Modifier.fillMaxSize())
+                }
 
                 // Dark subtle overlay gradient for contrast
                 Box(

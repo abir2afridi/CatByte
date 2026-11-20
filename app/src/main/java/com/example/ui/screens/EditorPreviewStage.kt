@@ -107,8 +107,10 @@ internal fun ColumnScope.EditorPreviewStage(
         .orEmpty()
 
     Column(modifier = Modifier.weight(0.85f, fill = false).fillMaxWidth()) {
-        // The stereo meter lives ABOVE the video (CapCut-style), not on top
-        // of the picture: it never covers the user's content again.
+        // [POSITION-LOCKED — user approved 2026-11-21]
+        // The stereo meter lives ABOVE the video, left-aligned, in its own
+        // strip. Do NOT move it back onto the video picture as an overlay —
+        // the user explicitly asked for it outside the preview.
         com.example.ui.canvas.PlaybackMeterStrip(
             visible = isPlaying && currentClip != null && !currentClip.isMuted,
             modifier = Modifier.fillMaxWidth()
