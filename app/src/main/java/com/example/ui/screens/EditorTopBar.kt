@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -196,31 +197,12 @@ internal fun EditorTopBar(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Right side: Quick Resolution Badge + AI UHD format chip + Export button
+            // Right side: AI UHD chip (carries the user's export settings) + Export
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Resolution & FPS Badge (Clickable to inspect / switch export dropdown)
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF1E1F24))
-                        .border(
-                            width = 0.8.dp,
-                            color = if (exportOpen) Color(0xFF26E5D7) else Color(0xFF33353E),
-                            shape = RoundedCornerShape(4.dp)
-                        )
-                        .clickable { onToggleExportDropdown() }
-                        .padding(horizontal = 6.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = "${project.resolution} • ${project.fps}fps",
-                        color = Color(0xFF26E5D7),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
                 // "AI UHD ▾" chip button
                 Box(
                     modifier = Modifier
@@ -242,7 +224,11 @@ internal fun EditorTopBar(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = if (exportTab == "gif") "GIF" else "AI UHD",
+                            text = if (exportTab == "gif") {
+                                "GIF"
+                            } else {
+                                "AI UHD • ${project.resolution} • ${project.fps}fps"
+                            },
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
@@ -265,15 +251,17 @@ internal fun EditorTopBar(
                         .clip(RoundedCornerShape(18.dp))
                         .background(Color(0xFF26E5D7))
                         .clickable { onStartExport() }
-                        .padding(horizontal = 18.dp)
+                        .padding(horizontal = 14.dp)
+                        .widthIn(min = 72.dp)
                         .testTag("editor_export_button"),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "Export",
                         color = Color(0xFF041E21),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
                     )
                 }
             }

@@ -131,51 +131,55 @@ internal fun BoxScope.CanvasPreviewNotice(
     }
 }
 
-/** The top status row (the active-filter pill & the real output peak meter). */
+/**
+ * The real output peak meter (L / R), fed by the audio that is actually
+ * playing. Lives ABOVE the preview canvas - it never covers the user's
+ * picture (moved out of the video overlay on user request).
+ */
+@Composable
+internal fun PlaybackMeterStrip(visible: Boolean, modifier: Modifier = Modifier) {
+    val levels by PlaybackAudioMeter.levels.collectAsState()
+    Row(
+        modifier = modifier
+            .height(14.dp)
+            .padding(horizontal = 10.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (visible) {
+            Text("L", color = Color(0xFFA5A8B2), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+            PlaybackLevelBar(
+                level = levels.left,
+                color = Color(0xFF26E5D7),
+                modifier = Modifier
+                    .width(44.dp)
+                    .height(3.dp)
+                    .background(Color.White.copy(alpha = 0.18f))
+            )
+            Text("R", color = Color(0xFFA5A8B2), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+            PlaybackLevelBar(
+                level = levels.right,
+                color = Color(0xFFFFC107),
+                modifier = Modifier
+                    .width(44.dp)
+                    .height(3.dp)
+                    .background(Color.White.copy(alpha = 0.18f))
+            )
+        }
+    }
+}
+
+/** The top status row of the video overlay: only the active-filter pill now. */
 @Composable
 internal fun BoxScope.CanvasTopStatusRow(activeClip: MediaClip?, isPlaying: Boolean = false) {
-    val levels by PlaybackAudioMeter.levels.collectAsState()
     Row(
         modifier = Modifier
             .align(Alignment.TopCenter)
             .fillMaxWidth()
             .padding(8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Output peak meter (L / R) fed by the audio that is really playing.
-        if (isPlaying && activeClip != null && !activeClip.isMuted) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .padding(horizontal = 6.dp, vertical = 3.dp)
-            ) {
-                Text("L", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                PlaybackLevelBar(
-                    level = levels.left,
-                    color = Color(0xFF26E5D7),
-                    modifier = Modifier
-                        .width(44.dp)
-                        .height(3.dp)
-                        .background(Color.White.copy(alpha = 0.18f))
-                )
-                Text("R", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                PlaybackLevelBar(
-                    level = levels.right,
-                    color = Color(0xFFFFC107),
-                    modifier = Modifier
-                        .width(44.dp)
-                        .height(3.dp)
-                        .background(Color.White.copy(alpha = 0.18f))
-                )
-            }
-        } else {
-            Box(modifier = Modifier.size(1.dp))
-        }
-
         CanvasFilterPill(activeClip)
     }
 }

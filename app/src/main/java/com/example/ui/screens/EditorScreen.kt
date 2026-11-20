@@ -88,6 +88,7 @@ fun EditorScreen(
     val selectedTextId by viewModel.selectedTextId.collectAsState()
     val selectedAudioId by viewModel.selectedAudioId.collectAsState()
     val appLanguage by viewModel.appLanguage.collectAsState()
+    var showJumpDialog by remember { mutableStateOf(false) }
     val activeSheet by viewModel.activeSheet.collectAsState()
     val timelineZoom by viewModel.timelineZoom.collectAsState()
     val exportState by viewModel.exportState.collectAsState()
@@ -375,6 +376,11 @@ fun EditorScreen(
                     canUndo = canUndo,
                     canRedo = canRedo,
                     magneticSnap = magneticSnap,
+                    timecodeText = formatTimecodeTenths(
+                        positionState.value,
+                        appLanguage.tag?.startsWith("bn") == true
+                    ),
+                    onTimecodeClick = { showJumpDialog = true },
                     onTogglePlay = { viewModel.togglePlayback() },
                     onSplit = splitAtPlayhead,
                     onStepBackward = {
@@ -396,7 +402,8 @@ fun EditorScreen(
                     currentPositionMs = positionState.value,
                     totalDurationMs = project!!.totalDurationMs,
                     markers = project!!.markers,
-                    banglaTimecodes = appLanguage.tag?.startsWith("bn") == true,
+                    showSafeAreaGuides = showSafeAreaGuides,
+                    onToggleGrid = { viewModel.toggleSafeAreaGuides(!showSafeAreaGuides) },
                     onAspectRatioClick = { viewModel.setActiveSheet(ActiveToolSheet.CANVAS_RATIO) },
                     onFullscreen = { isPreviewFullscreen = true },
                     onSeek = { viewModel.seekTo(it) },
@@ -541,6 +548,23 @@ fun EditorScreen(
                     viewModel.setActiveSheet(ActiveToolSheet.TRANSITIONS_PICKER)
                 },
                 onDismiss = { showFeatureSearch = false }
+            )
+        }
+
+        if (showJumpDialog) {
+            JumpToTimecodeDialog(
+                currentPositionMs = positionState.value,
+                totalDurationMs = project?.totalDurationMs ?: 0L,
+                markers = project?.markers ?: emptyList(),
+                onDismiss = { showJumpDialog = false },
+                onSeek = {
+                    viewModel.seekTo(it)
+                    showJumpDialog = false
+                },
+                onJumpToMarker = { markerId ->
+                    viewModel.seekToMarker(markerId)
+                    showJumpDialog = false
+                }
             )
         }
 

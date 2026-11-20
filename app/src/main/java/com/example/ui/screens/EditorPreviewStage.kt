@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Pause
@@ -105,12 +106,17 @@ internal fun ColumnScope.EditorPreviewStage(
         ?.value
         .orEmpty()
 
-    Box(
-        modifier = Modifier
-            .weight(0.85f, fill = false)
-            .fillMaxWidth(),
-        contentAlignment = Alignment.Center
-    ) {
+    Column(modifier = Modifier.weight(0.85f, fill = false).fillMaxWidth()) {
+        // The stereo meter lives ABOVE the video (CapCut-style), not on top
+        // of the picture: it never covers the user's content again.
+        com.example.ui.canvas.PlaybackMeterStrip(
+            visible = isPlaying && currentClip != null && !currentClip.isMuted,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
         CompositionLocalProvider(LocalVideoPlayer provides previewPlayer) {
             VideoCanvas(
                 project = project,
@@ -192,23 +198,6 @@ internal fun ColumnScope.EditorPreviewStage(
                 }
             }
         }
-
-        // Floating Quick Grid / Safe Area Toggle on preview canvas
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(8.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.Black.copy(alpha = 0.5f))
-                .clickable { viewModel.toggleSafeAreaGuides(!showSafeAreaGuides) }
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            Text(
-                text = if (showSafeAreaGuides) "Grid: ON" else "Grid",
-                color = if (showSafeAreaGuides) Color(0xFF26E5D7) else Color.White,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
     }
+}
 }

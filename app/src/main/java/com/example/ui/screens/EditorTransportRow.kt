@@ -49,6 +49,9 @@ internal fun EditorTransportRow(
     canUndo: Boolean,
     canRedo: Boolean,
     magneticSnap: Boolean = true,
+    /** Live timecode chip on the left (opens the jump dialog). */
+    timecodeText: String? = null,
+    onTimecodeClick: () -> Unit = {},
     onTogglePlay: () -> Unit,
     onSplit: (() -> Unit)? = null,
     onStepBackward: (() -> Unit)? = null,
@@ -67,7 +70,31 @@ internal fun EditorTransportRow(
             .background(barBackground)
             .testTag("editor_transport_row")
     ) {
-        // Center: Split button + Play/Pause button
+        // Left: the live timecode chip (opens the jump dialog).
+        if (timecodeText != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 6.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF1E1F24))
+                    .clickable(onClick = onTimecodeClick)
+                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                    .testTag("editor_timecode_chip")
+            ) {
+                Text(
+                    text = timecodeText,
+                    color = Color.White,
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+            }
+        }
+
+        // Center: Play/Pause button sits EXACTLY on the bar's centre line;
+        // the scissors/frame-step group is balanced with a mirror spacer so
+        // the play button never drifts off centre.
         Row(
             modifier = Modifier.align(Alignment.Center),
             verticalAlignment = Alignment.CenterVertically
@@ -136,6 +163,16 @@ internal fun EditorTransportRow(
                 ) {
                     Text("+1F", color = Color(0xFFA5A8B2), fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
+            }
+
+            // Mirror of the left-side extras (scissors + -1F) so the play
+            // button stays exactly on the horizontal centre of the bar.
+            if (onSplit != null && onStepBackward != null) {
+                Spacer(modifier = Modifier.width(40.dp))
+            } else if (onSplit != null) {
+                Spacer(modifier = Modifier.width(36.dp))
+            } else if (onStepBackward != null) {
+                Spacer(modifier = Modifier.width(32.dp))
             }
         }
 

@@ -63,8 +63,9 @@ internal fun EditorTransportInfoRow(
     currentPositionMs: Long,
     totalDurationMs: Long,
     markers: List<TimelineMarker> = emptyList(),
-    /** Bangla numerals for the timecode chip (app language = Bangla). */
-    banglaTimecodes: Boolean = false,
+    /** Safe-area grid toggle chip (moved here from the preview canvas). */
+    showSafeAreaGuides: Boolean = false,
+    onToggleGrid: () -> Unit = {},
     onAspectRatioClick: (() -> Unit)? = null,
     onFullscreen: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -74,8 +75,6 @@ internal fun EditorTransportInfoRow(
     /** Jumps to the marker after the playhead (handled by the view model). */
     onNextMarker: () -> Unit = {}
 ) {
-    var showJumpDialog by remember { mutableStateOf(false) }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -125,19 +124,28 @@ internal fun EditorTransportInfoRow(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Live timecode - tapping it opens the jump dialog.
+        // Grid / safe-area toggle (CapCut keeps it here, next to the ratio).
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xFF1E1F24))
-                .clickable { showJumpDialog = true }
-                .padding(horizontal = 6.dp, vertical = 3.dp)
-                .testTag("editor_timecode_chip")
+                .clip(RoundedCornerShape(5.dp))
+                .background(
+                    if (showSafeAreaGuides) Color(0xFF26E5D7).copy(alpha = 0.2f) else Color(0xFF2A2A31)
+                )
+                .border(
+                    width = 0.8.dp,
+                    color = if (showSafeAreaGuides) Color(0xFF26E5D7) else Color(0xFF33353E),
+                    shape = RoundedCornerShape(5.dp)
+                )
+                .clickable(onClick = onToggleGrid)
+                .padding(horizontal = 7.dp, vertical = 3.dp)
+                .testTag("editor_grid_chip")
         ) {
-            EditorTimecodeText(
-                currentPositionMs = currentPositionMs,
-                totalDurationMs = totalDurationMs,
-                bangla = banglaTimecodes
+            Text(
+                text = if (showSafeAreaGuides) "Grid ON" else "Grid",
+                color = if (showSafeAreaGuides) Color(0xFF26E5D7) else Color.White,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
             )
         }
 
@@ -175,22 +183,6 @@ internal fun EditorTransportInfoRow(
         }
     }
 
-    if (showJumpDialog) {
-        JumpToTimecodeDialog(
-            currentPositionMs = currentPositionMs,
-            totalDurationMs = totalDurationMs,
-            markers = markers,
-            onDismiss = { showJumpDialog = false },
-            onSeek = {
-                onSeek(it)
-                showJumpDialog = false
-            },
-            onJumpToMarker = { markerId ->
-                onJumpToMarker(markerId)
-                showJumpDialog = false
-            }
-        )
-    }
 }
 
 /**
@@ -198,7 +190,7 @@ internal fun EditorTransportInfoRow(
  * project markers, so a marker is reachable without opening another sheet.
  */
 @Composable
-private fun JumpToTimecodeDialog(
+internal fun JumpToTimecodeDialog(
     currentPositionMs: Long,
     totalDurationMs: Long,
     markers: List<TimelineMarker>,

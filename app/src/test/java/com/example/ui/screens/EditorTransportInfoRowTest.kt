@@ -72,18 +72,37 @@ class EditorTransportInfoRowTest {
     }
 
     @Test
-    fun `the timecode opens the jump dialog with the project markers`() {
+    fun `the timecode chip on the transport bar opens the jump dialog with markers`() {
         val jumps = mutableListOf<String>()
+        val showJump = androidx.compose.runtime.mutableStateOf(false)
         compose.setContent {
-            EditorTransportInfoRow(
-                aspectRatioLabel = "1:1",
-                currentPositionMs = 3_000L,
-                totalDurationMs = 30_000L,
-                markers = markers,
-                onFullscreen = {},
-                onSeek = {},
-                onJumpToMarker = { jumps += it }
-            )
+            // The timecode chip moved onto the transport bar; the screen owns
+            // the jump dialog - mirror exactly that wiring here.
+            androidx.compose.runtime.CompositionLocalProvider(
+            ) {
+                androidx.compose.foundation.layout.Box {
+                    EditorTransportRow(
+                        isPlaying = false,
+                        canUndo = false,
+                        canRedo = false,
+                        timecodeText = "00:03.6 / 00:50.5",
+                        onTimecodeClick = { showJump.value = true },
+                        onTogglePlay = {},
+                        onUndo = {},
+                        onRedo = {}
+                    )
+                    if (showJump.value) {
+                        JumpToTimecodeDialog(
+                            currentPositionMs = 3_000L,
+                            totalDurationMs = 30_000L,
+                            markers = markers,
+                            onDismiss = { showJump.value = false },
+                            onSeek = {},
+                            onJumpToMarker = { jumps += it }
+                        )
+                    }
+                }
+            }
         }
 
         compose.onNodeWithTag("editor_timecode_chip").performClick()

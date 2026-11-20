@@ -40,7 +40,7 @@ class CanvasPlaybackHudMeterTest {
 
         compose.setContent {
             Box {
-                CanvasTopStatusRow(activeClip = clip, isPlaying = false)
+                PlaybackMeterStrip(visible = false)
             }
         }
         compose.waitForIdle()
@@ -54,7 +54,7 @@ class CanvasPlaybackHudMeterTest {
 
         compose.setContent {
             Box {
-                CanvasTopStatusRow(activeClip = clip, isPlaying = true)
+                PlaybackMeterStrip(visible = true)
             }
         }
         compose.waitForIdle()
