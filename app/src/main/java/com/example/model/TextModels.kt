@@ -25,6 +25,15 @@ enum class TextFontStyle(val displayName: String) {
     BANGLA_KALPURUSH("Kalpurush বাংলা")
 }
 
+/** One timed word inside a caption, for the karaoke highlight. */
+data class KaraokeWord(
+    val text: String,
+    /** Start offset in milliseconds from the caption's own start. */
+    val startMs: Long,
+    /** End offset in milliseconds from the caption's own start. */
+    val endMs: Long
+)
+
 data class TextOverlay(
     val id: String,
     val text: String,
@@ -44,5 +53,37 @@ data class TextOverlay(
     val letterSpacingEm: Float = 0f,
     /** Line height multiplier (1 = normal, 1.5 = airy). */
     val lineSpacingMultiplier: Float = 1f,
+    /**
+     * Word timings for the karaoke highlight, in speaking order. Times are
+     * relative to this overlay's start; empty for plain (non-caption) text.
+     */
+    val karaokeWords: List<KaraokeWord> = emptyList(),
+    /** When true, the word being spoken is highlighted while the caption shows. */
+    val karaokeEnabled: Boolean = false,
     val keyframes: List<Keyframe> = emptyList()
-)
+) {
+    /**
+     * The karaoke word active at [localMs] (overlay-relative), or null when the
+     * highlight is off, the words are missing, or nothing is being spoken.
+     */
+    fun activeKaraokeIndex(localMs: Long): Int? {
+        if (!karaokeEnabled || karaokeWords.isEmpty()) return null
+        return karaokeWords.indexOfFirst { localMs >= it.startMs && localMs < it.endMs }
+            .takeIf { it >= 0 }
+    }
+
+    /** Start offsets of each karaoke word inside [text]; nulls when mismatched. */
+    fun karaokeOffsetsInText(): List<Int>? {
+        if (karaokeWords.isEmpty()) return null
+        var rebuilt = ""
+        val offsets = karaokeWords.map { word ->
+            if (rebuilt.isNotEmpty()) rebuilt += " "
+            val start = rebuilt.length
+            rebuilt += word.text
+            start
+        }
+        // Words joined by single spaces must reproduce the caption text.
+        val expected = karaokeWords.joinToString(" ") { it.text }
+        return if (expected == text.trim()) offsets else null
+    }
+}

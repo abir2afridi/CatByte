@@ -224,7 +224,12 @@ internal fun EditorBottomActionStage(
                 }
                 "ai_expand" -> notAvailable("AI expand")
                 "eye_contact" -> notAvailable("Eye contact")
-                "relight" -> notAvailable("Relight")
+                "relight" -> withClip {
+                    val clip = project.allVideoClips.firstOrNull { it.id == viewModel.selectedClipId.value }
+                    val enabling = (clip?.relight ?: 0f) == 0f
+                    viewModel.setClipRelight(if (enabling) 0.6f else 0f)
+                    notify(if (enabling) "Relight applied to this clip" else "Relight removed")
+                }
                 "motion_blur" -> withClip {
                     val clip = project.allVideoClips.firstOrNull { it.id == viewModel.selectedClipId.value }
                     val enabling = clip?.motionBlur != true
@@ -253,7 +258,12 @@ internal fun EditorBottomActionStage(
                     notify("AI translate: working...")
                     notify(AiFeature.translateCaptions(viewModel))
                 }
-                "retouch" -> notAvailable("Retouch")
+                "retouch" -> withClip {
+                    val clip = project.allVideoClips.firstOrNull { it.id == viewModel.selectedClipId.value }
+                    val enabling = clip?.retouch != true
+                    viewModel.setClipRetouch(enabling)
+                    notify(if (enabling) "Retouch on - gentle skin smooth" else "Retouch off")
+                }
                 "unlink" -> withClip {
                     if (!viewModel.detachAudioFromSelectedClip()) {
                         notify("This clip's audio is already detached")

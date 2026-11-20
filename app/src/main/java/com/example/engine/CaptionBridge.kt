@@ -1,5 +1,6 @@
 package com.example.engine
 
+import com.example.model.KaraokeWord
 import com.example.model.TextAnimationType
 import com.example.model.TextFontStyle
 import com.example.model.TextOverlay
@@ -51,6 +52,46 @@ object CaptionBridge {
                 posX = 0.5f,
                 posY = POS_Y,
                 scale = 1.0f
+            )
+        }
+        .sortedBy { it.startTimelineMs }
+        .toList()
+
+    /**
+     * Like [overlaysFromCues] but keeps the per-word timings: the overlay
+     * carries karaoke words (relative to its own start) so the renderer can
+     * highlight the word being spoken. Used by both transcription paths.
+     */
+    fun overlaysFromTimelineCues(
+        cues: List<CaptionTimeline.Cue>,
+        idFactory: () -> String = { UUID.randomUUID().toString() }
+    ): List<TextOverlay> = cues
+        .asSequence()
+        .filter { it.words.isNotEmpty() && it.text.isNotBlank() }
+        .map { cue ->
+            val start = cue.startMs.coerceAtLeast(0L)
+            val end = cue.endMs.coerceAtLeast(start + 100L)
+            val words = cue.words.map { word ->
+                KaraokeWord(
+                    text = word.text,
+                    startMs = (word.startMs - cue.startMs).coerceAtLeast(0L),
+                    endMs = (word.endMs - cue.startMs).coerceAtLeast(1L)
+                )
+            }
+            TextOverlay(
+                id = idFactory(),
+                text = cue.text.trim(),
+                startTimelineMs = start,
+                durationMs = (end - start).coerceIn(100L, MAX_CAPTION_MS),
+                fontStyle = TextFontStyle.SUBTITLE,
+                color = DEFAULT_COLOR,
+                backgroundColor = DEFAULT_BACKGROUND,
+                animation = TextAnimationType.NONE,
+                posX = 0.5f,
+                posY = POS_Y,
+                scale = 1.0f,
+                karaokeWords = words,
+                karaokeEnabled = true
             )
         }
         .sortedBy { it.startTimelineMs }

@@ -89,6 +89,22 @@ internal fun textToJson(text: TextOverlay): JSONObject = JSONObject().apply {
     put("isItalic", text.isItalic)
     put("letterSpacingEm", text.letterSpacingEm.toDouble())
     put("lineSpacingMultiplier", text.lineSpacingMultiplier.toDouble())
+    if (text.karaokeWords.isNotEmpty()) {
+        put(
+            "karaokeWords",
+            JSONArray().also { array ->
+                text.karaokeWords.forEach { word ->
+                    array.put(
+                        JSONObject()
+                            .put("text", word.text)
+                            .put("startMs", word.startMs)
+                            .put("endMs", word.endMs)
+                    )
+                }
+            }
+        )
+        put("karaokeEnabled", text.karaokeEnabled)
+    }
     put("keyframes", JSONArray().also { array -> text.keyframes.forEach { array.put(keyframeToJson(it)) } })
 }
 
@@ -108,6 +124,14 @@ internal fun textFromJson(json: JSONObject): TextOverlay = TextOverlay(
     isItalic = json.optBoolean("isItalic", false),
     letterSpacingEm = json.optDouble("letterSpacingEm", 0.0).toFloat(),
     lineSpacingMultiplier = json.optDouble("lineSpacingMultiplier", 1.0).toFloat(),
+    karaokeWords = json.optJSONArray("karaokeWords").mapObjects { word ->
+        com.example.model.KaraokeWord(
+            text = word.optString("text"),
+            startMs = word.optLong("startMs"),
+            endMs = word.optLong("endMs", word.optLong("startMs") + 200L)
+        )
+    },
+    karaokeEnabled = json.optBoolean("karaokeEnabled", false),
     keyframes = json.optJSONArray("keyframes").mapObjects { keyframeFromJson(it) }
 )
 

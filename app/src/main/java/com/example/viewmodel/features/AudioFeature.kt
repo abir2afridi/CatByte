@@ -62,7 +62,7 @@ internal object AudioFeature {
     private val DefaultAudioImportProbe = AudioImportProbe { context, uri ->
         AudioImportMedia(
             durationMs = MediaMetadata.durationMs(context, uri),
-            waveform = MediaMetadata.waveform(context, uri, 48).orEmpty()
+            waveform = MediaMetadata.waveform(context, uri, 240).orEmpty()
         )
     }
 
@@ -487,7 +487,7 @@ internal object AudioFeature {
 
         vm.viewModelScope.launch {
             val waveform = withContext(Dispatchers.IO) {
-                MediaMetadata.waveform(ctx, Uri.parse(uriString), 48)
+                MediaMetadata.waveform(ctx, Uri.parse(uriString), 240)
             } ?: emptyList()
             val audio = AudioClip(
                 id = UUID.randomUUID().toString(),
@@ -703,7 +703,7 @@ internal object AudioFeature {
         val ctx = vm.context ?: return
         vm.viewModelScope.launch {
             val waveform = withContext(Dispatchers.IO) {
-                runCatching { MediaMetadata.waveform(ctx, Uri.fromFile(file), 48) }.getOrNull()
+                runCatching { MediaMetadata.waveform(ctx, Uri.fromFile(file), 240) }.getOrNull()
             } ?: return@launch
             if (waveform.isEmpty()) return@launch
             vm.updateProject("audio-waveform:$audioId") { proj ->

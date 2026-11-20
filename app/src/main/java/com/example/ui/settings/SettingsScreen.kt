@@ -67,6 +67,9 @@ fun SettingsScreen(
     onBackupProject: (android.net.Uri, Boolean, (String) -> Unit) -> Unit = { _, _, _ -> },
     onRestoreBackup: (android.net.Uri, (String) -> Unit) -> Unit = { _, _ -> },
     onNotifyBackup: (String) -> Unit = {},
+    /** Time machine: save a version of, or restore the open project to, a snapshot. */
+    onSaveProjectVersion: () -> Unit = {},
+    onRestoreProjectVersion: (String) -> Unit = {},
     onSaveAiConfig: (String, String, String, String, String) -> Unit = { _, _, _, _, _ -> },
     onClearCache: () -> Unit,
     onClearAllProjects: () -> Unit,
@@ -140,6 +143,15 @@ fun SettingsScreen(
             )
 
             SpeechModelsSection(context = context)
+
+            SettingsExportHistorySection()
+
+            SettingsProjectVersionsSection(
+                currentProjectId = currentProjectId,
+                currentProjectTitle = currentProjectTitle,
+                onSaveVersion = onSaveProjectVersion,
+                onRestoreVersion = onRestoreProjectVersion
+            )
 
             SettingsBackupSection(
                 currentProjectTitle = currentProjectTitle,

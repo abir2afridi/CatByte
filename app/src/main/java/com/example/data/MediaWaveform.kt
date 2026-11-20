@@ -23,26 +23,84 @@ internal object MediaWaveform {
     private const val WAVEFORM_ANALYSIS_LIMIT_MS = 90_000L
 
     /**
+     * The pyramid source: the finest level is decoded ONCE per source and
+     * every requested resolution is derived from it, so a second clip using
+     * the same media (or a zoom re-render) never decodes again.
+     */
+    const val FINE_BUCKETS = 1200
+
+    /** Decoded fine levels, keyed by source URI. */
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, List<Float>>()
+
+    /** Deduplicates concurrent requests for the same source. */
+    private val inFlight =
+        java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.CompletableDeferred<List<Float>?>>()
+
+    /**
      * Builds a real waveform for the audio of [uri]. The returned list contains
      * [buckets] normalised values between 0 and 1. Returns null when the audio
      * could not be decoded.
      */
-    suspend fun waveform(context: Context, uri: Uri, buckets: Int = 48): List<Float>? =
+    suspend fun waveform(context: Context, uri: Uri, buckets: Int = 240): List<Float>? =
         withContext(Dispatchers.IO) {
             AppLog.info(TAG, "waveform() called for uri=$uri, buckets=$buckets")
-            val result = runCatching { decodeWaveform(context, uri, buckets) }
-                .onFailure { e ->
-                    AppLog.warn(TAG, "Waveform decode failed for $uri", e)
-                }
-                .getOrNull()
-            
-            if (result != null) {
-                AppLog.info(TAG, "Waveform extracted: ${result.size} buckets for uri=$uri")
-            } else {
+            val fine = cachedOrDecode(context, uri) ?: run {
                 AppLog.warn(TAG, "Waveform extraction returned null for uri=$uri")
+                return@withContext null
             }
+            val result = downsample(fine, buckets)
+            AppLog.info(TAG, "Waveform served ${result.size} buckets (cached fine=${fine.size}) for uri=$uri")
             result
         }
+
+    /** The fine pyramid level for [uri], decoded once and cached. */
+    private suspend fun cachedOrDecode(context: Context, uri: Uri): List<Float>? {
+        val key = uri.toString()
+        cache[key]?.let { return it }
+        inFlight[key]?.let { return it.await() }
+
+        val deferred = kotlinx.coroutines.CompletableDeferred<List<Float>?>()
+        val racer = inFlight.putIfAbsent(key, deferred)
+        if (racer != null) return racer.await()
+
+        try {
+            val decoded = runCatching { decodeWaveform(context, uri, FINE_BUCKETS) }
+                .onFailure { e -> AppLog.warn(TAG, "Waveform decode failed for $uri", e) }
+                .getOrNull()
+            if (decoded != null) cache[key] = decoded
+            deferred.complete(decoded)
+            return decoded
+        } finally {
+            inFlight.remove(key)
+        }
+    }
+
+    /**
+     * Peaks-style downsampling (each output bucket keeps the loudest input
+     * value) with linear interpolation when more buckets are requested than
+     * the pyramid holds.
+     */
+    internal fun downsample(fine: List<Float>, buckets: Int): List<Float> {
+        if (fine.isEmpty()) return emptyList()
+        val target = buckets.coerceAtLeast(1)
+        if (target == fine.size) return fine
+        if (target > fine.size) {
+            // Interpolate upward.
+            return List(target) { i ->
+                val pos = i * (fine.size - 1).toFloat() / (target - 1).coerceAtLeast(1)
+                val index = pos.toInt()
+                val fraction = pos - index
+                val a = fine[index]
+                val b = fine[(index + 1).coerceAtMost(fine.size - 1)]
+                a + (b - a) * fraction
+            }
+        }
+        return List(target) { i ->
+            val start = i * fine.size / target
+            val end = ((i + 1) * fine.size / target).coerceAtLeast(start + 1)
+            (start until end.coerceAtMost(fine.size)).maxOf { fine[it] }
+        }
+    }
 
     private fun decodeWaveform(context: Context, uri: Uri, buckets: Int): List<Float>? {
         AppLog.debug(TAG, "decodeWaveform() started for uri=$uri")

@@ -40,6 +40,18 @@ data class MediaClip(
     val temperature: Float = 0f,
     val tint: Float = 0f,
     val vibrance: Float = 0f,
+    /**
+     * Per-pixel grade controls (data/export/ClipGradeShaderEffect). Highlights
+     * and shadows sit in -1..1, sharpen/grain/blur in 0..1; retouch raises the
+     * blur floor as a gentle skin smooth and relight is -1..1.
+     */
+    val highlights: Float = 0f,
+    val shadows: Float = 0f,
+    val sharpen: Float = 0f,
+    val grain: Float = 0f,
+    val blurAmount: Float = 0f,
+    val retouch: Boolean = false,
+    val relight: Float = 0f,
     val rotation: Float = 0f,
     val isMirrored: Boolean = false,
     val waveform: List<Float> = listOf(0.4f, 0.7f, 0.9f, 0.5f, 0.8f, 0.6f, 0.4f, 0.9f, 0.3f, 0.7f),

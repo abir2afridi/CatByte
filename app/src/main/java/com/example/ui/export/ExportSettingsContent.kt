@@ -37,6 +37,12 @@ internal fun ExportSettingsContent(
     Column(modifier = modifier.fillMaxWidth()) {
         if (settings.tab == "video") {
             // ---- Video tab ----
+            ExportPlatformPresetsRow(
+                settings = settings,
+                currentAspectRatio = currentAspectRatio,
+                onUpdateSettings = onUpdateSettings
+            )
+            Spacer(modifier = Modifier.height(14.dp))
             ExportAiUhdCard()
             Spacer(modifier = Modifier.height(14.dp))
 

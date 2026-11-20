@@ -1,9 +1,12 @@
 package com.example.viewmodel.features
 
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.viewModelScope
 import com.example.data.ExportServiceScheduler
 import com.example.data.GifExporter
+import com.example.data.ShareHelper
 import com.example.engine.AudioBoost
 import com.example.export.ExportSettings
 import com.example.export.ExportUiState
@@ -380,13 +383,47 @@ internal object ExportFeature {
         dismissExport(vm)
     }
 
-    /** Exports a real MP4 and reports where it can be shared. */
+    /**
+     * Opens a real share sheet for the exported MP4. A known platform goes
+     * straight to that app; anything else (or an app that is not installed)
+     * falls back to the system chooser so the tap always does something.
+     *
+     * @return a short status line for whoever wants to show one.
+     */
     fun shareExportMessage(vm: EditorViewModel, platform: String): String {
+        val context = vm.context ?: return "Sharing needs the app context."
         val path = vm._exportState.value.videoPath
-        return when {
-            path.isBlank() -> "Export the project first."
-            !File(path).exists() -> "Export failed — no MP4 was produced."
-            else -> "Video ready at $path — shared to $platform."
+        val file = if (path.isBlank()) {
+            return "Export the project first."
+        } else {
+            File(path)
+        }
+        if (!file.exists()) return "Export failed — no MP4 was produced."
+
+        // The done-screen row uses display labels ("Instagram", "Stories",
+        // "YouTube", ...); "Stories" is still an Instagram hand-off.
+        val target = ShareHelper.socialTargets.firstOrNull { candidate ->
+            val wanted = platform.trim().lowercase()
+            candidate.label.lowercase() == wanted ||
+                wanted.contains(candidate.label.lowercase().substringBefore(" /")) ||
+                (platform.equals("Stories", ignoreCase = true) &&
+                    candidate.packageName == INSTAGRAM_PACKAGE)
+        }
+        val intent = ShareHelper.buildShareIntent(context, file, target)
+        return try {
+            if (target != null) {
+                context.startActivity(intent)
+            } else {
+                context.startActivity(Intent.createChooser(intent, "Share video"))
+            }
+            "Sharing the video to $platform"
+        } catch (error: ActivityNotFoundException) {
+            runCatching {
+                context.startActivity(Intent.createChooser(intent, "Share video"))
+            }
+            "$platform is not installed — opened the share sheet instead"
         }
     }
 }
+
+private const val INSTAGRAM_PACKAGE = "com.instagram.android"

@@ -360,6 +360,9 @@ class EditorViewModel(
     internal val undoStack = mutableListOf<EditorHistoryEntry>()
     internal val redoStack = mutableListOf<VideoProject>()
 
+    /** Distinct edit steps since open; drives the automatic version snapshots. */
+    internal var editStepCounter = 0
+
     /**
      * Durable copy of the undo history. The in-memory stacks die with the
      * process; this journal is written atomically to disk so a crash no longer
@@ -799,6 +802,12 @@ class EditorViewModel(
     fun setTrackMuted(trackId: String, muted: Boolean) =
         TrackControlFeature.setTrackMuted(this, trackId, muted)
 
+    /** Flips the main track's mute (the M keyboard shortcut). */
+    fun toggleMainTrackMute() {
+        val muted = _currentProject.value?.isMainTrackMuted ?: return
+        TrackControlFeature.setTrackMuted(this, TimelineTrackIds.MAIN, !muted)
+    }
+
     fun setTrackLocked(trackId: String, locked: Boolean) =
         TrackControlFeature.setTrackLocked(this, trackId, locked)
 
@@ -1041,6 +1050,23 @@ class EditorViewModel(
         tint: Float,
         vibrance: Float
     ) = ClipPropertyFeature.updateGradeAdjustments(this, exposure, temperature, tint, vibrance)
+
+    /** Per-pixel grade sliders: highlights, shadows, sharpen, grain, blur. */
+    fun updateShaderAdjustments(
+        highlights: Float,
+        shadows: Float,
+        sharpen: Float,
+        grain: Float,
+        blurAmount: Float
+    ) = ClipPropertyFeature.updateShaderAdjustments(
+        this, highlights, shadows, sharpen, grain, blurAmount
+    )
+
+    /** Toggles the Retouch skin-smooth on the selected clip. */
+    fun setClipRetouch(enabled: Boolean) = ClipPropertyFeature.setClipRetouch(this, enabled)
+
+    /** Sets the Relight radial key light on the selected clip. */
+    fun setClipRelight(strength: Float) = ClipPropertyFeature.setClipRelight(this, strength)
 
     /**
      * Per-channel HSL grade of one clip (hue, saturation, luminance).
@@ -1354,6 +1380,27 @@ class EditorViewModel(
         letterSpacingEm: Float,
         lineSpacingMultiplier: Float
     ) = TextFeature.setSelectedTextStyle(this, bold, italic, letterSpacingEm, lineSpacingMultiplier)
+
+    /** Toggles the karaoke word highlight on the selected caption. */
+    fun setTextKaraoke(enabled: Boolean) = TextFeature.setTextKaraoke(this, enabled)
+
+    /** Applies a caption style preset to every caption (Captions sheet chips). */
+    fun applyCaptionStyle(styleId: String) = TextFeature.applyCaptionStyle(this, styleId)
+
+    /** Saves a named time-machine version of the current project. */
+    fun saveProjectVersion(label: String) = HistoryFeature.saveProjectVersion(this, label)
+
+    /** Restores the current project to a saved version. */
+    fun restoreProjectVersion(versionId: String) =
+        HistoryFeature.restoreProjectVersion(this, versionId)
+
+    /** Live flow of the current project's saved versions (null without context). */
+    fun projectVersions(): kotlinx.coroutines.flow.Flow<List<com.example.data.db.ProjectVersionEntity>>? {
+        val context = context ?: return null
+        val projectId = _currentProject.value?.id ?: return null
+        return com.example.data.db.CatByteDatabase.getInstance(context)
+            .projectVersionDao().versionsFor(projectId)
+    }
 
     /** Adds/replaces a keyframe on the selected text at the playhead. */
     fun setTextKeyframe(

@@ -28,8 +28,21 @@ object ExportServiceScheduler {
             putExtra(ExportForegroundService.EXTRA_BITRATE_MBPS, bitrateMbps)
             putExtra(ExportForegroundService.EXTRA_AUDIO_BOOST, audioBoost)
             putExtra(ExportForegroundService.EXTRA_PROJECT_ID, project.id)
+            putExtra(ExportForegroundService.EXTRA_TITLE, project.title)
         }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
+    }
+
+    /** Nudges the service to (re)start draining the queue. */
+    fun startDrain(context: Context) {
+        val intent = Intent(context, ExportForegroundService::class.java).apply {
+            action = ExportForegroundService.ACTION_DRAIN
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent)
         } else {

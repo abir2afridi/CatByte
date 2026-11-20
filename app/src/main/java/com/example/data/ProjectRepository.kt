@@ -10,7 +10,9 @@ import com.example.model.MediaClip
 import com.example.model.VideoProject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -155,8 +157,29 @@ class ProjectRepository(context: Context? = null) {
         scope.launch { runCatching { dao?.deleteAll() } }
     }
 
+    /**
+     * Debounced autosave: a trailing 400 ms window per project so a slider
+     * drag (which can emit dozens of edits a second) serialises the project
+     * JSON once, not once per tick. The in-memory list stays instant; only
+     * the Room write is delayed, and the latest state always wins.
+     */
+    private val pendingSaves = java.util.concurrent.ConcurrentHashMap<String, Job>()
+
     private fun persist(project: VideoProject) {
         val dao = dao ?: return
+        val previous = pendingSaves.put(project.id, scope.launch {
+            delay(AUTOSAVE_DEBOUNCE_MS)
+            pendingSaves.remove(project.id)
+            runCatching { dao.upsert(project.toEntity()) }
+                .onFailure { AppLog.error("ProjectRepository", "Could not store the project", it) }
+        })
+        previous?.cancel()
+    }
+
+    /** Saves any pending debounced state for [projectId] right now. */
+    fun flushPendingSave(project: VideoProject) {
+        val dao = dao ?: return
+        pendingSaves.remove(project.id)?.cancel()
         scope.launch {
             runCatching { dao.upsert(project.toEntity()) }
                 .onFailure { AppLog.error("ProjectRepository", "Could not store the project", it) }
@@ -166,6 +189,9 @@ class ProjectRepository(context: Context? = null) {
     companion object {
         /** Longest project title the home list and editor bar are designed for. */
         const val MAX_TITLE_LENGTH = 80
+
+        /** Trailing autosave window (see [persist]). */
+        const val AUTOSAVE_DEBOUNCE_MS = 400L
 
         /** Trimmed title, or null when the input is empty after trimming. */
         fun normalizeTitle(raw: String): String? =

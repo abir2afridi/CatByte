@@ -69,6 +69,8 @@ fun TextEditorSheet(
     onExportCaptions: (() -> Unit)? = null,
     captionExportCount: Int = 0,
     onUpdateTextStyle: ((bold: Boolean, italic: Boolean, letterSpacingEm: Float, lineSpacingMultiplier: Float) -> Unit)? = null,
+    /** Toggles the karaoke word highlight (captions generated with timings only). */
+    onToggleKaraoke: ((enabled: Boolean) -> Unit)? = null,
     playheadMs: Long = 0L,
     onSetTextKeyframe: ((KeyframeProperty, Float) -> Boolean)? = null,
     onRemoveTextKeyframe: ((String) -> Unit)? = null,
@@ -83,6 +85,7 @@ fun TextEditorSheet(
     var isItalic by remember { mutableStateOf(textOverlay?.isItalic ?: false) }
     var letterSpacing by remember { mutableStateOf(textOverlay?.letterSpacingEm ?: 0f) }
     var lineSpacing by remember { mutableStateOf(textOverlay?.lineSpacingMultiplier ?: 1f) }
+    var karaokeEnabled by remember { mutableStateOf(textOverlay?.karaokeEnabled ?: false) }
     var keyProperty by remember { mutableStateOf(KeyframeProperty.SCALE) }
     var keyValue by remember { mutableFloatStateOf(textOverlay?.scale ?: 1f) }
 
@@ -204,6 +207,38 @@ fun TextEditorSheet(
                 selectedStyle = fontStyle,
                 onSelectStyle = { fontStyle = it }
             )
+
+            // Karaoke highlight: only real for captions that carry word
+            // timings (auto captions); plain text has nothing to highlight.
+            if (onToggleKaraoke != null && textOverlay?.karaokeWords?.isNotEmpty() == true) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(colors.surface)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Karaoke highlight", color = colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Highlight each word as it is spoken",
+                            color = colors.textTertiary,
+                            fontSize = 10.sp
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = karaokeEnabled,
+                        onCheckedChange = {
+                            karaokeEnabled = it
+                            onToggleKaraoke.invoke(it)
+                        },
+                        modifier = Modifier.testTag("text_karaoke_toggle")
+                    )
+                }
+            }
 
             if (onUpdateTextStyle != null) {
                 Spacer(modifier = Modifier.height(6.dp))

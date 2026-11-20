@@ -49,7 +49,11 @@ fun HomeScreen(
     onQuickTool: (QuickTool) -> Unit = {},
     onOpenSettings: () -> Unit,
     aiConfig: com.example.data.ai.AiConfig,
-    aiLabHistory: List<com.example.ui.ailab.AiLabRun>
+    aiLabHistory: List<com.example.ui.ailab.AiLabRun>,
+    /** Clears the AI Lab run history (DataStore-backed). */
+    onClearAiLabHistory: () -> Unit = {},
+    /** Creates a project and places the generated script lines on its timeline. */
+    onCreateProjectWithScript: (title: String, lines: List<String>) -> Unit = { _, _ -> }
 ) {
     val colors = PencilTheme.colors
     var selectedBottomNav by rememberSaveable { mutableIntStateOf(0) }
@@ -182,11 +186,8 @@ fun HomeScreen(
                         aiConfig = aiConfig,
                         history = aiLabHistory,
                         onOpenSettings = onOpenSettings,
-                        onClearHistory = { /* TODO: wire to repository */ },
-                        onCreateProjectWithScript = { title, lines ->
-                            onCreateNewProject()
-                            // TODO: open editor with script
-                        },
+                        onClearHistory = onClearAiLabHistory,
+                        onCreateProjectWithScript = onCreateProjectWithScript,
                         onRunRecorded = { _, _, _ -> }
                     )
                 }

@@ -20,6 +20,7 @@ import com.example.ui.home.HomeScreen
 import com.example.ui.home.QuickTool
 import com.example.ui.screens.EditorScreen
 import com.example.ui.screens.SplashScreen
+import com.example.viewmodel.features.AiFeature
 import com.example.ui.settings.SettingsScreen
 import com.example.ui.ailab.AiLabRun
 import com.example.ui.systemlogs.SystemLogsScreen
@@ -209,7 +210,28 @@ fun CapCutApp(
                     },
                     onOpenSettings = { navigateToSettings() },
                     aiConfig = aiConfig,
-                    aiLabHistory = aiLabHistory ?: emptyList()
+                    aiLabHistory = aiLabHistory ?: emptyList(),
+                    onClearAiLabHistory = {
+                        scope.launch {
+                            viewModel.container?.aiLabHistory?.clear()
+                            Toast.makeText(appContext, "AI Lab history cleared", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onCreateProjectWithScript = { title, lines ->
+                        viewModel.createNewProjectWithParams(
+                            title,
+                            com.example.model.AspectRatioType.RATIO_9_16,
+                            "Drafting Grid"
+                        )
+                        currentScreen = AppScreen.EDITOR
+                        scope.launch {
+                            Toast.makeText(
+                                appContext,
+                                AiFeature.insertScriptLines(viewModel, lines),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
                 )
             }
             AppScreen.CAMERA -> {
@@ -281,6 +303,16 @@ fun CapCutApp(
                     },
                     onNotifyBackup = { message ->
                         Toast.makeText(appContext, message, Toast.LENGTH_LONG).show()
+                    },
+                    onSaveProjectVersion = {
+                        scope.launch {
+                            Toast.makeText(appContext, viewModel.saveProjectVersion("Manual"), Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onRestoreProjectVersion = { versionId ->
+                        scope.launch {
+                            Toast.makeText(appContext, viewModel.restoreProjectVersion(versionId), Toast.LENGTH_SHORT).show()
+                        }
                     },
                     onSaveAiConfig = { url, key, model, imageModel, speechModel ->
                         viewModel.saveAiConfig(url, key, model, imageModel, speechModel)

@@ -65,6 +65,7 @@ class TimelineCanvasOverlay(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val backgroundImagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val effectPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -282,6 +283,10 @@ class TimelineCanvasOverlay(
             .setLineSpacing(0f, overlay.lineSpacingMultiplier.coerceIn(0.7f, 2.5f))
             .build()
 
+        // The karaoke highlight: a warm box behind the word being spoken, in
+        // layout-local coordinates (the same space layout.draw uses below).
+        val karaokeHighlight = karaokeHighlightRect(overlay, displayText, localMs, layout, width)
+
         val textWidth = (0 until layout.lineCount).maxOfOrNull { layout.getLineWidth(it) } ?: 0f
         val padX = width * 0.018f
         val padY = height * 0.010f
@@ -308,8 +313,65 @@ class TimelineCanvasOverlay(
         }
 
         canvas.translate(centerX - maxTextWidth / 2f, centerY - layout.height / 2f)
+        karaokeHighlight?.let { highlight ->
+            highlightPaint.color = withAlpha(karaokeHighlightArgb, alpha)
+            canvas.drawRoundRect(highlight.rect, width * 0.008f, width * 0.008f, highlightPaint)
+        }
         layout.draw(canvas)
+        // Re-ink the active word on top of the box so it stays readable.
+        karaokeHighlight?.let { highlight ->
+            val dark = textPaint.color
+            textPaint.color = withAlpha(0xFF141414.toInt(), alpha)
+            textPaint.textAlign = Paint.Align.LEFT
+            canvas.drawText(highlight.word, highlight.left, highlight.baseline, textPaint)
+            textPaint.textAlign = Paint.Align.CENTER
+            textPaint.color = dark
+        }
         canvas.restore()
+    }
+
+    private data class KaraokeHighlight(
+        val rect: RectF,
+        val word: String,
+        val left: Float,
+        val baseline: Float
+    )
+
+    /**
+     * The bounding box of the karaoke word active at [localMs], in the
+     * coordinate space of [layout]. Null when the highlight is off or the
+     * words no longer match the displayed text.
+     */
+    private fun karaokeHighlightRect(
+        overlay: com.example.model.TextOverlay,
+        displayText: String,
+        localMs: Long,
+        layout: StaticLayout,
+        width: Float
+    ): KaraokeHighlight? {
+        val activeIndex = overlay.activeKaraokeIndex(localMs) ?: return null
+        val offsets = overlay.karaokeOffsetsInText() ?: return null
+        val wordStart = offsets.getOrNull(activeIndex) ?: return null
+        val word = overlay.karaokeWords[activeIndex]
+        if (wordStart + word.text.length > displayText.length) return null
+
+        val line = layout.getLineForOffset(wordStart)
+        val lineStart = layout.getLineStart(line)
+        val prefix = displayText.substring(lineStart, wordStart)
+        val pad = width * 0.006f
+        val left = layout.getLineLeft(line) + textPaint.measureText(prefix) - pad
+        val right = left + textPaint.measureText(word.text) + pad * 2f
+        return KaraokeHighlight(
+            rect = RectF(
+                left,
+                layout.getLineTop(line) - pad * 0.5f,
+                max(left + pad, right),
+                layout.getLineBottom(line) + pad * 0.5f
+            ),
+            word = word.text,
+            left = left + pad,
+            baseline = layout.getLineBaseline(line).toFloat()
+        )
     }
 
     // ------------------------------------------------------------------
@@ -499,6 +561,9 @@ class TimelineCanvasOverlay(
 
     private fun withAlpha(color: Int, alpha: Int): Int =
         Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+
+    /** Warm yellow of the karaoke word highlight (opaque ARGB). */
+    private val karaokeHighlightArgb: Int get() = 0xFFFFC531.toInt()
 
     private fun typefaceFor(style: TextFontStyle): Typeface = when (style) {
         TextFontStyle.CAPCUT_BOLD -> Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)

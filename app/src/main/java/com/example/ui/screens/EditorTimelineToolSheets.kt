@@ -125,6 +125,9 @@ internal fun CaptionsToolSheet(
                 shareSubtitleExport(context, project.id, content)
             }
         },
+        onApplyStyle = { styleId ->
+            Toast.makeText(context, viewModel.applyCaptionStyle(styleId), Toast.LENGTH_SHORT).show()
+        },
         onAddText = {
             viewModel.setActiveSheet(ActiveToolSheet.TEXT_EDITOR)
         },

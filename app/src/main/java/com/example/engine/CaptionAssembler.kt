@@ -44,7 +44,8 @@ object CaptionAssembler {
 
     /**
      * Words in, ready-to-place overlays out. This is the single entry the
-     * ViewModel calls after transcription.
+     * ViewModel calls after transcription. Word timings survive as karaoke
+     * words so the captions can highlight the spoken word.
      */
     fun overlaysFromWords(
         words: List<WordTiming>,
@@ -57,9 +58,9 @@ object CaptionAssembler {
             AutoCaptionDefaults.TARGET_CPS,
             gapMs = 60L
         ).map { cue ->
-            SubtitleCue(cue.startMs, cue.endMs.coerceAtMost(totalDurationMs), cue.text)
+            cue.copy(endMs = cue.endMs.coerceAtMost(totalDurationMs))
         }
-        return CaptionBridge.overlaysFromCues(readable, idFactory)
+        return CaptionBridge.overlaysFromTimelineCues(readable, idFactory)
     }
 }
 

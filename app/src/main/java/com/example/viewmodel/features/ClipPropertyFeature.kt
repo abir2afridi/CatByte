@@ -249,6 +249,47 @@ internal object ClipPropertyFeature {
         }
     }
 
+    /** The per-pixel grade sliders, coalesced into one undo step. */
+    fun updateShaderAdjustments(
+        vm: EditorViewModel,
+        highlights: Float,
+        shadows: Float,
+        sharpen: Float,
+        grain: Float,
+        blurAmount: Float
+    ) {
+        val clipId = vm._selectedClipId.value ?: return
+        vm.updateProject(coalesceKey = "shader:$clipId") { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(
+                    highlights = highlights.coerceIn(-1f, 1f),
+                    shadows = shadows.coerceIn(-1f, 1f),
+                    sharpen = sharpen.coerceIn(0f, 1f),
+                    grain = grain.coerceIn(0f, 1f),
+                    blurAmount = blurAmount.coerceIn(0f, 1f)
+                )
+            }
+        }
+    }
+
+    /** Toggles the Retouch skin-smooth on the selected clip. */
+    fun setClipRetouch(vm: EditorViewModel, enabled: Boolean) {
+        val clipId = vm._selectedClipId.value ?: return
+        vm.updateProject { proj ->
+            proj.withUpdatedClip(clipId) { clip -> clip.copy(retouch = enabled) }
+        }
+    }
+
+    /** Sets the Relight radial key light (-1 dim .. +1 bright) on the clip. */
+    fun setClipRelight(vm: EditorViewModel, strength: Float) {
+        val clipId = vm._selectedClipId.value ?: return
+        vm.updateProject { proj ->
+            proj.withUpdatedClip(clipId) { clip ->
+                clip.copy(relight = strength.coerceIn(-1f, 1f))
+            }
+        }
+    }
+
     /** Volume slider streams collapse into one undo step. */
     fun setClipVolume(vm: EditorViewModel, volume: Float) {
         val clipId = vm._selectedClipId.value ?: return
@@ -380,7 +421,7 @@ internal object ClipPropertyFeature {
         val ctx = vm.context ?: return
         vm.viewModelScope.launch {
             val waveform = withContext(Dispatchers.IO) {
-                runCatching { MediaMetadata.waveform(ctx, Uri.parse(uriString), 48) }.getOrNull()
+                runCatching { MediaMetadata.waveform(ctx, Uri.parse(uriString), 240) }.getOrNull()
             } ?: return@launch
             if (waveform.isEmpty()) return@launch
             vm.updateProject { proj ->

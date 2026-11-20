@@ -144,7 +144,8 @@ fun AiLabScreen(
             if (history.isNotEmpty()) {
                 item { AiLabHistoryHeader(onClearHistory = onClearHistory) }
                 items(history, key = { it.atMs.toString() + it.toolId }) { run ->
-                    AiLabHistoryRow(run)
+                    // Tapping a past run re-opens that tool's sheet.
+                    AiLabHistoryRow(run, onClick = { activeToolId = run.toolId })
                 }
             }
         }
@@ -599,7 +600,7 @@ private fun AiLabHistoryHeader(onClearHistory: () -> Unit) {
 }
 
 @Composable
-private fun AiLabHistoryRow(run: AiLabRun) {
+private fun AiLabHistoryRow(run: AiLabRun, onClick: () -> Unit) {
     val colors = PencilTheme.colors
     val tool = AiLabTools.firstOrNull { it.id == run.toolId }
     Row(
@@ -608,6 +609,7 @@ private fun AiLabHistoryRow(run: AiLabRun) {
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(colors.surfaceVariant.copy(alpha = 0.55f))
+            .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

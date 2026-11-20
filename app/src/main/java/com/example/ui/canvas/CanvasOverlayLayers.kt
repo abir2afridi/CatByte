@@ -93,8 +93,15 @@ internal fun CanvasTextOverlayLayers(
                 TextFontStyle.CINEMATIC_SERIF -> FontWeight.SemiBold
                 else -> FontWeight.Bold
             }
+            // Karaoke: highlight the word being spoken, matching the
+            // burned-in export render (warm box under the active word).
+            val text = if (textOverlay.karaokeEnabled) {
+                karaokeAnnotated(textOverlay, positionMs - textOverlay.startTimelineMs)
+            } else {
+                androidx.compose.ui.text.buildAnnotatedString { append(displayText) }
+            }
             Text(
-                text = displayText,
+                text = text,
                 color = Color(textOverlay.color),
                 fontSize = baseSize,
                 // User overrides from the text sheet: bold / italic / spacing.
@@ -130,10 +137,38 @@ internal fun CanvasTextOverlayLayers(
     }
 }
 
+/** The warm karaoke highlight colour (matches the export renderer). */
+private val KaraokeHighlightColor = Color(0xFFFFC531)
+
+/**
+ * The caption text with the word being spoken highlighted, as an annotated
+ * string. Plain text when the karaoke words do not match the caption.
+ */
+private fun karaokeAnnotated(overlay: TextOverlay, localMs: Long): androidx.compose.ui.text.AnnotatedString {
+    val offsets = overlay.karaokeOffsetsInText()
+        ?: return androidx.compose.ui.text.buildAnnotatedString { append(overlay.text) }
+    val active = overlay.activeKaraokeIndex(localMs)
+    return androidx.compose.ui.text.buildAnnotatedString {
+        append(overlay.text)
+        if (active != null) {
+            val start = offsets.getOrNull(active) ?: return@buildAnnotatedString
+            val end = (start + overlay.karaokeWords[active].text.length)
+                .coerceAtMost(overlay.text.length)
+            addStyle(
+                androidx.compose.ui.text.SpanStyle(
+                    background = KaraokeHighlightColor,
+                    color = Color(0xFF141414)
+                ),
+                start,
+                end
+            )
+        }
+    }
+}
+
 /** Sticker overlays (the fallback renderer draws the symbol, not an image). */
 @Composable
-internal fun CanvasStickerOverlayLayer(activeStickers: List<StickerOverlay>) {
-    activeStickers.forEach { sticker ->
+internal fun CanvasStickerOverlayLayer(activeStickers: List<StickerOverlay>) {    activeStickers.forEach { sticker ->
         Box(
             modifier = Modifier
                 .fillMaxSize()

@@ -13,6 +13,7 @@ import com.example.data.composition.MirrorAndRotationEffect
 import com.example.data.export.AudioEffectProcessors
 import com.example.data.export.ClipChromaKeyEffect
 import com.example.data.export.ClipFadeInEffect
+import com.example.data.export.ClipGradeShaderEffect
 import com.example.data.export.ClipMaskEffect
 import com.example.data.export.ConstantGainProvider
 import com.example.data.export.TransitionMapper
@@ -99,6 +100,12 @@ internal fun ProjectCompositionFactory.buildVideoItem(
 
     val videoEffects = mutableListOf<androidx.media3.common.Effect>()
     videoEffects += buildColorEffect(clip)
+    // The per-pixel grade (highlights/shadows/sharpen/grain/blur/relight)
+    // rides right after the matrix grade, in both preview and export.
+    val gradeShader = ClipGradeShaderEffect(clip)
+    if (!gradeShader.isNoOp(1, 1)) {
+        videoEffects += gradeShader
+    }
     // The "fade in" entry animation really darkens the clip to black and
     // brings it back up, frame by frame. The effect list is shared by the
     // preview and the export, so both fade identically.

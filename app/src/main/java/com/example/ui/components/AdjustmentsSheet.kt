@@ -61,6 +61,12 @@ fun AdjustmentsSheet(
     onUpdateAdjustments: (brightness: Float, contrast: Float, saturation: Float, vignette: Float) -> Unit,
     /** The extra grade sliders; writes exposure/temperature/tint/vibrance. */
     onUpdateGradeAdjustments: (exposure: Float, temperature: Float, tint: Float, vibrance: Float) -> Unit = { _, _, _, _ -> },
+    /** The per-pixel GPU sliders; writes highlights/shadows/sharpen/grain/blur. */
+    onUpdateShaderAdjustments: (highlights: Float, shadows: Float, sharpen: Float, grain: Float, blurAmount: Float) -> Unit = { _, _, _, _, _ -> },
+    /** Toggles the Retouch skin-smooth preset. */
+    onToggleRetouch: (Boolean) -> Unit = {},
+    /** Sets the Relight radial key light (0 = off). */
+    onToggleRelight: (Float) -> Unit = {},
     /** The full HSL list of the clip; the sheet edits one channel at a time. */
     onUpdateHsl: (List<HslAdjustment>) -> Unit = {},
     /** True while the preview shows the clip without its colour adjustments. */
@@ -77,6 +83,13 @@ fun AdjustmentsSheet(
     var temperature by remember(clipId) { mutableFloatStateOf(clip?.temperature ?: 0f) }
     var tint by remember(clipId) { mutableFloatStateOf(clip?.tint ?: 0f) }
     var vibrance by remember(clipId) { mutableFloatStateOf(clip?.vibrance ?: 0f) }
+    var highlights by remember(clipId) { mutableFloatStateOf(clip?.highlights ?: 0f) }
+    var shadows by remember(clipId) { mutableFloatStateOf(clip?.shadows ?: 0f) }
+    var sharpen by remember(clipId) { mutableFloatStateOf(clip?.sharpen ?: 0f) }
+    var grain by remember(clipId) { mutableFloatStateOf(clip?.grain ?: 0f) }
+    var blurAmount by remember(clipId) { mutableFloatStateOf(clip?.blurAmount ?: 0f) }
+    var retouched by remember(clipId) { mutableStateOf(clip?.retouch ?: false) }
+    var relightActive by remember(clipId) { mutableStateOf((clip?.relight ?: 0f) != 0f) }
 
     // The HSL grade is edited per colour channel; every channel owns its own
     // hue/saturation/luminance values.
@@ -392,6 +405,112 @@ fun AdjustmentsSheet(
                     onUpdateGradeAdjustments(exposure, temperature, tint, vibrance)
                 }
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Pixel grade (GPU)",
+                color = Color(0xFFA5A8B2),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            GradeSlider(
+                label = "Highlights",
+                valueText = String.format(Locale.US, "%+.2f", highlights),
+                value = highlights,
+                range = -1.0f..1.0f,
+                tag = "adjustments_highlights",
+                onValueChange = {
+                    highlights = it
+                    onUpdateShaderAdjustments(highlights, shadows, sharpen, grain, blurAmount)
+                }
+            )
+            GradeSlider(
+                label = "Shadows",
+                valueText = String.format(Locale.US, "%+.2f", shadows),
+                value = shadows,
+                range = -1.0f..1.0f,
+                tag = "adjustments_shadows",
+                onValueChange = {
+                    shadows = it
+                    onUpdateShaderAdjustments(highlights, shadows, sharpen, grain, blurAmount)
+                }
+            )
+            GradeSlider(
+                label = "Sharpen",
+                valueText = String.format(Locale.US, "%.2f", sharpen),
+                value = sharpen,
+                range = 0.0f..1.0f,
+                tag = "adjustments_sharpen",
+                onValueChange = {
+                    sharpen = it
+                    onUpdateShaderAdjustments(highlights, shadows, sharpen, grain, blurAmount)
+                }
+            )
+            GradeSlider(
+                label = "Grain",
+                valueText = String.format(Locale.US, "%.2f", grain),
+                value = grain,
+                range = 0.0f..1.0f,
+                tag = "adjustments_grain",
+                onValueChange = {
+                    grain = it
+                    onUpdateShaderAdjustments(highlights, shadows, sharpen, grain, blurAmount)
+                }
+            )
+            GradeSlider(
+                label = "Blur",
+                valueText = String.format(Locale.US, "%.2f", blurAmount),
+                value = blurAmount,
+                range = 0.0f..1.0f,
+                tag = "adjustments_blur",
+                onValueChange = {
+                    blurAmount = it
+                    onUpdateShaderAdjustments(highlights, shadows, sharpen, grain, blurAmount)
+                }
+            )
+
+            // Retouch and Relight run through the same GPU pass.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Retouch (skin smooth)", color = Color(0xFFA5A8B2), fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Subtle blur floor on this clip", color = Color(0xFF6B6F7B), fontSize = 9.5.sp)
+                }
+                androidx.compose.material3.Switch(
+                    checked = retouched,
+                    onCheckedChange = {
+                        retouched = it
+                        onToggleRetouch(it)
+                    },
+                    modifier = Modifier.testTag("adjustments_retouch")
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Relight", color = Color(0xFFA5A8B2), fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Radial key light from the upper-left", color = Color(0xFF6B6F7B), fontSize = 9.5.sp)
+                }
+                androidx.compose.material3.Switch(
+                    checked = relightActive,
+                    onCheckedChange = {
+                        relightActive = it
+                        onToggleRelight(if (it) 0.6f else 0f)
+                    },
+                    modifier = Modifier.testTag("adjustments_relight")
+                )
+            }
         }
     }
 }

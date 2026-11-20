@@ -63,6 +63,7 @@ internal fun TextEditorToolSheet(
         onUpdateTextStyle = { bold, italic, letterSpacing, lineSpacing ->
             viewModel.setSelectedTextStyle(bold, italic, letterSpacing, lineSpacing)
         },
+        onToggleKaraoke = { enabled -> viewModel.setTextKaraoke(enabled) },
         onAutoCaptions = {
             scope.launch { Toast.makeText(context, viewModel.addAutoCaptions(), Toast.LENGTH_LONG).show() }
         },

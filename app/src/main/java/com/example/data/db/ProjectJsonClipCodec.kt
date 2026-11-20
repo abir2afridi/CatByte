@@ -53,6 +53,13 @@ internal fun clipToJson(clip: MediaClip): JSONObject = JSONObject().apply {
     put("temperature", clip.temperature.toDouble())
     put("tint", clip.tint.toDouble())
     put("vibrance", clip.vibrance.toDouble())
+    put("highlights", clip.highlights.toDouble())
+    put("shadows", clip.shadows.toDouble())
+    put("sharpen", clip.sharpen.toDouble())
+    put("grain", clip.grain.toDouble())
+    put("blurAmount", clip.blurAmount.toDouble())
+    put("retouch", clip.retouch)
+    put("relight", clip.relight.toDouble())
     put("rotation", clip.rotation.toDouble())
     put("isMirrored", clip.isMirrored)
     put("waveform", JSONArray(clip.waveform))
@@ -130,6 +137,13 @@ internal fun clipFromJson(json: JSONObject): MediaClip = MediaClip(
     temperature = json.optDouble("temperature", 0.0).toFloat(),
     tint = json.optDouble("tint", 0.0).toFloat(),
     vibrance = json.optDouble("vibrance", 0.0).toFloat(),
+    highlights = json.optDouble("highlights", 0.0).toFloat(),
+    shadows = json.optDouble("shadows", 0.0).toFloat(),
+    sharpen = json.optDouble("sharpen", 0.0).toFloat(),
+    grain = json.optDouble("grain", 0.0).toFloat(),
+    blurAmount = json.optDouble("blurAmount", 0.0).toFloat(),
+    retouch = json.optBoolean("retouch", false),
+    relight = json.optDouble("relight", 0.0).toFloat(),
     rotation = json.optDouble("rotation", 0.0).toFloat(),
     isMirrored = json.optBoolean("isMirrored", false),
     waveform = json.optJSONArray("waveform").toFloatList(),

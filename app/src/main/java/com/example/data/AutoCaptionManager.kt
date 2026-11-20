@@ -40,7 +40,7 @@ object AutoCaptionManager {
     ): List<TextOverlay> {
         if (segments.isEmpty() || clipDurationMs <= 0L) return emptyList()
         val safeSpeed = if (speed.isFinite() && speed > 0.01f) speed else 1f
-        val cues = mutableListOf<SubtitleCue>()
+        val cues = mutableListOf<CaptionTimeline.Cue>()
 
         segments.forEach { segment ->
             val localStart = ((sourceOffsetMs + segment.startMs - trimStartMs) / safeSpeed)
@@ -51,17 +51,14 @@ object AutoCaptionManager {
                 .coerceIn(localStart + 1L, clipDurationMs)
             if (localStart >= clipDurationMs) return@forEach
             val span = (localEnd - localStart).coerceAtLeast(MIN_CUE_MS)
-            // cuesFor() returns word-timed CaptionTimeline cues; the rest of
-            // this class speaks SubtitleCue, so flatten them here.
-            cues.addAll(
-                cuesFor(segment.text, clipStartMs + localStart, span).map {
-                    SubtitleCue(it.startMs, it.endMs, it.text)
-                }
-            )
+            // cuesFor() splits the phrase into word-timed cues; the karaoke
+            // words survive into the overlay so the renderer can highlight
+            // the word being spoken.
+            cues.addAll(cuesFor(segment.text, clipStartMs + localStart, span))
         }
 
         if (cues.isEmpty()) return emptyList()
-        return CaptionBridge.overlaysFromCues(cues)
+        return CaptionBridge.overlaysFromTimelineCues(cues)
     }
 
     /**

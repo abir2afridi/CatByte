@@ -44,6 +44,7 @@ fun CaptionsSheet(
     onExportSrt: () -> Unit,
     onExportVtt: () -> Unit,
     onAddText: () -> Unit,
+    onApplyStyle: (String) -> Unit = {},
     onClose: () -> Unit
 ) {
     Column(
@@ -116,7 +117,46 @@ fun CaptionsSheet(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Auto captions transcribe the selected clip with the AI endpoint from Settings → AI. Import accepts .srt and .vtt files.",
+            text = "Caption styles",
+            color = Color(0xFFA5A8B2),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf(
+                "bold_box" to "Bold Box",
+                "typewriter" to "Typewriter",
+                "karaoke" to "Karaoke",
+                "neon" to "Neon",
+                "clean" to "Clean"
+            ).forEach { (id, label) ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF22242B))
+                        .border(1.dp, Color(0xFF33353E), RoundedCornerShape(20.dp))
+                        .clickable { onApplyStyle(id) }
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                        .testTag("caption_style_$id")
+                ) {
+                    Text(label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Auto captions transcribe the selected clip with the AI endpoint from Settings → AI, or fully offline with a downloaded speech model. Import accepts .srt and .vtt files. Styles apply to every caption.",
             color = Color(0xFFA5A8B2),
             fontSize = 11.sp,
             modifier = Modifier.padding(horizontal = 16.dp)

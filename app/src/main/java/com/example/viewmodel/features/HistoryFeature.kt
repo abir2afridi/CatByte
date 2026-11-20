@@ -1,6 +1,9 @@
 package com.example.viewmodel.features
 
+import androidx.lifecycle.viewModelScope
 import com.example.data.db.ProjectJson
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.example.engine.withMagneticMainTrack
 import com.example.model.VideoProject
 import com.example.viewmodel.EditorViewModel
@@ -21,6 +24,9 @@ internal object HistoryFeature {
     /** Drag/slider streams inside this window collapse into ONE undo step. */
     private const val COALESCE_WINDOW_MS = 500L
 
+    /** A durable version snapshot every N distinct undo steps. */
+    private const val AUTO_VERSION_EVERY = 50
+
     fun pushHistory(vm: EditorViewModel, project: VideoProject, coalesceKey: String? = null) {
         val now = System.currentTimeMillis()
         val last = vm.undoStack.lastOrNull()
@@ -37,10 +43,74 @@ internal object HistoryFeature {
                 vm.undoStack.removeAt(0)
             }
             vm.redoStack.clear()
+            // The time machine: a durable snapshot outside the rolling undo
+            // window, so deep edit history survives across sessions.
+            vm.editStepCounter++
+            if (vm.editStepCounter % AUTO_VERSION_EVERY == 0) {
+                saveProjectVersion(vm, "Auto · ${project.clips.size} clips")
+            }
         }
         vm._canUndo.value = vm.undoStack.isNotEmpty()
         vm._canRedo.value = vm.redoStack.isNotEmpty()
         vm.undoJournal?.record(ProjectJson.toJson(project), coalesceKey)
+    }
+
+    /**
+     * Writes a named version snapshot of the current project into the
+     * time-machine table (fire-and-forget; pruning keeps the newest 30).
+     *
+     * @return a short status line for the caller to surface.
+     */
+    fun saveProjectVersion(vm: EditorViewModel, label: String): String {
+        val project = vm._currentProject.value ?: return "Open a project first"
+        val context = vm.context ?: return "Version history needs the app context"
+        val dao = com.example.data.db.CatByteDatabase.getInstance(context).projectVersionDao()
+        vm.viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            dao.insert(
+                com.example.data.db.ProjectVersionEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    projectId = project.id,
+                    label = label.ifBlank { "Snapshot" },
+                    payload = ProjectJson.toJson(project),
+                    clipCount = project.clips.size,
+                    createdAt = System.currentTimeMillis()
+                )
+            )
+            dao.prune(project.id, 30)
+        }
+        com.example.data.AppLog.info(
+            "HistoryFeature",
+            "Saved project version '$label' for ${project.id}"
+        )
+        return "Version saved: ${label.ifBlank { "Snapshot" }}"
+    }
+
+    /**
+     * Rolls the current project back to a saved version. The restored state
+     * becomes the live project (and is persisted); undo keeps working from
+     * there.
+     *
+     * @return a short status line for the caller to surface.
+     */
+    fun restoreProjectVersion(vm: EditorViewModel, versionId: String): String {
+        val context = vm.context ?: return "Version history needs the app context"
+        val dao = com.example.data.db.CatByteDatabase.getInstance(context).projectVersionDao()
+        val current = vm._currentProject.value ?: return "Open a project first"
+        vm.viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val version = dao.byId(versionId) ?: return@launch
+            val restored = ProjectJson.fromJson(version.payload)
+            if (restored == null || restored.id != current.id) {
+                com.example.data.AppLog.warn(
+                    "HistoryFeature",
+                    "Version $versionId does not match the open project; ignored"
+                )
+                return@launch
+            }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main.immediate) {
+                applyHistoryState(vm, restored)
+            }
+        }
+        return "Restored version"
     }
 
     private fun applyHistoryState(vm: EditorViewModel, project: VideoProject) {

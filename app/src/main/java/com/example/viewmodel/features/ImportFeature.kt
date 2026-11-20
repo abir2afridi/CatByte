@@ -36,7 +36,7 @@ internal class ImportFeature(private val vm: EditorViewModel) {
             val durationMs = MediaMetadata.durationMs(ctx, uri)
             val info = runCatching { MediaMetadata.videoInfo(ctx, uri) }.getOrNull()
             AppLog.debug("EditorViewModel", "Fetching waveform for uri=$uriString")
-            val waveform = MediaMetadata.waveform(ctx, uri, 48) ?: emptyList()
+            val waveform = MediaMetadata.waveform(ctx, uri, 240) ?: emptyList()
             val realTitle = title.takeIf { it.isNotBlank() }
                 ?: MediaMetadata.displayName(ctx, uri)
             // Place clip after existing clips on the timeline. A fresh project

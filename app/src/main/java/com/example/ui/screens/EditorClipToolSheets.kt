@@ -107,6 +107,15 @@ internal fun AdjustmentsToolSheet(
         onUpdateGradeAdjustments = { exposure, temperature, tint, vibrance ->
             viewModel.updateGradeAdjustments(exposure, temperature, tint, vibrance)
         },
+        onUpdateShaderAdjustments = { highlights, shadows, sharpen, grain, blurAmount ->
+            viewModel.updateShaderAdjustments(highlights, shadows, sharpen, grain, blurAmount)
+        },
+        onToggleRetouch = { enabled ->
+            viewModel.setClipRetouch(enabled)
+        },
+        onToggleRelight = { strength ->
+            viewModel.setClipRelight(strength)
+        },
         onUpdateHsl = { adjustments ->
             // The HSL grade belongs to the clip that is being graded.
             currentClip?.id?.let { viewModel.setClipHslGrade(it, adjustments) }

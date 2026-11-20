@@ -50,8 +50,8 @@ internal fun Modifier.editorKeyboardShortcuts(
             Shortcuts.Command.PREV_FRAME ->
                 viewModel.seekTo((positionState.value - FRAME_STEP_MS).coerceAtLeast(0L))
             Shortcuts.Command.NEXT_FRAME -> viewModel.seekTo(positionState.value + FRAME_STEP_MS)
-            // No mute toggle exists in the editor yet, so let the key pass.
-            Shortcuts.Command.TOGGLE_MUTE -> return@onPreviewKeyEvent false
+            // M flips the main track's audio, like a console channel mute.
+            Shortcuts.Command.TOGGLE_MUTE -> viewModel.toggleMainTrackMute()
         }
         true
     }

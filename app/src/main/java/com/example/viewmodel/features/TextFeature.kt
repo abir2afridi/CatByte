@@ -373,6 +373,73 @@ internal object TextFeature {
         }
     }
 
+    /** Toggles the karaoke word highlight on the selected caption. */
+    fun setTextKaraoke(vm: EditorViewModel, enabled: Boolean) {
+        val id = vm._selectedTextId.value ?: return
+        vm.updateProject { proj ->
+            proj.copy(
+                textOverlays = proj.textOverlays.map { item ->
+                    if (item.id == id) item.copy(karaokeEnabled = enabled) else item
+                }
+            )
+        }
+    }
+
+    /**
+     * Applies a caption style preset to every text overlay (the Captions
+     * sheet's style chips).
+     *
+     * @param styleId one of bold_box / typewriter / karaoke / neon / clean.
+     * @return a short status line for the caller to surface.
+     */
+    fun applyCaptionStyle(vm: EditorViewModel, styleId: String): String {
+        val project = vm._currentProject.value ?: return "Open a project first"
+        if (project.textOverlays.isEmpty()) return "Add captions first"
+        vm.updateProject { proj ->
+            proj.copy(
+                textOverlays = proj.textOverlays.map { item ->
+                    when (styleId) {
+                        "bold_box" -> item.copy(
+                            fontStyle = TextFontStyle.CAPCUT_BOLD,
+                            animation = TextAnimationType.NONE,
+                            backgroundColor = 0xE6101016,
+                            isBold = true,
+                            karaokeEnabled = false
+                        )
+                        "typewriter" -> item.copy(
+                            fontStyle = TextFontStyle.CLEAN_SANS,
+                            animation = TextAnimationType.TYPEWRITER,
+                            backgroundColor = null,
+                            karaokeEnabled = false
+                        )
+                        "karaoke" -> item.copy(
+                            fontStyle = TextFontStyle.SUBTITLE,
+                            animation = TextAnimationType.NONE,
+                            backgroundColor = 0x88202028,
+                            karaokeEnabled = item.karaokeWords.isNotEmpty()
+                        )
+                        "neon" -> item.copy(
+                            fontStyle = TextFontStyle.NEON_GLOW,
+                            animation = TextAnimationType.NEON_PULSE,
+                            backgroundColor = null,
+                            karaokeEnabled = false
+                        )
+                        else -> item.copy(
+                            fontStyle = TextFontStyle.SUBTITLE,
+                            animation = TextAnimationType.NONE,
+                            backgroundColor = null,
+                            isBold = false,
+                            isItalic = false,
+                            karaokeEnabled = false
+                        )
+                    }
+                }
+            )
+        }
+        return "Caption style applied to ${project.textOverlays.size} caption" +
+            if (project.textOverlays.size == 1) "" else "s"
+    }
+
     /**
      * Adds (or replaces) a keyframe on the selected text overlay at the
      * playhead. The renderers already evaluate these keyframes in both the

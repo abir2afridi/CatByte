@@ -208,6 +208,22 @@ internal object AiFeature {
         }
     }
 
+    /**
+     * Places ready-made script lines on the timeline as sequential text
+     * overlays (the AI Lab "create project with script" hand-off).
+     *
+     * @return a short status line for the caller to surface.
+     */
+    fun insertScriptLines(vm: EditorViewModel, lines: List<String>): String {
+        val usable = lines
+            .map { it.trim().trim('-', '*', '"', '\'', ' ') }
+            .filter { it.isNotBlank() }
+            .take(MAX_LINES)
+        if (usable.isEmpty()) return "The script had no usable lines"
+        insertLines(vm, usable, replaceExisting = false, emojiMode = false)
+        return "Script added ${usable.size} line${if (usable.size == 1) "" else "s"} at the playhead"
+    }
+
     private fun insertLines(
         vm: EditorViewModel,
         lines: List<String>,

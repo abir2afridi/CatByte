@@ -1,40 +1,54 @@
 # CatByte Video Editor - Project Status
 
-**Last Updated:** 2026-11-20
-**Current Phase:** Feature-completion round (stub chips → real features, offline AI)
-**Overall Progress:** ~88%
+**Last Updated:** 2026-11-21
+**Current Phase:** CapCut-parity complete round + CapCut-exceeding features
+**Overall Progress:** ~92%
 
-### 2026-11-19/20 feature-completion round (two coordinated sessions)
+### 2026-11-20/21 "surpass CapCut" round
 
-Everything below compiles and is covered by the test suite: **953/953 JVM/Robolectric
-tests across 122 suites, 0 failures; assembleDebug green (2026-11-20).**
+Everything below compiles and is covered by the test suite: **974/974 JVM/Robolectric
+tests across 127 suites, 0 failures; assembleDebug green (2026-11-21).**
 
-Made fully functional in this round:
-- **Real on-device auto captions (Vosk)** - `SpeechTranscriber` contract,
-  `VoskTranscriber`, 16 kHz mono `PcmExtractor` (MediaCodec decode + seek +
-  `Resampler`), `CaptionAssembler`/`segmentsFromWords` cue packing, and a
-  `TranscriptionModels` consented downloader (English + Bangla, Apache-2.0) with
-  its Settings → Speech models UI. Captions run offline first; the configured
-  cloud endpoint remains an option.
-- **Audio DSP** - `AudioDsp` (echo, Schroeder reverb, robot ring-mod, noise gate,
-  voice EQ), Media3 adapters (`AudioEffectProcessors`), per-clip
-  `AudioEffectSettings` persisted in project JSON and applied in preview+export.
-- **Grade controls** - exposure/temperature/tint/vibrance fold into the shared
-  colour matrix (`ColorAdjustMath`), sliders in the Adjust panel, JSON round-trip.
-- **Background maths** - `BackgroundMath` (contain rect, blur sharp scales, image
-  cover mapping) + tests; background image/blur rendering landed in the
-  composition (see commits).
-- **Chip gaps closed** - detach audio (Unlink), copyright chip → Sounds library.
+Dead ends closed:
+- **Export share is real** - the done-screen social row and the "Other" option now
+  launch a real ACTION_SEND (direct app when installed, system chooser otherwise).
+- **AI Lab is fully wired** - clear history works, "create project with script"
+  inserts the generated lines into a fresh project, and history rows re-open their tool.
+- **Platform export presets** - Recommended / TikTok-Reels / Shorts 60 / YouTube /
+  Data saver chips set resolution+fps+bitrate together on the export sheet.
+- **M key** now mutes the main track (keyboard shortcut wired to TrackControl).
 
-Also landed (peer session, verified): mask/chroma-key GPU burn-in, effect-family
-refactor with interactive blending, real transition/animation panels, dynamics
-compressor, canvas background render, AI-lab engine, text styling (bold/italic/
-letter/line spacing), project rename, Inbox/Profile real stats, backup codec,
-Ken Burns, music generator, stereo pan, safe-area guides, relink flow.
+New capabilities (several genuinely beyond CapCut):
+- **Karaoke captions** - word timings from both transcription engines survive into
+  overlays; the spoken word is highlighted in the burned-in export AND the fallback
+  preview, with a toggle in the text sheet and a Karaoke caption style.
+- **Caption style presets** - Bold Box / Typewriter / Karaoke / Neon / Clean, one tap
+  restyles every caption.
+- **Export queue + history** - background exports persist as `export_jobs` rows
+  (Room v3/v4 migrations), the foreground service drains them FIFO with progress
+  notifications, and Settings → Export history offers retry/open/delete/clear.
+- **Project time machine** - named snapshots in `project_versions` (auto every 50
+  edits + manual), restore from Settings; history survives past the 200-step undo
+  window across sessions - CapCut has nothing equivalent.
+- **Per-pixel GPU grade suite** - Highlights/Shadows/Sharpen/Grain/Blur sliders plus
+  Retouch (skin-smooth) and Relight (radial key light) burn into preview and export
+  through one ES3 shader (`ClipGradeShaderEffect`); the Retouch and Relight editor
+  chips now do real work.
+- **Performance** - autosave is a trailing 400 ms debounce per project (one JSON
+  serialisation per gesture instead of per tick), and waveforms decode once into a
+  1200-bucket pyramid cache served at 240 buckets to the timeline.
 
-Honest status: cloud-only AI chips (AI Avatar, Generate media, AI remove, lip
-sync, ...) still require a specialised provider and stay explicit about it;
-instrumented/device runs remain pending.
+Honest status: cloud-only AI chips (AI Avatar, Generate media, lip sync, ...) still
+need a specialised provider and say so; ML-Kit-based chips (Remove BG, auto reframe,
+tracking) stay behind the honest toast pending a model decision; device/instrumented
+runs remain pending.
+
+Previous rounds (2026-11-19/20, see git history 7ae6b60 and earlier): real on-device
+Vosk auto captions with consented model downloads, audio DSP (echo/reverb/robot/
+gate/EQ), exposure/temperature/tint/vibrance matrix grade, canvas background maths,
+AI Lab engine, mask/chroma GPU burn-in, effect-family refactor, transition/animation
+panels, dynamics compressor, text styling, project rename, real Inbox/Profile stats,
+backup codec, Ken Burns, music generator, stereo pan, safe-area guides, relink flow.
 
 ---
 
