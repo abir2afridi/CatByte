@@ -71,4 +71,22 @@ class MoveTimelineEffectTest {
         viewModel.undo()
         assertEquals(1_000L, viewModel.currentProject.value!!.effects.single().startTimelineMs)
     }
+
+    @Test
+    fun `resizing sets start and duration together`() {
+        val viewModel = viewModelWith(effect("fx1", 1_000, 2_000))
+        viewModel.resizeTimelineEffect("fx1", 500, 4_000)
+        val fx = viewModel.currentProject.value!!.effects.single()
+        assertEquals(500L, fx.startTimelineMs)
+        assertEquals(4_000L, fx.durationMs)
+    }
+
+    @Test
+    fun `resizing clamps duration into the 300ms-30s window`() {
+        val viewModel = viewModelWith(effect("fx1", 0, 2_000))
+        viewModel.resizeTimelineEffect("fx1", 0, 1_000_000)
+        assertEquals(30_000L, viewModel.currentProject.value!!.effects.single().durationMs)
+        viewModel.resizeTimelineEffect("fx1", 0, 50)
+        assertEquals(300L, viewModel.currentProject.value!!.effects.single().durationMs)
+    }
 }

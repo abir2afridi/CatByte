@@ -33,11 +33,28 @@ internal object TimelineEffectFeature {
      * track packs overlapping chips into separate lanes.
      */
     fun moveTimelineEffect(vm: EditorViewModel, id: String, startTimelineMs: Long) {
+        resizeTimelineEffect(vm, id, startTimelineMs, durationMs = null)
+    }
+
+    /**
+     * Sets an effect's window (start + duration) in one undoable step - the
+     * chip's move and edge-trim gestures both commit through here.
+     */
+    fun resizeTimelineEffect(
+        vm: EditorViewModel,
+        id: String,
+        startTimelineMs: Long,
+        durationMs: Long?
+    ) {
         vm.updateProject { proj ->
             proj.copy(
                 effects = proj.effects.map { fx ->
                     if (fx.id == id) {
-                        fx.copy(startTimelineMs = startTimelineMs.coerceAtLeast(0L))
+                        fx.copy(
+                            startTimelineMs = startTimelineMs.coerceAtLeast(0L),
+                            durationMs = (durationMs ?: fx.durationMs)
+                                .coerceIn(300L, 30_000L)
+                        )
                     } else {
                         fx
                     }

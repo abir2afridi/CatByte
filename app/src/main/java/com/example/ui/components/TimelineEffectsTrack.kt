@@ -2,8 +2,8 @@ package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -17,11 +17,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -41,15 +43,20 @@ import com.example.ui.theme.PencilTheme
  * new lane opens below. Removing effects re-flows the lanes, so nothing ever
  * turns into an unreadable stack.
  *
- * Drag a chip horizontally to move it in time (manual overlap included);
- * dropping it onto another effect simply packs it into the next lane.
+ * Chips behave like video clips:
+ *  - drag the middle to move the window in time (the chip follows the finger
+ *    frame by frame, then commits once on release);
+ *  - drag the left/right edge handle to trim the window (300 ms minimum);
+ *  - dropping onto another effect's window is legal - both render and the
+ *    lanes re-flow around the new windows.
  */
 @Composable
 fun TimelineEffectsTrack(
     effects: List<TimelineEffect>,
     msToDp: Float,
     onEffectClick: (TimelineEffect) -> Unit = {},
-    onMoveEffect: (id: String, startTimelineMs: Long) -> Unit = { _, _ -> }
+    onMoveEffect: (id: String, startTimelineMs: Long) -> Unit = { _, _ -> },
+    onResizeEffect: (id: String, startTimelineMs: Long, durationMs: Long) -> Unit = { _, _, _ -> }
 ) {
     val colors = PencilTheme.colors
     val lanes = remember(effects) { packEffectLanes(effects) }
@@ -73,7 +80,8 @@ fun TimelineEffectsTrack(
                         effect = effect,
                         msToDp = msToDp,
                         onEffectClick = onEffectClick,
-                        onMoveEffect = onMoveEffect
+                        onMoveEffect = onMoveEffect,
+                        onResizeEffect = onResizeEffect
                     )
                 }
             }
@@ -81,19 +89,37 @@ fun TimelineEffectsTrack(
     }
 }
 
+private enum class EffectDragMode { MOVE, TRIM_START, TRIM_END }
+
 @Composable
 private fun EffectChip(
     effect: TimelineEffect,
     msToDp: Float,
     onEffectClick: (TimelineEffect) -> Unit,
-    onMoveEffect: (id: String, startTimelineMs: Long) -> Unit
+    onMoveEffect: (id: String, startTimelineMs: Long) -> Unit,
+    onResizeEffect: (id: String, startTimelineMs: Long, durationMs: Long) -> Unit
 ) {
     val colors = PencilTheme.colors
     val density = LocalDensity.current
-    var dragStartMs by remember(effect.id) { mutableFloatStateOf(effect.startTimelineMs.toFloat()) }
 
-    val startOffsetDp = (effect.startTimelineMs * msToDp).dp
-    val widthDp = (effect.durationMs * msToDp).dp.coerceAtLeast(44.dp)
+    // Live drag state: the chip follows the finger pixel-by-pixel via these
+    // local values and commits ONCE to the view model on release - no jump.
+    var dragMode by remember(effect.id) { mutableStateOf<EffectDragMode?>(null) }
+    var dragDeltaMs by remember(effect.id) { mutableFloatStateOf(0f) }
+
+    val liveStart = effect.startTimelineMs + when (dragMode) {
+        EffectDragMode.MOVE, EffectDragMode.TRIM_START -> dragDeltaMs
+        else -> 0f
+    }
+    val liveDuration = when (dragMode) {
+        EffectDragMode.TRIM_START -> effect.durationMs - dragDeltaMs
+        EffectDragMode.TRIM_END -> effect.durationMs + dragDeltaMs
+        else -> effect.durationMs.toFloat()
+    }.coerceAtLeast(300f)
+
+    val startOffsetDp = (liveStart.coerceAtLeast(0f) * msToDp).dp
+    val widthDp = (liveDuration * msToDp).dp.coerceAtLeast(44.dp)
+    val edgeGrabDp = 10.dp
 
     Box(
         modifier = Modifier
@@ -103,19 +129,67 @@ private fun EffectChip(
             .clip(RoundedCornerShape(6.dp))
             .background(colors.accentGreen.copy(alpha = 0.25f))
             .border(1.2.dp, colors.accentGreen, RoundedCornerShape(6.dp))
-            .clickable { onEffectClick(effect) }
-            // Horizontal drag moves the effect in time. Overlap is legal: on
-            // release the lane packer re-flows around the new window.
+            // Tap opens the editor; a real drag is consumed by the gesture
+            // detector above so the tap never fires after a move.
+            .pointerInput(effect.id) {
+                detectTapGestures {
+                    onEffectClick(effect)
+                }
+            }
             .pointerInput(effect.id, msToDp) {
                 detectDragGestures(
-                    onDragStart = { dragStartMs = effect.startTimelineMs.toFloat() },
+                    onDragStart = { startOffset ->
+                        // Decide the gesture from where the finger landed:
+                        // near an edge = trim, middle = move.
+                        val widthPx = widthDp.toPx()
+                        val x = startOffset.x
+                        dragMode = when {
+                            x <= edgeGrabDp.toPx() -> EffectDragMode.TRIM_START
+                            x >= widthPx - edgeGrabDp.toPx() -> EffectDragMode.TRIM_END
+                            else -> EffectDragMode.MOVE
+                        }
+                        dragDeltaMs = 0f
+                    },
                     onDragEnd = {
-                        onMoveEffect(effect.id, dragStartMs.toLong().coerceAtLeast(0L))
+                        val start = liveStart.toLong().coerceAtLeast(0L)
+                        val duration = liveDuration.toLong().coerceIn(300L, 30_000L)
+                        when (dragMode) {
+                            EffectDragMode.MOVE -> onMoveEffect(effect.id, start)
+                            EffectDragMode.TRIM_START, EffectDragMode.TRIM_END ->
+                                onResizeEffect(effect.id, start, duration)
+                            null -> Unit
+                        }
+                        dragMode = null
+                        dragDeltaMs = 0f
                     }
                 ) { change, dragAmount ->
                     change.consume()
-                    val deltaMs = with(density) { dragAmount.x.toDp().value / msToDp.coerceAtLeast(0.0001f) }
-                    dragStartMs = (dragStartMs + deltaMs).coerceAtLeast(0f)
+                    val deltaMs =
+                        with(density) { dragAmount.x.toDp().value / msToDp.coerceAtLeast(0.0001f) }
+                    when (dragMode) {
+                        EffectDragMode.MOVE -> {
+                            dragDeltaMs += deltaMs
+                            // Never let the window start before 0.
+                            if (effect.startTimelineMs + dragDeltaMs < 0f) {
+                                dragDeltaMs = -effect.startTimelineMs.toFloat()
+                            }
+                        }
+                        EffectDragMode.TRIM_START -> {
+                            dragDeltaMs += deltaMs
+                            // Keep at least 300 ms and never before 0.
+                            val maxDelta = (effect.durationMs - 300f)
+                                .coerceAtLeast(0f)
+                            dragDeltaMs = dragDeltaMs.coerceIn(
+                                -effect.startTimelineMs.toFloat(),
+                                maxDelta
+                            )
+                        }
+                        EffectDragMode.TRIM_END -> {
+                            dragDeltaMs += deltaMs
+                            dragDeltaMs = dragDeltaMs.coerceAtLeast(300f - effect.durationMs)
+                        }
+                        null -> Unit
+                    }
                 }
             }
             .padding(horizontal = 8.dp),
@@ -127,7 +201,26 @@ private fun EffectChip(
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 6.dp)
+        )
+        // Trim affordances: slim cyan bars on both edges, like the clip trim
+        // handles. They sit above the tap/click target.
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .width(3.dp)
+                .height(14.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(colors.handle.copy(alpha = 0.8f))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .width(3.dp)
+                .height(14.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(colors.handle.copy(alpha = 0.8f))
         )
     }
 }

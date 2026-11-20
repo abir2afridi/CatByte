@@ -1435,6 +1435,10 @@ class EditorViewModel(
     fun moveTimelineEffect(id: String, startTimelineMs: Long) =
         TimelineEffectFeature.moveTimelineEffect(this, id, startTimelineMs)
 
+    /** Sets a placed effect's window (the chip's edge-trim gesture). */
+    fun resizeTimelineEffect(id: String, startTimelineMs: Long, durationMs: Long) =
+        TimelineEffectFeature.resizeTimelineEffect(this, id, startTimelineMs, durationMs)
+
     /** True when an effect covers the playhead, i.e. there is one to remove. */
     fun hasEffectAtPlayhead(): Boolean =
         TimelineEffectFeature.effectAtPlayhead(this) != null

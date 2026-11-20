@@ -111,6 +111,9 @@ internal fun EditorTimelineStage(
         MultiTrackTimeline(
             onEditEffect = { editingEffectId.value = it.id },
             onMoveEffect = { id, startMs -> viewModel.moveTimelineEffect(id, startMs) },
+            onResizeEffect = { id, startMs, durationMs ->
+                viewModel.resizeTimelineEffect(id, startMs, durationMs)
+            },
             banglaTimecodes = banglaTimecodes,
             project = project,
             currentPositionMs = positionState,

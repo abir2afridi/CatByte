@@ -20,6 +20,7 @@ internal fun TimelineTracksContent(
     selectedAudioId: String?,
     onEditEffect: (TimelineEffect) -> Unit = {},
     onMoveEffect: (id: String, startTimelineMs: Long) -> Unit = { _, _ -> },
+    onResizeEffect: (id: String, startTimelineMs: Long, durationMs: Long) -> Unit = { _, _, _ -> },
     msToDp: Float,
     fps: Int,
     isMultiSelect: Boolean,
@@ -128,7 +129,8 @@ internal fun TimelineTracksContent(
                 effects = project.effects,
                 msToDp = msToDp,
                 onEffectClick = onEditEffect,
-                onMoveEffect = onMoveEffect
+                onMoveEffect = onMoveEffect,
+                onResizeEffect = onResizeEffect
             )
         }
     }

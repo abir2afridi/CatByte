@@ -98,6 +98,8 @@ fun MultiTrackTimeline(
     onEditEffect: (TimelineEffect) -> Unit = {},
     /** Dragging a placed effect chip moves it in time (overlap is legal). */
     onMoveEffect: (id: String, startTimelineMs: Long) -> Unit = { _, _ -> },
+    /** Dragging a chip's edge trims the effect window (300 ms minimum). */
+    onResizeEffect: (id: String, startTimelineMs: Long, durationMs: Long) -> Unit = { _, _, _ -> },
     /** Bangla numerals for the gutter timecode (app language = Bangla). */
     banglaTimecodes: Boolean = false,
     modifier: Modifier = Modifier
@@ -267,6 +269,7 @@ fun MultiTrackTimeline(
                                     project = project,
                                     onEditEffect = onEditEffect,
                                     onMoveEffect = onMoveEffect,
+                                    onResizeEffect = onResizeEffect,
                                     selectedClipId = selectedClipId,
                                     selectedTextId = selectedTextId,
                                     selectedAudioId = selectedAudioId,

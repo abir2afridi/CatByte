@@ -30,9 +30,12 @@ val LightAccentTeal = Color(0xFF009688)        // Teal accent
 
 val LightPlayhead = Color(0xFF1A73E8)
 val LightPlayheadGlow = Color(0xFF1A73E8)
-val LightTimelineTrack = Color(0xFFE8EAED)
-val LightClipBg = Color(0xFFF1F3F4)
-val LightClipSelected = Color(0xFFE8EAED)
+// The editor timeline is dark-first (CapCut-style) in BOTH theme modes: the
+// light values used to be pale grey, which made the track slots render white
+// inside the otherwise dark editor.
+val LightTimelineTrack = Color(0xFF1A1B21)
+val LightClipBg = Color(0xFF22242B)
+val LightClipSelected = Color(0xFF2A2C34)
 val LightHandle = Color(0xFF1A73E8)
 
 // ==========================================
