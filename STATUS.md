@@ -1,8 +1,28 @@
 # CatByte Video Editor - Project Status
 
-**Last Updated:** 2026-11-21
-**Current Phase:** CapCut-parity complete round + CapCut-exceeding features
-**Overall Progress:** ~92%
+**Last Updated:** 2026-11-22
+**Current Phase:** Audit-backlog round (WYSIWYG, loudness, scrub, cleanup)
+**Overall Progress:** ~94%
+
+### 2026-11-22 audit-backlog round (commit 41265c8)
+
+Suite: **1000/1000 JVM/Robolectric tests across 130 suites, 0 failures;
+assembleDebug green.**
+
+- **Text WYSIWYG parity** - engine/TextFx is the single source of truth for
+  text animation maths; the Compose fallback preview now renders font size
+  (canvas width fraction), letter-spacing (em -> px), FADE_IN/WAVE animations,
+  the neon glow shadow (Compose 1.7 Shadow.blurRadius is Float PIXELS) and
+  the typewriter speed exactly like the burned-in export.
+- **Live scrub during playback** - timeline scrolling seeks the preview at a
+  throttled ~4 Hz instead of being dropped.
+- **Loudness normalisation** - LoudnessMath (RMS, duration-weighted combine,
+  gain to -14 dBFS social target clamped -6..+12 dB) + LoudnessProbe (decodes
+  the sounding sources, up to 60 s each). The export boost toggle now
+  measures and normalises (peak-capped) instead of a blanket +3 dB; cuts
+  supported (AudioBoost floor 0.25). Both in-app and background paths.
+- **GL-stack cleanup** - deleted the never-wired GL preview stack
+  (~1,700 LOC, latent NPE); EffectShaders library retained and validated.
 
 ### 2026-11-20/21 "surpass CapCut" round
 
