@@ -5,6 +5,7 @@ import com.example.model.MediaClip
 import com.example.model.VideoProject
 import com.example.model.VideoTrack
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertSame
 import org.junit.Test
 
@@ -55,8 +56,18 @@ class AudioBoostTest {
     fun `no boost leaves the project untouched`() {
         val original = project()
         assertSame(original, AudioBoost.boosted(original, 1f))
-        assertSame(original, AudioBoost.boosted(original, 0.5f))
         assertSame(original, AudioBoost.boosted(original, Float.NaN))
+    }
+
+    @Test
+    fun `a sub-unity gain is a real loudness cut now`() {
+        val original = project()
+        val cut = AudioBoost.boosted(original, 0.5f)
+        assertTrue(cut !== original)
+        assertEquals(0.5f * original.clips.single().volume, cut.clips.single().volume, 0.0001f)
+        // The floor: cuts never silence a source.
+        val floored = AudioBoost.boosted(original, 0.01f)
+        assertEquals(0.5f * AudioBoost.MIN_GAIN, floored.clips.single().volume, 0.0001f) // 0.5 source x floor
     }
 
     @Test

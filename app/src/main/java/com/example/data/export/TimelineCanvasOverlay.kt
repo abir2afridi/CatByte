@@ -18,6 +18,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.CanvasOverlay
 import androidx.media3.effect.StaticOverlaySettings
 import com.example.data.KeyframeInterpolator
+import com.example.engine.TextFx
 import com.example.engine.BackgroundMath
 import com.example.engine.backgroundArgbFor
 import com.example.model.EffectType
@@ -212,11 +213,9 @@ class TimelineCanvasOverlay(
         val progress = (localMs.toFloat() / overlay.durationMs.coerceAtLeast(1L)).coerceIn(0f, 1f)
 
         val displayText = when (overlay.animation) {
-            TextAnimationType.TYPEWRITER -> {
-                val visible = (overlay.text.length * (progress * 1.6f)).toInt()
-                    .coerceIn(1, overlay.text.length)
-                overlay.text.take(visible)
-            }
+            TextAnimationType.TYPEWRITER -> overlay.text.take(
+                TextFx.typewriterChars(overlay.text, progress)
+            )
             else -> overlay.text
         }
         if (displayText.isEmpty()) return
@@ -241,15 +240,10 @@ class TimelineCanvasOverlay(
         var animationAlpha = 1f
         var yOffset = 0f
         when (overlay.animation) {
-            TextAnimationType.POP_UP -> {
-                val p = (localMs / 320f).coerceIn(0f, 1f)
-                animationScale = 0.6f + 0.4f * p
-            }
-            TextAnimationType.FADE_IN -> animationAlpha = (localMs / 320f).coerceIn(0f, 1f)
-            TextAnimationType.NEON_PULSE -> {
-                animationAlpha = 0.72f + 0.28f * sin(localMs / 210.0).toFloat()
-            }
-            TextAnimationType.WAVE -> yOffset = sin(localMs / 125.0).toFloat() * height * 0.018f
+            TextAnimationType.POP_UP -> animationScale = TextFx.popUpScale(localMs)
+            TextAnimationType.FADE_IN -> animationAlpha = TextFx.fadeInAlpha(localMs)
+            TextAnimationType.NEON_PULSE -> animationAlpha = TextFx.neonPulseAlpha(localMs)
+            TextAnimationType.WAVE -> yOffset = TextFx.waveOffsetY(localMs, height)
             TextAnimationType.TYPEWRITER, TextAnimationType.NONE -> Unit
             else -> Unit
         }
@@ -257,7 +251,7 @@ class TimelineCanvasOverlay(
         val alpha = (opacity * animationAlpha * 255f).toInt().coerceIn(0, 255)
         textPaint.apply {
             color = withAlpha(overlay.color.toInt(), alpha)
-            textSize = width * 0.085f * keyScale * animationScale
+            textSize = TextFx.titleTextSizePx(width) * keyScale * animationScale
             // Font style + the user's bold/italic/letter-spacing overrides.
             val textStyle = when {
                 overlay.isBold && overlay.isItalic -> Typeface.BOLD_ITALIC
@@ -271,7 +265,11 @@ class TimelineCanvasOverlay(
             isAntiAlias = true
             clearShadowLayer()
             if (overlay.fontStyle == TextFontStyle.NEON_GLOW) {
-                setShadowLayer(max(2f, width * 0.012f), 0f, 0f, withAlpha(overlay.color.toInt(), alpha / 2))
+                setShadowLayer(
+                    max(2f, TextFx.NEON_SHADOW_WIDTH_FRACTION * width),
+                    0f, 0f,
+                    withAlpha(overlay.color.toInt(), alpha / 2)
+                )
             }
         }
 

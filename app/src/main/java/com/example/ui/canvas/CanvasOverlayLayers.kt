@@ -14,7 +14,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -22,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.KeyframeInterpolator
+import com.example.engine.TextFx
 import com.example.model.KeyframeProperty
 import com.example.model.StickerOverlay
 import com.example.model.TextAnimationType
@@ -44,26 +49,25 @@ internal fun CanvasTextOverlayLayers(
     pulseAlpha: Float
 ) {
     activeTexts.forEach { textOverlay ->
+        // [WYSIWYG] All animation curves come from engine/TextFx - the exact
+        // same maths the burned-in export uses. Do not fork the values here.
+        val localMs = (positionMs - textOverlay.startTimelineMs).coerceAtLeast(0L)
+        val progress = (localMs.toFloat() / textOverlay.durationMs.coerceAtLeast(1L)).coerceIn(0f, 1f)
         val displayText = if (textOverlay.animation == TextAnimationType.TYPEWRITER) {
-            val progress = ((positionMs - textOverlay.startTimelineMs).toFloat() / textOverlay.durationMs).coerceIn(0f, 1f)
-            val charCount = (textOverlay.text.length * progress * 2).toInt().coerceIn(1, textOverlay.text.length)
-            textOverlay.text.take(charCount)
+            textOverlay.text.take(TextFx.typewriterChars(textOverlay.text, progress))
         } else {
             textOverlay.text
         }
 
-        val textScale = if (textOverlay.animation == TextAnimationType.POP_UP) {
-            val p = ((positionMs - textOverlay.startTimelineMs).toFloat() / 300f).coerceIn(0f, 1f)
-            0.6f + (0.4f * p)
-        } else if (textOverlay.animation == TextAnimationType.NEON_PULSE) {
-            pulseAlpha
-        } else {
-            1.0f
+        val textScale = when (textOverlay.animation) {
+            TextAnimationType.POP_UP -> TextFx.popUpScale(localMs)
+            TextAnimationType.NEON_PULSE -> TextFx.neonPulseAlpha(localMs)
+            else -> 1.0f
         }
-
-        // The export renderer evaluates text keyframes; the fallback preview
-        // must do the same or a keyframed text would jump between scrub and play.
-        val localMs = (positionMs - textOverlay.startTimelineMs).coerceAtLeast(0L)
+        val fadeAlpha = when (textOverlay.animation) {
+            TextAnimationType.FADE_IN -> TextFx.fadeInAlpha(localMs)
+            else -> 1.0f
+        }
         val keyPosX = KeyframeInterpolator.interpolate(
             textOverlay.keyframes, KeyframeProperty.POSITION_X, localMs, textOverlay.posX
         )
@@ -80,14 +84,23 @@ internal fun CanvasTextOverlayLayers(
             textOverlay.keyframes, KeyframeProperty.ROTATION, localMs, 0f
         )
 
+        val density = LocalDensity.current
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val baseSize = when (textOverlay.fontStyle) {
-                TextFontStyle.CAPCUT_BOLD -> 23.sp
-                TextFontStyle.NEON_GLOW -> 21.sp
-                TextFontStyle.CINEMATIC_SERIF, TextFontStyle.BANGLA_TIRO -> 20.sp
-                TextFontStyle.SUBTITLE -> 16.sp
-                else -> 17.sp
+            val previewHeightPx = constraints.maxHeight.toFloat()
+            val waveOffsetPx = when (textOverlay.animation) {
+                TextAnimationType.WAVE -> TextFx.waveOffsetY(localMs, previewHeightPx)
+                else -> 0f
             }
+            // [WYSIWYG] Font size = canvas width * TextFx.TITLE_WIDTH_FRACTION,
+            // the same fraction the export renderer uses - not per-style sp
+            // guesses.
+            val baseSize = with(density) {
+                (constraints.maxWidth.toFloat() * TextFx.TITLE_WIDTH_FRACTION).toSp()
+            }
+            val baseSizePx = with(density) { baseSize.toPx() }
+            // Compose 1.7 Shadow.blurRadius is Float PIXELS — the px value
+            // the export renderer computes (width * TextFx fraction) maps 1:1.
+            val neonShadowBlurPx = constraints.maxWidth.toFloat() * TextFx.NEON_SHADOW_WIDTH_FRACTION
             val baseWeight = when (textOverlay.fontStyle) {
                 TextFontStyle.CAPCUT_BOLD -> FontWeight.Black
                 TextFontStyle.CINEMATIC_SERIF -> FontWeight.SemiBold
@@ -104,10 +117,27 @@ internal fun CanvasTextOverlayLayers(
                 text = text,
                 color = Color(textOverlay.color),
                 fontSize = baseSize,
+                // NEON_GLOW gets the export's soft glow shadow.
+                style = if (textOverlay.fontStyle == TextFontStyle.NEON_GLOW) {
+                    // Compose 1.7 Shadow.blurRadius is Float PIXELS - the
+                    // same px value the export renderer computes.
+                    TextStyle(
+                        shadow = androidx.compose.ui.graphics.Shadow(
+                            color = Color(textOverlay.color).copy(alpha = 0.5f),
+                            blurRadius = neonShadowBlurPx
+                        )
+                    )
+                } else {
+                    TextStyle.Default
+                },
                 // User overrides from the text sheet: bold / italic / spacing.
                 fontWeight = if (textOverlay.isBold) FontWeight.Black else baseWeight,
                 fontStyle = if (textOverlay.isItalic) FontStyle.Italic else FontStyle.Normal,
-                letterSpacing = textOverlay.letterSpacingEm.sp,
+                // Letter-spacing is an EM value: scale it by the font size
+                // like the export's Paint.letterSpacing does.
+                letterSpacing = with(density) {
+                    TextFx.letterSpacingPx(baseSizePx, textOverlay.letterSpacingEm).toSp()
+                },
                 lineHeight = (baseSize.value * textOverlay.lineSpacingMultiplier).sp,
                 fontFamily = when (textOverlay.fontStyle) {
                     TextFontStyle.CINEMATIC_SERIF -> FontFamily.Serif
@@ -133,8 +163,9 @@ internal fun CanvasTextOverlayLayers(
                     .graphicsLayer {
                         scaleX = keyScale * textScale
                         scaleY = keyScale * textScale
-                        alpha = keyOpacity.coerceIn(0f, 1f)
+                        alpha = (keyOpacity * fadeAlpha).coerceIn(0f, 1f)
                         rotationZ = keyRotation
+                        translationY = waveOffsetPx * density.density / density.density
                     }
                     .background(
                         color = if (textOverlay.backgroundColor != null) Color(textOverlay.backgroundColor) else Color.Transparent,

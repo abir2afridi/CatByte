@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/** Throttle for scrub-while-playing seeks (the auto-scroll must breathe). */
+private const val LIVE_SEEK_INTERVAL_MS = 250L
+
 /**
  * Position -> scroll: keep the current frame under the fixed needle. Skipped
  * while the user is dragging/flinging; when the finger lifts the same flow
@@ -71,16 +74,12 @@ internal fun TimelineScrollSeekSync(
     val latestOnSeek by rememberUpdatedState(onSeek)
     LaunchedEffect(pxPerFramePx, viewportWidthPx, timelineWidthPx, fps, totalMs, currentPositionMs) {
         if (viewportWidthPx <= 0 || pxPerFramePx <= 0f) return@LaunchedEffect
+        var lastLiveSeekMs = 0L
+        var lastLiveSeekAt = 0L
         snapshotFlow { scrollState.value to scrollState.isScrollInProgress }
             .distinctUntilChanged()
             .collect { (offset, scrollInProgress) ->
                 if (!scrollInProgress || isProgrammaticScroll()) return@collect
-                // Playback scrolls this timeline itself (position -> scroll
-                // above). Seeking the player back from that auto-scroll used to
-                // queue dozens of expensive CompositionPlayer seeks per second
-                // and made playback stutter after a scrub. A real scrub always
-                // presses the timeline first, which pauses playback.
-                if (latestIsPlaying) return@collect
                 val expected = CenterPlayhead.offsetForFrame(
                     playheadFrame = currentPositionMs.value * fps / 1_000L,
                     pxPerFrame = pxPerFramePx,
@@ -90,7 +89,25 @@ internal fun TimelineScrollSeekSync(
                 if (abs(offset - expected) < 1.5f) return@collect
                 val frame = CenterPlayhead.frameAtPlayhead(offset.toFloat(), pxPerFramePx)
                 val ms = (frame * 1_000L / fps).coerceIn(0L, totalMs)
-                if (abs(ms - currentPositionMs.value) >= 2L) latestOnSeek(ms)
+                if (abs(ms - currentPositionMs.value) < 2L) return@collect
+                if (latestIsPlaying) {
+                    // LIVE SCRUB WHILE PLAYING: the position -> scroll sync
+                    // above also runs during playback, so an unthrottled seek
+                    // would queue dozens of expensive CompositionPlayer seeks
+                    // per second. A 4 Hz seek keeps the preview chasing the
+                    // finger without starving the encoder.
+                    val now = System.currentTimeMillis()
+                    if (now - lastLiveSeekAt < LIVE_SEEK_INTERVAL_MS &&
+                        abs(ms - lastLiveSeekMs) < (ms * 20L).coerceAtLeast(100L)
+                    ) {
+                        return@collect
+                    }
+                    lastLiveSeekAt = now
+                    lastLiveSeekMs = ms
+                    latestOnSeek(ms)
+                    return@collect
+                }
+                latestOnSeek(ms)
             }
     }
 }

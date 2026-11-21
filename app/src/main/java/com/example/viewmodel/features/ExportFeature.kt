@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.viewModelScope
+import com.example.data.ClipTiming
 import com.example.data.ExportServiceScheduler
 import com.example.data.GifExporter
 import com.example.data.ShareHelper
@@ -29,26 +30,63 @@ internal object ExportFeature {
      */
     fun startSelectedExport(vm: EditorViewModel) {
         val settings = vm._exportSettings.value
-        val boost = AudioBoost.gainFor(settings.boostLoudness)
         if (settings.tab == "gif") {
-            // Real GIF: render the timeline, then encode the frames into a
-            // GIF89a file (the quality chip picks the render resolution).
-            val resolution = when (settings.gifQuality) {
+            val boost = AudioBoost.gainFor(settings.boostLoudness)
+            val gifResolution = when (settings.gifQuality) {
                 "320P" -> "720P"
                 "640P" -> "1080P"
                 else -> "480P"
             }
-            startGifExport(vm, resolution = resolution, audioBoost = boost)
+            startGifExport(vm, resolution = gifResolution, audioBoost = boost)
+            return
+        }
+        if (settings.boostLoudness) {
+            // Loudness normalisation: measure the sounding sources, then
+            // drive the mix to the -14 dBFS social target (peak-capped)
+            // instead of a blanket gain. Falls back to the classic +3 dB
+            // boost when nothing can be measured.
+            val context = vm.context
+            val project = vm._currentProject.value
+            vm.viewModelScope.launch {
+                val boost = if (context != null && project != null) {
+                    val sources: List<Triple<String, Long, Long>> = buildList {
+                        project.clips.filter { !it.isMuted && !it.uriString.isNullOrBlank() }.forEach {
+                            add(Triple(it.uriString!!, it.trimStartMs, ClipTiming.sourceLengthMs(it)))
+                        }
+                        project.audioTracks.filter { !it.isMuted && !it.uriString.isNullOrBlank() }.forEach {
+                            // AudioClip carries its own trim fields; the span
+                            // is the trimmed window or the original length.
+                            val span = if (it.trimEndMs > it.trimStartMs) {
+                                it.trimEndMs - it.trimStartMs
+                            } else {
+                                it.originalDurationMs.coerceAtLeast(it.durationMs)
+                            }
+                            add(Triple(it.uriString!!, it.trimStartMs, span))
+                        }
+                    }
+                    com.example.data.LoudnessProbe.measure(context, sources)
+                } else {
+                    AudioBoost.gainFor(true)
+                }
+                startExport(
+                    vm,
+                    resolution = settings.resolution,
+                    fps = settings.fps,
+                    bitrateMbps = settings.bitrateMbps,
+                    audioBoost = boost
+                )
+            }
         } else {
             startExport(
                 vm,
                 resolution = settings.resolution,
                 fps = settings.fps,
                 bitrateMbps = settings.bitrateMbps,
-                audioBoost = boost
+                audioBoost = 1f
             )
         }
     }
+
 
     /**
      * GIF export: renders the timeline at [resolution] (so filters, text,
@@ -366,15 +404,37 @@ internal object ExportFeature {
             fps = fps
         )
 
-        ExportServiceScheduler.startExport(
-            context,
-            project,
-            resolution,
-            fps,
-            vm._watermarkEnabled.value,
-            bitrateMbps.coerceIn(1, 100),
-            AudioBoost.gainFor(vm._exportSettings.value.boostLoudness)
-        )
+        vm.viewModelScope.launch {
+            val boost = if (vm._exportSettings.value.boostLoudness) {
+                // Background exports get the same measured normalisation.
+                val sources: List<Triple<String, Long, Long>> = buildList {
+                    project.clips.filter { !it.isMuted && !it.uriString.isNullOrBlank() }.forEach {
+                        add(Triple(it.uriString!!, it.trimStartMs, ClipTiming.sourceLengthMs(it)))
+                    }
+                    project.audioTracks.filter { !it.isMuted && !it.uriString.isNullOrBlank() }.forEach {
+                        val span = if (it.trimEndMs > it.trimStartMs) {
+                            it.trimEndMs - it.trimStartMs
+                        } else {
+                            it.originalDurationMs.coerceAtLeast(it.durationMs)
+                        }
+                        add(Triple(it.uriString!!, it.trimStartMs, span))
+                    }
+                }
+                vm.context?.let { com.example.data.LoudnessProbe.measure(it, sources) }
+                    ?: AudioBoost.gainFor(true)
+            } else {
+                1f
+            }
+            ExportServiceScheduler.startExport(
+                context,
+                project,
+                resolution,
+                fps,
+                vm._watermarkEnabled.value,
+                bitrateMbps.coerceIn(1, 100),
+                boost
+            )
+        }
     }
 
     /** Stops an in-flight render and closes the export sheet. */

@@ -1,6 +1,7 @@
 package com.example.engine
 
 import com.example.model.VideoProject
+import kotlin.math.abs
 
 /**
  * The export-time loudness boost.
@@ -22,6 +23,9 @@ object AudioBoost {
     /** No source is scaled above this, so the mix cannot explode. */
     const val MAX_GAIN = 2f
 
+    /** Floor for loudness-normalisation cuts (never silence a source). */
+    const val MIN_GAIN = 0.25f
+
     /** The gain that belongs to a boost toggle. */
     fun gainFor(boost: Boolean): Float = if (boost) SOCIAL_GAIN else 1f
 
@@ -32,11 +36,13 @@ object AudioBoost {
      * rendered file is louder.
      */
     fun boosted(project: VideoProject, gain: Float): VideoProject {
-        if (!gain.isFinite() || gain <= 1.001f) return project
-        val factor = gain.coerceIn(1f, MAX_GAIN)
+        // Loudness normalisation may CUT as well as boost, so gains below 1
+        // are real work now - only a no-op gain is skipped.
+        if (!gain.isFinite() || abs(gain - 1f) <= 0.001f) return project
+        val factor = gain.coerceIn(MIN_GAIN, MAX_GAIN)
         return project.copy(
             clips = project.clips.map { clip ->
-                clip.copy(volume = (clip.volume * factor).coerceAtMost(MAX_GAIN))
+                clip.copy(volume = (clip.volume * factor).coerceIn(0f, MAX_GAIN))
             },
             overlayTracks = project.overlayTracks.map { track ->
                 track.copy(
